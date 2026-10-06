@@ -1,0 +1,54 @@
+# ───────────────────────── Secrets & environment ─────────────────────────
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials
+credentials.*
+secrets.*
+*secret*
+*_token*
+*apikey*
+*api_key*
+config.yaml
+configs/config.yaml
+
+# ───────────────────────── Scan results & client data ────────────────────
+# ReconX writes recon output here — may contain target/client intelligence.
+reports/
+results/
+output/
+scope.txt
+scope-*.txt
+*.scope
+cache/
+*.db
+
+# ───────────────────────── Compiled binaries ─────────────────────────────
+*.exe
+*.dll
+*.so
+*.dylib
+/reconx
+bin/
+
+# ───────────────────────── Go build / test artifacts ─────────────────────
+*.test
+*.out
+vendor/
+go.work
+go.work.sum
+
+# ───────────────────────── Logs ──────────────────────────────────────────
+*.log
+logs/
+
+# ───────────────────────── OS / editor junk ──────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

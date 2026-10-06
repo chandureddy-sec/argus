@@ -1,0 +1,28 @@
+# ReconX Configuration Example
+
+# Global settings
+timeout: 15s
+concurrency: 10
+passive_only: true
+verbose: false
+
+# Custom DNS resolvers
+resolvers:
+  - "1.1.1.1:53"
+  - "8.8.8.8:53"
+  - "9.9.9.9:53"
+
+# Provider credentials and settings
+providers:
+  crtsh:
+    enabled: true
+    timeout: 20s
+  virustotal:
+    enabled: false
+    api_key: "${VT_API_KEY}"
+  shodan:
+    enabled: false
+    api_key: "${SHODAN_API_KEY}"
+  hackertarget:
+    enabled: true
+    rate_limit: 2s
