@@ -101,7 +101,7 @@ func RunScanPipeline(ctx context.Context, opts ScanOptions, progress func(Progre
 			report.DNS = res
 		}
 
-		emit("subdomains", "Passive subdomain discovery (5 public sources)…", 20, "info")
+		emit("subdomains", fmt.Sprintf("Passive subdomain discovery (%d public sources)…", len(getSubdomainProviders())), 20, "info")
 		raw, assets, _, statuses := gatherSubdomains(ctx, parsed)
 		report.Subdomains = raw
 		report.Assets = assets

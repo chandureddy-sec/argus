@@ -107,6 +107,28 @@ type HostIntel struct {
 	InterestScore   int               `json:"interest_score"`
 	InterestFactors []string          `json:"interest_factors,omitempty"`
 	Lifecycle       string            `json:"lifecycle"` // new | active | changed | historical
+	// Web is the newest third-party page capture of this host (urlscan.io).
+	Web *WebCapture `json:"web,omitempty"`
+	// CodeRefs are public GitHub files that mention this hostname.
+	CodeRefs []string `json:"code_refs,omitempty"`
+}
+
+// WebCapture is an archived page observation made by a third party. It shows
+// what the host served when someone else scanned it, not its current state.
+type WebCapture struct {
+	Source       string     `json:"source"` // urlscan
+	URL          string     `json:"url,omitempty"`
+	Title        string     `json:"title,omitempty"`
+	Server       string     `json:"server,omitempty"` // HTTP Server header
+	HTTPStatus   string     `json:"http_status,omitempty"`
+	IP           string     `json:"ip,omitempty"`
+	ASN          string     `json:"asn,omitempty"`
+	TLSIssuer    string     `json:"tls_issuer,omitempty"`
+	Technologies []string   `json:"technologies,omitempty"` // Wappalyzer, keyed urlscan only
+	Screenshot   string     `json:"screenshot,omitempty"`   // link only; never downloaded
+	ScanURL      string     `json:"scan_url,omitempty"`
+	Scans        int        `json:"scans,omitempty"`
+	CapturedAt   *time.Time `json:"captured_at,omitempty"`
 }
 
 // IPInfo is an enriched IP address.
@@ -130,6 +152,52 @@ type IPInfo struct {
 	Provider     string   `json:"provider,omitempty"`      // inferred
 	ProviderKind string   `json:"provider_kind,omitempty"` // cloud | cdn | hosting | ...
 	Sources      []string `json:"sources,omitempty"`
+	// Exposure is Shodan InternetDB's last crawl of this IP (third-party
+	// observation, not a live check). Nil when the IP is not in its index.
+	Exposure *IPExposure `json:"exposure,omitempty"`
+	// Routing is RIPEstat's independent BGP view, cross-checked against
+	// Team Cymru. Nil when RIPEstat had no answer.
+	Routing *RoutingCheck `json:"routing,omitempty"`
+}
+
+// RoutingCheck records RIPEstat's routing data for an IP and how it compares
+// with Team Cymru's. Disagreements are listed, never silently resolved.
+type RoutingCheck struct {
+	Source    string   `json:"source"` // ripestat
+	ASNs      []string `json:"asns,omitempty"`
+	Holder    string   `json:"holder,omitempty"`
+	Prefix    string   `json:"prefix,omitempty"`
+	Announced bool     `json:"announced"`
+	RIR       string   `json:"rir,omitempty"`
+	Upstreams []string `json:"upstreams,omitempty"` // strongest left-neighbour ASNs of the origin
+	Agreement string   `json:"agreement"`           // agree | disagree | ripestat-only
+	Conflicts []string `json:"conflicts,omitempty"`
+}
+
+// IPExposure is what Shodan's crawlers last saw on an IP. The CVE list is
+// Shodan's version-based match against observed banners/CPEs: an unverified
+// indicator, not a confirmed vulnerability.
+type IPExposure struct {
+	Ports     []int    `json:"ports,omitempty"`
+	CPEs      []string `json:"cpes,omitempty"`
+	Hostnames []string `json:"hostnames,omitempty"` // names Shodan associates with the IP
+	Tags      []string `json:"tags,omitempty"`      // e.g. cdn, cloud, self-signed
+	Vulns     []CVERef `json:"vulns,omitempty"`
+}
+
+// CVERef is a CVE ID reported against an IP, enriched from Shodan CVEDB with
+// exploitation context (CISA KEV, FIRST EPSS) to help triage the list.
+type CVERef struct {
+	ID             string  `json:"id"`
+	Enriched       bool    `json:"enriched"` // false when CVEDB had no record or was unreachable
+	CVSS           float64 `json:"cvss,omitempty"`
+	CVSSVersion    float64 `json:"cvss_version,omitempty"`
+	EPSS           float64 `json:"epss,omitempty"`            // probability of exploitation in the next 30 days
+	EPSSPercentile float64 `json:"epss_percentile,omitempty"` // 0–1 rank among all scored CVEs
+	KEV            bool    `json:"kev,omitempty"`             // in CISA's Known Exploited Vulnerabilities catalog
+	Ransomware     string  `json:"ransomware,omitempty"`      // KEV ransomware-campaign use, e.g. "Known"
+	Published      string  `json:"published,omitempty"`
+	Summary        string  `json:"summary,omitempty"`
 }
 
 // CertInfo is one certificate observed in Certificate Transparency logs.
@@ -322,21 +390,27 @@ type DanglingIndicator struct {
 
 // Aggregates are the headline attack-surface metrics.
 type Aggregates struct {
-	Subdomains      int        `json:"subdomains"`
-	Resolving       int        `json:"resolving"`
-	UniqueIPs       int        `json:"unique_ips"`
-	IPv4            int        `json:"ipv4"`
-	IPv6            int        `json:"ipv6"`
-	ASNs            int        `json:"asns"`
-	Countries       int        `json:"countries"`
-	Certificates    int        `json:"certificates"`
-	HistoricalHosts int        `json:"historical_hosts"`
-	HistoricalIPs   int        `json:"historical_ips"`
-	HighInterest    int        `json:"high_interest"`
-	ByCloud         []Count    `json:"by_cloud,omitempty"`
-	ByCountry       []Count    `json:"by_country,omitempty"`
-	ByRole          []Count    `json:"by_role,omitempty"`
-	ByASN           []ASNCount `json:"by_asn,omitempty"`
+	Subdomains      int `json:"subdomains"`
+	Resolving       int `json:"resolving"`
+	UniqueIPs       int `json:"unique_ips"`
+	IPv4            int `json:"ipv4"`
+	IPv6            int `json:"ipv6"`
+	ASNs            int `json:"asns"`
+	Countries       int `json:"countries"`
+	Certificates    int `json:"certificates"`
+	HistoricalHosts int `json:"historical_hosts"`
+	HistoricalIPs   int `json:"historical_ips"`
+	HighInterest    int `json:"high_interest"`
+	// Shodan InternetDB exposure (third-party crawl data).
+	ExposedIPs       int        `json:"exposed_ips,omitempty"`       // IPs present in InternetDB
+	OpenPorts        int        `json:"open_ports,omitempty"`        // distinct ip:port pairs
+	ReportedCVEs     int        `json:"reported_cves,omitempty"`     // distinct CVE IDs (unverified)
+	KEVCVEs          int        `json:"kev_cves,omitempty"`          // of those, listed in CISA KEV
+	RoutingConflicts int        `json:"routing_conflicts,omitempty"` // IPs where RIPEstat and Team Cymru disagree
+	ByCloud          []Count    `json:"by_cloud,omitempty"`
+	ByCountry        []Count    `json:"by_country,omitempty"`
+	ByRole           []Count    `json:"by_role,omitempty"`
+	ByASN            []ASNCount `json:"by_asn,omitempty"`
 }
 
 type Count struct {

@@ -13,6 +13,7 @@ import (
 	"reconx/internal/enrich"
 	"reconx/internal/normalize"
 	"reconx/internal/orchestrator"
+	"reconx/internal/providers"
 	"reconx/internal/providers/alienvault"
 	"reconx/internal/providers/crtsh"
 	"reconx/pkg/models"
@@ -53,6 +54,9 @@ var purposes = map[string]string{
 	"alienvault":   "Subdomains from OTX passive DNS",
 	"anubis":       "Subdomains from Anubis dataset",
 	"wayback":      "Hostnames from archived URLs",
+	"urlscan":      "Hostnames, page titles, servers and screenshots from urlscan.io's public scan archive",
+	"certspotter":  "Subdomains from Cert Spotter (SSLMate) Certificate Transparency monitor",
+	"githubcode":   "Hostnames mentioned in public code on GitHub (needs RECONX_GITHUB_TOKEN)",
 }
 
 // Collect builds the passive intelligence model. Every query here goes to a
@@ -77,7 +81,11 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	// ── Certificates (shared crt.sh response) ──
 	progress("Analysing Certificate Transparency certificates…")
 	start := time.Now()
-	entries, err := crtsh.FetchEntries(ctx, domain, 35*time.Second)
+	// Each shared-response stage gets its own budget: a flaky upstream (crt.sh
+	// often 502s and is retried) must not consume the rest of the scan.
+	entries, err := withBudget(ctx, 40*time.Second, func(ctx context.Context) ([]crtsh.Entry, error) {
+		return crtsh.FetchEntries(ctx, domain, 35*time.Second)
+	})
 	var hostCerts map[string]int
 	pi.Certificates, pi.CertSummary, hostCerts = BuildCertificates(entries, domain, now)
 	pi.Sources = append(pi.Sources, sourceRun("crtsh-certificates", "Certificate details (shared crt.sh response)", time.Since(start), err, pi.CertSummary.Total))
@@ -105,7 +113,9 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	// ── Historical DNS (shared OTX response) ──
 	progress("Collecting historical DNS (OTX passive DNS)…")
 	start = time.Now()
-	pdns, err := alienvault.FetchPassiveDNS(ctx, domain, 35*time.Second)
+	pdns, err := withBudget(ctx, 40*time.Second, func(ctx context.Context) ([]alienvault.PassiveDNSRecord, error) {
+		return alienvault.FetchPassiveDNS(ctx, domain, 35*time.Second)
+	})
 	pi.Sources = append(pi.Sources, sourceRun("otx-passive-dns", "Historical DNS values (shared OTX response)", time.Since(start), err, len(pdns)))
 	history := map[string][]models.HistoricalValue{}
 	for _, rec := range pdns {
@@ -157,7 +167,7 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 			present++
 		}
 	}
-	pi.Sources = append(pi.Sources, sourceRun("dns-posture", "DNSSEC, CAA, SPF, DMARC, DKIM, MTA-STS, TLS-RPT (public resolvers)", time.Since(start), nil, present))
+	pi.Sources = append(pi.Sources, partialRun(sourceRun("dns-posture", "DNSSEC, CAA, SPF, DMARC, DKIM, MTA-STS, TLS-RPT (public resolvers)", time.Since(start), ctx.Err(), present), present))
 
 	// ── Resolve every host, nameserver and MX ──
 	hostSet := map[string]bool{}
@@ -184,7 +194,7 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 			resolving++
 		}
 	}
-	pi.Sources = append(pi.Sources, sourceRun("dns-resolution", "Current A/AAAA/CNAME for every host (public resolvers)", time.Since(start), nil, resolving))
+	pi.Sources = append(pi.Sources, partialRun(sourceRun("dns-resolution", "Current A/AAAA/CNAME for every host (public resolvers)", time.Since(start), ctx.Err(), resolving), resolving))
 
 	// ── Enrich every IP ──
 	ipHosts := map[string][]string{}
@@ -214,7 +224,13 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	pi.Sources = append(pi.Sources, sourceRun("ip-api", "IP geolocation, ASN, ISP, reverse DNS", time.Since(start), ipErr, enriched))
 	start = time.Now()
 	prefixes := LookupPrefixes(ctx, r, allIPs)
-	pi.Sources = append(pi.Sources, sourceRun("team-cymru", "Announced prefix, RIR, allocation date (DNS)", time.Since(start), nil, len(prefixes)))
+	pi.Sources = append(pi.Sources, partialRun(sourceRun("team-cymru", "Announced prefix, RIR, allocation date (DNS)", time.Since(start), ctx.Err(), len(prefixes)), len(prefixes)))
+	progress(fmt.Sprintf("Cross-checking routing for %d IPs (RIPEstat)…", len(allIPs)))
+	start = time.Now()
+	routing, rtErr := withBudget(ctx, 90*time.Second, func(ctx context.Context) (map[string]*enrich.RoutingInfo, error) {
+		return enrich.NewRIPEstat(15*time.Second).LookupBatch(ctx, allIPs)
+	})
+	pi.Sources = append(pi.Sources, partialRun(sourceRun("ripestat", "Origin ASN, prefix, RIR and upstreams (cross-check of Team Cymru)", time.Since(start), rtErr, len(routing)), len(routing)))
 	var noPTR []string
 	for _, ip := range allIPs {
 		if ipMeta[ip].PTR == "" {
@@ -223,7 +239,15 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	}
 	start = time.Now()
 	ptrs := LookupPTR(ctx, r, noPTR)
-	pi.Sources = append(pi.Sources, sourceRun("reverse-dns", "PTR records (public resolvers)", time.Since(start), nil, len(ptrs)))
+	pi.Sources = append(pi.Sources, partialRun(sourceRun("reverse-dns", "PTR records (public resolvers)", time.Since(start), ctx.Err(), len(ptrs)), len(ptrs)))
+
+	// ── Exposure from Shodan's crawl data (InternetDB) ──
+	progress(fmt.Sprintf("Looking up %d IPs in Shodan InternetDB…", len(allIPs)))
+	start = time.Now()
+	exposures, expErr := withBudget(ctx, 90*time.Second, func(ctx context.Context) (map[string]*models.IPExposure, error) {
+		return NewInternetDB(10*time.Second).LookupBatch(ctx, allIPs)
+	})
+	pi.Sources = append(pi.Sources, partialRun(sourceRun("shodan-internetdb", "Open ports, CPEs, tags and CVE IDs from Shodan's last crawl", time.Since(start), expErr, len(exposures)), len(exposures)))
 
 	ipInfo := map[string]*models.IPInfo{}
 	for _, ip := range allIPs {
@@ -247,11 +271,41 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 			}
 			info.Sources = append(info.Sources, "team-cymru")
 		}
+		if rt := routing[ip]; rt != nil {
+			cy, hasCymru := prefixes[ip]
+			info.Routing = CompareRouting(rt, cy, hasCymru)
+			// Fill only what Team Cymru left blank; conflicts stay in Routing.
+			if info.Prefix == "" {
+				info.Prefix = rt.Prefix
+			}
+			if info.RIR == "" {
+				info.RIR = rt.RIR
+			}
+			if info.ASN == "" && len(rt.ASNs) > 0 {
+				info.ASN = info.Routing.ASNs[0]
+			}
+			info.Sources = append(info.Sources, "ripestat")
+		}
+		if exp := exposures[ip]; exp != nil {
+			info.Exposure = exp
+			info.Sources = append(info.Sources, "shodan-internetdb")
+		}
 		if rule := MatchIP(info.ASN, info.Organization, info.ISP, info.ASName); rule != nil {
 			info.Provider, info.ProviderKind = rule.Name, rule.Kind
 		}
 		ipInfo[ip] = info
 		pi.IPs = append(pi.IPs, *info)
+	}
+
+	// ── CVE exploitation context (Shodan CVEDB: CVSS, EPSS, CISA KEV) ──
+	if ids := exposureCVEIDs(pi.IPs); len(ids) > 0 {
+		progress(fmt.Sprintf("Enriching %d CVE IDs from Shodan CVEDB (KEV, EPSS)…", len(ids)))
+		start = time.Now()
+		details, cveErr := withBudget(ctx, 120*time.Second, func(ctx context.Context) (map[string]*models.CVERef, error) {
+			return NewCVEDB(10*time.Second).LookupBatch(ctx, ids)
+		})
+		ApplyCVEDetails(pi.IPs, details)
+		pi.Sources = append(pi.Sources, partialRun(sourceRun("shodan-cvedb", "CVSS, EPSS and CISA KEV status for reported CVE IDs", time.Since(start), cveErr, len(details)), len(details)))
 	}
 
 	// ── Nameservers & mail servers ──
@@ -295,8 +349,16 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 
 	// ── Hosts ──
 	rawBySource := map[string]map[string][2]*time.Time{} // host -> source -> first,last
+	web := map[string]*models.WebCapture{}
+	codeRefs := map[string][]string{}
 	for _, rr := range in.Raw {
 		h := strings.ToLower(rr.Value)
+		if wc := webCapture(rr); wc != nil {
+			web[h] = wc
+		}
+		if refs := rr.Metadata["code_refs"]; refs != "" && strings.Contains(rr.Source, "githubcode") {
+			codeRefs[h] = strings.Fields(refs)
+		}
 		if rawBySource[h] == nil {
 			rawBySource[h] = map[string][2]*time.Time{}
 		}
@@ -355,6 +417,8 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 		}
 
 		h.Role, h.Indicators = Classify(a.Asset, domain)
+		h.Web = web[a.Asset]
+		h.CodeRefs = codeRefs[a.Asset]
 		if len(res.IPs) > 0 {
 			if ip := ipInfo[res.IPs[0]]; ip != nil {
 				h.ASN, h.Organization, h.Country = ip.ASN, ip.Organization, ip.Country
@@ -407,9 +471,21 @@ func Finalize(pi *models.PassiveIntel) {
 	ag := models.Aggregates{Subdomains: len(pi.Hosts), Certificates: pi.CertSummary.Total}
 	cloud, role := map[string]int{}, map[string]int{}
 	histIPs := map[string]bool{}
+	kevByIP := map[string][]string{}
+	for _, ip := range pi.IPs {
+		if ip.Exposure == nil {
+			continue
+		}
+		for _, v := range ip.Exposure.Vulns {
+			if v.KEV {
+				kevByIP[ip.IP] = append(kevByIP[ip.IP], v.ID)
+			}
+		}
+	}
 	for i := range pi.Hosts {
 		h := &pi.Hosts[i]
 		ScoreInterest(h, dangling[h.Hostname])
+		AddExposureInterest(h, kevByIP)
 		if h.DNSStatus == "resolves" {
 			ag.Resolving++
 		} else {
@@ -433,8 +509,22 @@ func Finalize(pi *models.PassiveIntel) {
 		}
 	}
 	country, asns := map[string]int{}, map[string]*models.ASNCount{}
+	cves, kevs := map[string]bool{}, map[string]bool{}
 	for _, ip := range pi.IPs {
 		ag.UniqueIPs++
+		if ip.Routing != nil && ip.Routing.Agreement == "disagree" {
+			ag.RoutingConflicts++
+		}
+		if e := ip.Exposure; e != nil {
+			ag.ExposedIPs++
+			ag.OpenPorts += len(e.Ports)
+			for _, v := range e.Vulns {
+				cves[v.ID] = true
+				if v.KEV {
+					kevs[v.ID] = true
+				}
+			}
+		}
 		if ip.Version == "IPv6" {
 			ag.IPv6++
 		} else {
@@ -474,7 +564,7 @@ func Finalize(pi *models.PassiveIntel) {
 			ag.HistoricalIPs++
 		}
 	}
-	ag.ASNs, ag.Countries = len(asns), len(country)
+	ag.ASNs, ag.Countries, ag.ReportedCVEs, ag.KEVCVEs = len(asns), len(country), len(cves), len(kevs)
 	ag.ByCloud, ag.ByCountry, ag.ByRole = toCounts(cloud), toCounts(country), toCounts(role)
 	for _, a := range asns {
 		ag.ByASN = append(ag.ByASN, *a)
@@ -589,6 +679,10 @@ func findRule(name string) *Rule {
 
 func sourceRun(name, purpose string, d time.Duration, err error, results int) models.SourceRun {
 	s := models.SourceRun{Name: name, Purpose: purpose, DurationMs: d.Milliseconds(), Results: results, Reliability: Reliability(baseSource(name)), Status: models.SourceSuccess}
+	if errors.Is(err, providers.ErrSkipped) {
+		s.Error, s.Status, s.Results = err.Error(), models.SourceSkipped, 0
+		return s
+	}
 	if err != nil {
 		s.Error = err.Error()
 		s.Status = models.SourceError
@@ -598,6 +692,43 @@ func sourceRun(name, purpose string, d time.Duration, err error, results int) mo
 		}
 	}
 	return s
+}
+
+// webCapture rebuilds a urlscan page capture from a raw result's metadata.
+func webCapture(rr models.RawResult) *models.WebCapture {
+	m := rr.Metadata
+	if !strings.Contains(rr.Source, "urlscan") || m["scan_url"] == "" {
+		return nil
+	}
+	wc := &models.WebCapture{
+		Source: "urlscan", URL: m["url"], Title: m["title"], Server: m["server"], HTTPStatus: m["http_status"],
+		IP: m["ip"], ASN: m["asn"], TLSIssuer: m["tls_issuer"], Screenshot: m["screenshot"], ScanURL: m["scan_url"],
+		CapturedAt: tptr(parseAny(m["last_seen"])),
+	}
+	wc.Scans, _ = strconv.Atoi(m["scans"])
+	if t := m["technologies"]; t != "" {
+		wc.Technologies = strings.Split(t, ", ")
+	}
+	return wc
+}
+
+// partialRun keeps a source counted as successful when some of its lookups
+// failed but others returned data; the error text is kept as a note.
+func partialRun(s models.SourceRun, results int) models.SourceRun {
+	if s.Status != models.SourceSuccess && results > 0 {
+		s.Status = models.SourceSuccess
+		s.Results = results
+		s.Error = "partial: " + s.Error
+	}
+	return s
+}
+
+// withBudget runs fn under its own deadline so one slow third-party source
+// cannot stall the rest of the scan. Partial results are still returned.
+func withBudget[T any](ctx context.Context, d time.Duration, fn func(context.Context) (T, error)) (T, error) {
+	ctx, cancel := context.WithTimeout(ctx, d)
+	defer cancel()
+	return fn(ctx)
 }
 
 func baseSource(name string) string {

@@ -76,6 +76,12 @@ func DoWithRetry(ctx context.Context, client *http.Client, req *http.Request, cf
 		delay := backoffDelay(cfg, attempt)
 		if resp != nil {
 			if ra := parseRetryAfter(resp.Header.Get("Retry-After")); ra > 0 {
+				// A server asking for longer than we would ever back off (e.g.
+				// an hourly quota) won't recover within a scan: give up now
+				// and hand back the response rather than stall the caller.
+				if ra > cfg.MaxDelay {
+					return resp, nil
+				}
 				delay = ra
 			}
 			// Drain and close the body so the connection can be reused.

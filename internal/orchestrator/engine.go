@@ -2,6 +2,7 @@ package orchestrator
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -85,7 +86,9 @@ func (e *Engine) RunRaw(ctx context.Context, t models.Target) ([]models.RawResul
 			elapsed := time.Since(start)
 
 			status := ProviderStatus{Name: prov.Name(), Elapsed: elapsed, Err: err}
-			if err != nil {
+			if errors.Is(err, providers.ErrSkipped) {
+				slog.Info("provider skipped", slog.String("provider", prov.Name()), slog.String("reason", err.Error()))
+			} else if err != nil {
 				slog.Warn("provider query failed (degraded gracefully)",
 					slog.String("provider", prov.Name()),
 					slog.String("error", err.Error()),

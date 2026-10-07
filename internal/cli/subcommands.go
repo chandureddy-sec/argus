@@ -13,19 +13,22 @@ import (
 	"reconx/internal/providers"
 	"reconx/internal/providers/alienvault"
 	"reconx/internal/providers/anubis"
+	"reconx/internal/providers/certspotter"
 	"reconx/internal/providers/crtsh"
+	"reconx/internal/providers/githubcode"
 	"reconx/internal/providers/hackertarget"
+	"reconx/internal/providers/urlscan"
 	"reconx/internal/providers/wayback"
 	"reconx/internal/target"
 	"reconx/internal/ui"
 )
 
 var (
-	subDomainFlag   string
-	dnsDomainFlag   string
-	certDomainFlag  string
-	ipTargetFlag    string
-	histDomainFlag  string
+	subDomainFlag  string
+	dnsDomainFlag  string
+	certDomainFlag string
+	ipTargetFlag   string
+	histDomainFlag string
 )
 
 func getSubdomainProviders() []providers.Provider {
@@ -35,6 +38,9 @@ func getSubdomainProviders() []providers.Provider {
 		hackertarget.NewProvider(15 * time.Second),
 		anubis.NewProvider(15 * time.Second),
 		wayback.NewProvider(15 * time.Second),
+		urlscan.NewProvider(15 * time.Second),
+		certspotter.NewProvider(15 * time.Second),
+		githubcode.NewProvider(15 * time.Second),
 	}
 }
 
@@ -310,8 +316,6 @@ func incrementIP(ip net.IP) {
 	}
 }
 
-
-
 var historyCmd = &cobra.Command{
 	Use:   "history",
 	Short: "Discover historical endpoints and archived URLs via Wayback Machine CDX",
@@ -368,7 +372,6 @@ var historyCmd = &cobra.Command{
 		return nil
 	},
 }
-
 
 var versionCmd = &cobra.Command{
 	Use:   "version",

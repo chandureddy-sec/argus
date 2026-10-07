@@ -150,14 +150,7 @@ func ScoreInterest(h *models.HostIntel, dangling bool) {
 	}
 	h.InterestScore = score
 	h.InterestFactors = f
-	switch {
-	case score >= 5:
-		h.Interest = "high"
-	case score >= 3:
-		h.Interest = "medium"
-	default:
-		h.Interest = "low"
-	}
+	setInterestLevel(h)
 }
 
 // ── Confidence & recency ─────────────────────────────────────────────────────
@@ -175,8 +168,14 @@ var sourceReliability = map[string]struct {
 	"hackertarget": {models.ReliabilityMedium, 0.65},
 	"anubis":       {models.ReliabilityMedium, 0.60},
 	"wayback":      {models.ReliabilityMedium, 0.60},
-	"ip-api":       {models.ReliabilityMedium, 0.70}, // geolocation is approximate
-	"team-cymru":   {models.ReliabilityHigh, 0.90},   // BGP-derived
+	"urlscan":      {models.ReliabilityMediumHigh, 0.75}, // a real page load, but by a third party at some past date
+	"certspotter":  {models.ReliabilityHigh, 0.90},       // CT log entries, like crt.sh
+	"githubcode":   {models.ReliabilityMedium, 0.55},     // a mention in code; may be stale, a typo or an example
+	"ip-api":       {models.ReliabilityMedium, 0.70},     // geolocation is approximate
+	"team-cymru":   {models.ReliabilityHigh, 0.90},       // BGP-derived
+
+	"shodan-internetdb": {models.ReliabilityMediumHigh, 0.80}, // crawl snapshot, may be days old
+	"ripestat":          {models.ReliabilityHigh, 0.90},       // BGP-derived (RIPE RIS)
 }
 
 // Reliability returns the reliability level for a source name.
@@ -267,4 +266,36 @@ func contains(list []string, s string) bool {
 		}
 	}
 	return false
+}
+
+// AddExposureInterest raises a host's interest when one of its current IPs
+// has a CVE that Shodan reports and CISA lists as known-exploited. The CVE
+// match is Shodan's version-based inference, so it is labelled unverified.
+func AddExposureInterest(h *models.HostIntel, kevByIP map[string][]string) {
+	var ids []string
+	for _, ip := range h.IPs {
+		ids = append(ids, kevByIP[ip]...)
+	}
+	ids = dedupe(ids)
+	if len(ids) == 0 {
+		return
+	}
+	shown := ids
+	if len(shown) > 3 {
+		shown = shown[:3]
+	}
+	h.InterestScore += 2
+	h.InterestFactors = append(h.InterestFactors, fmt.Sprintf("%+d IP has CISA KEV-listed CVE reported by Shodan (unverified): %s", 2, strings.Join(shown, ", ")))
+	setInterestLevel(h)
+}
+
+func setInterestLevel(h *models.HostIntel) {
+	switch {
+	case h.InterestScore >= 5:
+		h.Interest = "high"
+	case h.InterestScore >= 3:
+		h.Interest = "medium"
+	default:
+		h.Interest = "low"
+	}
 }

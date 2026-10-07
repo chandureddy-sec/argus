@@ -48,12 +48,12 @@ func writeIntelMarkdown(sb *strings.Builder, rep *models.ScanReport) {
 
 	sb.WriteString("## Subdomains\n\n")
 	sb.WriteString("_DNS, IPs and sources are observed; ASN/org are enriched; cloud, role and interest are inferred and require verification._\n\n")
-	sb.WriteString("| Hostname | Lifecycle | DNS | Confidence | Sources | IPs | Likely role | Cloud / CDN | Interest |\n")
-	sb.WriteString("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n")
+	sb.WriteString("| Hostname | Lifecycle | DNS | Confidence | Sources | IPs | Likely role | Cloud / CDN | Interest | Archived page (urlscan) |\n")
+	sb.WriteString("| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n")
 	for _, h := range pi.Hosts {
-		fmt.Fprintf(sb, "| `%s` | %s | %s | %d (%s) | %s | %s | %s | %s | %s |\n",
+		fmt.Fprintf(sb, "| `%s` | %s | %s | %d (%s) | %s | %s | %s | %s | %s | %s |\n",
 			h.Hostname, h.Lifecycle, h.DNSStatus, h.Confidence, h.ConfidenceLevel, strings.Join(h.Sources, ", "),
-			dash(strings.Join(h.IPs, ", ")), h.Role, dash(strings.TrimSpace(h.CDN+" "+h.Cloud)), h.Interest)
+			dash(strings.Join(h.IPs, ", ")), h.Role, dash(strings.TrimSpace(h.CDN+" "+h.Cloud)), h.Interest, webCell(h.Web))
 	}
 	sb.WriteString("\n")
 
@@ -64,6 +64,10 @@ func writeIntelMarkdown(sb *strings.Builder, rep *models.ScanReport) {
 		}
 		sb.WriteString("\n")
 	}
+
+	writeExposureMarkdown(sb, pi)
+	writeRoutingMarkdown(sb, pi)
+	writeCodeRefsMarkdown(sb, pi)
 
 	if es := pi.Email; es != nil {
 		fmt.Fprintf(sb, "## Email Security — %d/%d\n\n", es.Score, es.MaxScore)
@@ -122,4 +126,97 @@ func dash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+// writeExposureMarkdown lists Shodan InternetDB data per IP.
+func writeExposureMarkdown(sb *strings.Builder, pi *models.PassiveIntel) {
+	ag := pi.Aggregates
+	if ag.ExposedIPs == 0 {
+		return
+	}
+	sb.WriteString("## Exposure — Shodan InternetDB\n\n")
+	fmt.Fprintf(sb, "_%d of %d IPs indexed · %d open ports · %d distinct CVE IDs, %d in CISA KEV (ordered KEV first, then EPSS). Shodan's last crawl, not a live check; CVE IDs are version-based, unverified indicators._\n\n",
+		ag.ExposedIPs, ag.UniqueIPs, ag.OpenPorts, ag.ReportedCVEs, ag.KEVCVEs)
+	sb.WriteString("| IP | Hostnames | Open ports | CPEs | Tags | Reported CVEs |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n")
+	for _, ip := range pi.IPs {
+		e := ip.Exposure
+		if e == nil {
+			continue
+		}
+		fmt.Fprintf(sb, "| `%s` | %s | %s | %s | %s | %s |\n", ip.IP, dash(strings.Join(ip.Hostnames, ", ")),
+			dash(joinPorts(e.Ports)), dash(strings.Join(e.CPEs, ", ")), dash(strings.Join(e.Tags, ", ")), dash(cveList(e.Vulns, 10)))
+	}
+	sb.WriteString("\n")
+}
+
+// webCell summarises a urlscan capture for a Markdown table cell.
+func webCell(w *models.WebCapture) string {
+	if w == nil {
+		return "-"
+	}
+	var parts []string
+	for _, s := range []string{w.Title, w.Server, w.HTTPStatus, strings.Join(w.Technologies, ", ")} {
+		if s != "" {
+			parts = append(parts, strings.ReplaceAll(s, "|", "/"))
+		}
+	}
+	links := "[scan](" + w.ScanURL + ")"
+	if w.Screenshot != "" {
+		links += " [screenshot](" + w.Screenshot + ")"
+	}
+	return strings.TrimSpace(strings.Join(parts, " · ") + " " + links)
+}
+
+// writeRoutingMarkdown summarises the RIPEstat / Team Cymru cross-check and
+// lists every disagreement with both values.
+func writeRoutingMarkdown(sb *strings.Builder, pi *models.PassiveIntel) {
+	checked, agree := 0, 0
+	for _, ip := range pi.IPs {
+		if ip.Routing != nil {
+			checked++
+			if ip.Routing.Agreement == "agree" {
+				agree++
+			}
+		}
+	}
+	if checked == 0 {
+		return
+	}
+	sb.WriteString("## Routing Cross-check — RIPEstat vs Team Cymru\n\n")
+	fmt.Fprintf(sb, "_%d IPs checked · %d agree · %d disagree. Both sources are BGP-derived; a disagreement is shown with both values rather than resolved._\n\n",
+		checked, agree, pi.Aggregates.RoutingConflicts)
+	if pi.Aggregates.RoutingConflicts == 0 {
+		return
+	}
+	sb.WriteString("| IP | Conflicts | RIPEstat holder | Upstreams |\n| :--- | :--- | :--- | :--- |\n")
+	for _, ip := range pi.IPs {
+		if rc := ip.Routing; rc != nil && rc.Agreement == "disagree" {
+			fmt.Fprintf(sb, "| `%s` | %s | %s | %s |\n", ip.IP, strings.Join(rc.Conflicts, "; "), dash(rc.Holder), dash(strings.Join(rc.Upstreams, ", ")))
+		}
+	}
+	sb.WriteString("\n")
+}
+
+// writeCodeRefsMarkdown lists hosts found in public GitHub code with links.
+func writeCodeRefsMarkdown(sb *strings.Builder, pi *models.PassiveIntel) {
+	var rows []string
+	for _, h := range pi.Hosts {
+		if len(h.CodeRefs) == 0 {
+			continue
+		}
+		links := make([]string, len(h.CodeRefs))
+		for i, u := range h.CodeRefs {
+			links[i] = fmt.Sprintf("[%s](%s)", strings.TrimPrefix(u, "https://github.com/"), u)
+		}
+		rows = append(rows, fmt.Sprintf("- `%s` — %s\n", h.Hostname, strings.Join(links, " · ")))
+	}
+	if len(rows) == 0 {
+		return
+	}
+	sb.WriteString("## Hostnames Mentioned in Public Code (GitHub)\n\n")
+	sb.WriteString("_A mention in code is weak evidence: it may be stale, an example, or a typo._\n\n")
+	for _, r := range rows {
+		sb.WriteString(r)
+	}
+	sb.WriteString("\n")
 }

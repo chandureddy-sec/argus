@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"reconx/internal/intel"
 	"reconx/internal/normalize"
 	"reconx/internal/orchestrator"
+	"reconx/internal/providers"
 	"reconx/pkg/models"
 )
 
@@ -39,7 +41,9 @@ func gatherSubdomains(ctx context.Context, t *models.Target) (raw []models.RawRe
 func providerStatusLine(statuses []orchestrator.ProviderStatus) string {
 	parts := make([]string, 0, len(statuses))
 	for _, s := range statuses {
-		if s.Err != nil {
+		if errors.Is(s.Err, providers.ErrSkipped) {
+			parts = append(parts, fmt.Sprintf("%s=skipped", s.Name))
+		} else if s.Err != nil {
 			parts = append(parts, fmt.Sprintf("%s=ERR", s.Name))
 		} else {
 			parts = append(parts, fmt.Sprintf("%s=%d", s.Name, s.Results))

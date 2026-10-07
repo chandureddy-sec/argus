@@ -101,7 +101,7 @@ func RunAutomatedRecon(rawTarget string) {
 		Timestamp: time.Now().UTC(),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	ui.PrintSectionTitle("Target Validation", 1)

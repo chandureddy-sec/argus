@@ -2,10 +2,16 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"reconx/pkg/models"
 )
+
+// ErrSkipped marks a provider that deliberately did not run, e.g. because its
+// API key is not configured. Wrap it with the reason; callers report the
+// provider as "skipped", never as a failure.
+var ErrSkipped = errors.New("skipped")
 
 // Provider defines the standard contract that every passive OSINT source must implement.
 type Provider interface {

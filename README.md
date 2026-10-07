@@ -97,6 +97,64 @@ reconx portscan --target 10.0.0.5 --authorize --scope engagement-scope.txt
 
 ---
 
+## 📡 Data Sources & Modules
+
+**Passive** sources only query public third-party services and public DNS
+resolvers; nothing is sent to the target's own infrastructure. They run on
+every `scan`. **Active** modules contact the target directly and run only
+with `--active --authorize`.
+
+Every source degrades gracefully: a timeout, 404, rate limit or malformed
+response is recorded in the report's *Sources* table and the scan continues.
+
+### Passive — subdomain discovery (`internal/providers/`)
+
+Results from all of these merge into one deduplicated subdomain list, with
+per-source evidence and confidence.
+
+| Source | What it adds | Auth |
+| :--- | :--- | :--- |
+| crt.sh | Subdomains and certificates from Certificate Transparency logs | none |
+| AlienVault OTX | Subdomains and historical DNS (passive DNS) | none |
+| HackerTarget | Subdomains from its host-search database | none |
+| Anubis (jldc.me) | Subdomains from the Anubis dataset | none |
+| Wayback Machine | Hostnames from archived URLs | none |
+| urlscan.io | Subdomains, plus the newest archived page capture per host: title, Server header, HTTP status, IP/ASN, TLS issuer, screenshot URL (linked, never downloaded) | none · optional `RECONX_URLSCAN_API_KEY` |
+| Cert Spotter (SSLMate) | Subdomains from a second Certificate Transparency monitor (currently valid certificates), with first/last issuance dates | none · optional `RECONX_CERTSPOTTER_API_KEY` |
+| GitHub code search | Hostnames mentioned in public code, with links to the files. Weak evidence (may be stale or an example). | **requires** `RECONX_GITHUB_TOKEN`; skipped with a notice if unset |
+
+### Passive — enrichment
+
+| Source | What it adds | Auth |
+| :--- | :--- | :--- |
+| RDAP (rdap.org) | Domain registration data | none |
+| Public DNS (1.1.1.1, 8.8.8.8, 9.9.9.9) | Current DNS, DNSSEC, CAA, SPF/DMARC/DKIM, MTA-STS, TLS-RPT, PTR | none |
+| ip-api.com | IP geolocation, ASN, ISP, reverse DNS | none |
+| Team Cymru (DNS) | Announced prefix, RIR, allocation date | none |
+| RIPEstat | Origin ASN, holder, prefix, RIR and upstream ASNs, cross-checked against Team Cymru. Disagreements are reported with both values, never silently resolved. (Replaces BGPView, whose API was shut down.) | none |
+| Shodan InternetDB | Per IP: open ports, CPEs, hostnames, tags and CVE IDs from Shodan's last crawl. IPs not in Shodan's index are skipped. | none |
+| Shodan CVEDB | Per CVE from InternetDB: CVSS, EPSS score/percentile, CISA KEV and ransomware use. CVE lists are ordered KEV first, then by EPSS; KEV-listed CVEs raise host interest. | none |
+
+CVE IDs from Shodan are matched from observed software versions. ReconX
+reports them as **unverified indicators**, not confirmed vulnerabilities.
+
+### Active — direct to target (`internal/modules/`, requires `--active --authorize`)
+
+`httprobe`, `tls`, `headers`, `techdetect`, `crawler`, `jsanalysis`,
+`apicapture` (headless browser, `--browser`), `portscan` (`--ports`) and
+`nmap` (`--nmap`, needs the nmap binary).
+
+### Environment variables
+
+| Variable | Used by | Effect if unset |
+| :--- | :--- | :--- |
+| `RECONX_URLSCAN_API_KEY` | urlscan.io | Anonymous search (recent scans only, 30 searches/min, no technology detection). With a free account key: higher limits and Wappalyzer technologies for the 10 newest hosts. |
+| `RECONX_CERTSPOTTER_API_KEY` | Cert Spotter | Anonymous quota: 10 subdomain queries/hour, so at most 2 result pages per scan; a 429 is reported and the scan continues. A key raises this to 10 pages. |
+| `RECONX_GITHUB_TOKEN` | GitHub code search | Source is **skipped** (shown as `skipped`, not an error). GitHub requires a token for code search; any personal access token works, no scopes needed for public code. Limit: 9 searches/min, so ReconX reads at most 3 pages (300 files) per scan. |
+| `RECONX_AUTHORIZE=1` | Active modules | Active commands require `--authorize`. |
+
+---
+
 ## 🏗️ Project Architecture
 
 ```text
@@ -109,7 +167,8 @@ reconx/
 │   ├── providers/              # Provider interface & passive OSINT implementations
 │   ├── normalize/              # Normalization, dedup & confidence scoring
 │   ├── correlate/              # Attack-surface graph correlation
-│   ├── enrich/                 # Bulk DNS resolution & ASN / cloud enrichment
+│   ├── intel/                  # Passive intel: certs, DNS posture, Cymru, Shodan InternetDB/CVEDB, scoring
+│   ├── enrich/                 # IP enrichment: ip-api geo/ASN, RIPEstat routing
 │   ├── dns/                    # DNS record resolver
 │   ├── whois/                  # RDAP / WHOIS client
 │   ├── modules/                # Active recon modules (probe, portscan, crawler, tls, ...)

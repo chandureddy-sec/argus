@@ -1,10 +1,14 @@
 package intel
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"reconx/internal/providers"
 	"reconx/internal/providers/crtsh"
 	"reconx/pkg/models"
 )
@@ -246,5 +250,43 @@ func TestInterestPrioritisesExposedSensitiveHosts(t *testing.T) {
 	ScoreInterest(plain, false)
 	if gitlab.Interest != "high" || zabbix.Interest != "high" || gone.Interest != "medium" || plain.Interest != "low" {
 		t.Errorf("interest: gitlab=%s zabbix=%s gone=%s plain=%s", gitlab.Interest, zabbix.Interest, gone.Interest, plain.Interest)
+	}
+}
+
+func TestWebCaptureFromURLScanMetadata(t *testing.T) {
+	rr := models.RawResult{Source: "urlscan", Value: "www.example.com", Metadata: map[string]string{
+		"title": "Example Home", "server": "nginx", "http_status": "200", "scans": "3",
+		"scan_url": "https://urlscan.io/result/u1/", "screenshot": "https://urlscan.io/screenshots/u1.png",
+		"technologies": "Nginx, React", "last_seen": "2026-10-06T10:00:00Z",
+	}}
+	wc := webCapture(rr)
+	if wc == nil || wc.Title != "Example Home" || wc.Scans != 3 || len(wc.Technologies) != 2 || wc.CapturedAt == nil || wc.CapturedAt.Year() != 2026 {
+		t.Fatalf("unexpected capture: %+v", wc)
+	}
+	if webCapture(models.RawResult{Source: "crtsh", Metadata: map[string]string{"scan_url": "x"}}) != nil {
+		t.Error("non-urlscan result produced a capture")
+	}
+}
+
+func TestSourceRunSkippedIsNotAnError(t *testing.T) {
+	err := fmt.Errorf("%w: set RECONX_GITHUB_TOKEN to enable GitHub code search", providers.ErrSkipped)
+	s := sourceRun("githubcode", "", time.Second, err, 0)
+	if s.Status != models.SourceSkipped || !strings.Contains(s.Error, "RECONX_GITHUB_TOKEN") {
+		t.Errorf("unexpected run: %+v", s)
+	}
+	if s := sourceRun("crtsh", "", time.Second, errors.New("boom"), 0); s.Status != models.SourceError {
+		t.Errorf("real failure not reported as error: %+v", s)
+	}
+}
+
+func TestStageOnExpiredContextReportsTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-ctx.Done()
+	if s := partialRun(sourceRun("dns-resolution", "", 0, ctx.Err(), 0), 0); s.Status != models.SourceTimeout {
+		t.Errorf("stage with no results on a dead context should be a timeout, got %+v", s)
+	}
+	if s := partialRun(sourceRun("dns-posture", "", 0, ctx.Err(), 3), 3); s.Status != models.SourceSuccess || s.Results != 3 || !strings.HasPrefix(s.Error, "partial:") {
+		t.Errorf("stage with some results should be a noted partial success, got %+v", s)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"reconx/pkg/models"
@@ -515,6 +516,8 @@ func reportFuncMap() template.FuncMap {
 	return template.FuncMap{
 		"add":          func(a, b int) int { return a + b },
 		"join":         func(s []string, sep string) string { return strings.Join(s, sep) },
+		"ports":        joinPorts,
+		"cves":         cveList,
 		"sortFindings": sortFindings,
 		"sevStyle":     sevStyle,
 		"day":          day,
@@ -526,6 +529,51 @@ func reportFuncMap() template.FuncMap {
 			return "✗"
 		},
 	}
+}
+
+// joinPorts renders a port list as "22, 80, 443".
+func joinPorts(ports []int) string {
+	out := make([]string, len(ports))
+	for i, p := range ports {
+		out[i] = strconv.Itoa(p)
+	}
+	return strings.Join(out, ", ")
+}
+
+// cveLabel renders one CVE with its triage context, e.g.
+// "CVE-2021-44228 [KEV, ransomware] EPSS 1.00 CVSS 10.0".
+func cveLabel(v models.CVERef) string {
+	s := v.ID
+	var flags []string
+	if v.KEV {
+		flags = append(flags, "KEV")
+	}
+	if v.Ransomware == "Known" {
+		flags = append(flags, "ransomware")
+	}
+	if len(flags) > 0 {
+		s += " [" + strings.Join(flags, ", ") + "]"
+	}
+	if v.Enriched {
+		s += fmt.Sprintf(" EPSS %.2f", v.EPSS)
+		if v.CVSS > 0 {
+			s += fmt.Sprintf(" CVSS %.1f", v.CVSS)
+		}
+	}
+	return s
+}
+
+// cveList renders up to max CVEs (already triage-ordered) and a "+N more" tail.
+func cveList(vs []models.CVERef, max int) string {
+	out := make([]string, 0, max)
+	for i, v := range vs {
+		if i == max {
+			out = append(out, fmt.Sprintf("+%d more", len(vs)-max))
+			break
+		}
+		out = append(out, cveLabel(v))
+	}
+	return strings.Join(out, "; ")
 }
 
 // sevStyle returns inline CSS coloring a severity badge by level.

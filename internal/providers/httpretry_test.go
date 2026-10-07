@@ -102,3 +102,27 @@ func TestDoWithRetry_ContextCancelStops(t *testing.T) {
 		t.Error("expected context cancellation error, got nil")
 	}
 }
+
+func TestDoWithRetry_LongRetryAfterGivesUpImmediately(t *testing.T) {
+	var calls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		w.Header().Set("Retry-After", "3600") // hourly quota exhausted
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	start := time.Now()
+	resp, err := DoWithRetry(context.Background(), srv.Client(), req, DefaultRetryConfig())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests || calls != 1 {
+		t.Errorf("expected one 429 attempt, got status %d after %d calls", resp.StatusCode, calls)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Error("caller was stalled by a long Retry-After")
+	}
+}

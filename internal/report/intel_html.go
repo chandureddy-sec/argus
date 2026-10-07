@@ -41,7 +41,7 @@ const intelTemplate = `{{define "intel"}}{{with .Intel}}
     <tbody>
       {{range .Hosts}}
       <tr>
-        <td><strong>{{.Hostname}}</strong>{{if .Indicators}}<br><small>{{join .Indicators ", "}}</small>{{end}}</td>
+        <td><strong>{{.Hostname}}</strong>{{if .Indicators}}<br><small>{{join .Indicators ", "}}</small>{{end}}{{with .Web}}<br><small title="Archived third-party capture (urlscan.io), {{day .CapturedAt}}">urlscan: {{if .Title}}“{{.Title}}”{{else}}(no title){{end}}{{if .Server}} · {{.Server}}{{end}}{{if .HTTPStatus}} · {{.HTTPStatus}}{{end}}{{if .Technologies}} · {{join .Technologies ", "}}{{end}} · <a href="{{.ScanURL}}" target="_blank" rel="noopener">scan</a>{{if .Screenshot}} · <a href="{{.Screenshot}}" target="_blank" rel="noopener">screenshot</a>{{end}}</small>{{end}}{{if .CodeRefs}}<br><small>in code: {{range $i, $u := .CodeRefs}}{{if $i}} · {{end}}<a href="{{$u}}" target="_blank" rel="noopener">GitHub {{add $i 1}}</a>{{end}}</small>{{end}}</td>
         <td>{{.Lifecycle}}</td>
         <td>{{if eq .DNSStatus "resolves"}}<span class="badge badge-live">RESOLVES</span>{{else}}<span class="badge badge-off">{{.DNSStatus}}</span>{{end}}</td>
         <td>{{.Confidence}} ({{.ConfidenceLevel}})</td>
@@ -108,9 +108,18 @@ const intelTemplate = `{{define "intel"}}{{with .Intel}}
 
   <h2 class="section-title">Infrastructure — IP Addresses</h2>
   <table>
-    <thead><tr><th>IP</th><th>Hostnames</th><th>ASN</th><th>Prefix / RIR</th><th>Organization</th><th>Location</th><th>Reverse DNS</th><th>Likely provider</th></tr></thead>
-    <tbody>{{range .IPs}}<tr><td><code>{{.IP}}</code></td><td><small>{{join .Hostnames ", "}}</small></td><td>{{.ASN}}</td><td>{{.Prefix}} {{.RIR}}</td><td>{{.Organization}}</td><td>{{.City}}{{if .City}}, {{end}}{{.Country}}</td><td><small>{{.ReverseDNS}}</small></td><td>{{.Provider}}</td></tr>{{end}}</tbody>
+    <thead><tr><th>IP</th><th>Hostnames</th><th>ASN</th><th>Prefix / RIR</th><th>Routing cross-check</th><th>Organization</th><th>Location</th><th>Reverse DNS</th><th>Likely provider</th></tr></thead>
+    <tbody>{{range .IPs}}<tr><td><code>{{.IP}}</code></td><td><small>{{join .Hostnames ", "}}</small></td><td>{{.ASN}}</td><td>{{.Prefix}} {{.RIR}}</td><td>{{with .Routing}}{{if eq .Agreement "disagree"}}<strong style="color:var(--orange)">⚠ disagree</strong><br><small>{{join .Conflicts "; "}}</small>{{else if eq .Agreement "agree"}}✓ RIPEstat agrees{{else}}RIPEstat only{{end}}{{if .Upstreams}}<br><small>upstreams: {{join .Upstreams ", "}}</small>{{end}}{{else}}—{{end}}</td><td>{{.Organization}}</td><td>{{.City}}{{if .City}}, {{end}}{{.Country}}</td><td><small>{{.ReverseDNS}}</small></td><td>{{.Provider}}</td></tr>{{end}}</tbody>
   </table>
+
+  {{if .Aggregates.ExposedIPs}}
+  <h2 class="section-title">Exposure — Shodan InternetDB</h2>
+  <p><small>{{.Aggregates.ExposedIPs}} of {{.Aggregates.UniqueIPs}} IPs are in Shodan's index · {{.Aggregates.OpenPorts}} open ports · {{.Aggregates.ReportedCVEs}} distinct CVE IDs, {{.Aggregates.KEVCVEs}} in CISA KEV. CVEs are ordered KEV first, then by EPSS (Shodan CVEDB). This is Shodan's most recent crawl, not a live check; CVE IDs are matched from software versions and are <em>unverified indicators</em>, not confirmed vulnerabilities.</small></p>
+  <table>
+    <thead><tr><th>IP</th><th>Hostnames (this scan)</th><th>Open ports</th><th>CPEs</th><th>Tags</th><th>Reported CVEs</th></tr></thead>
+    <tbody>{{range $ip := .IPs}}{{with $ip.Exposure}}<tr><td><code>{{$ip.IP}}</code></td><td><small>{{join $ip.Hostnames ", "}}</small></td><td>{{ports .Ports}}</td><td><small>{{join .CPEs ", "}}</small></td><td>{{join .Tags ", "}}</td><td><small>{{cves .Vulns 10}}</small></td></tr>{{end}}{{end}}</tbody>
+  </table>
+  {{end}}
 
   {{if .Providers}}
   <h2 class="section-title">Third-Party & Provider Map (inferred)</h2>

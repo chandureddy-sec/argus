@@ -225,7 +225,7 @@ function drawHosts() {
 function hostRow(h) {
   const dns = h.dns_status === "resolves" ? '<span class="dot ok" title="Resolves now"></span>' : h.dns_status ? `<span class="dot no" title="${esc(h.dns_status)}"></span>` : "";
   return `<tr data-h="${esc(h.hostname)}" class="${DETAIL.open[h.hostname] ? "open" : ""}">
-    <td><b>${esc(h.hostname)}</b>${(h.indicators || []).length ? ` <small class="ind">${esc(h.indicators.join(" · "))}</small>` : ""}</td>
+    <td><b>${esc(h.hostname)}</b>${(h.indicators || []).length ? ` <small class="ind">${esc(h.indicators.join(" · "))}</small>` : ""}${h.web?.title ? `<div class="muted" style="font-size:11px" title="urlscan.io capture">“${esc(h.web.title)}”</div>` : ""}</td>
     <td>${dns}${h.lifecycle ? lifeTag(h.lifecycle) : ""}</td>
     <td>${h.confidence_level ? confTag(h.confidence_level, h.confidence) : (h.confidence ?? "")}</td>
     <td title="${esc((h.sources || []).join(", "))}">${h.source_count || 0} <small class="muted">${esc((h.sources || []).slice(0, 3).join(", "))}</small></td>
@@ -246,8 +246,18 @@ function hostDetail(h) {
       <div class="muted" style="font-size:12px;margin-top:6px">Confidence ${h.confidence}/100 (${h.confidence_level}) · Recency: <b>${esc(h.recency || "—")}</b> · DNS: ${esc(h.dns_status || "—")}${(h.cnames || []).length ? " · CNAME → " + esc(h.cnames.join(" → ")) : ""}</div></div>
     <div><h4>DNS values — current & historical</h4><div class="tbl"><table><thead><tr><th>Type</th><th>Value</th><th>Status</th><th>First</th><th>Last</th><th>Source</th></tr></thead><tbody>${hist || '<tr><td colspan="6" class="muted">No DNS values observed.</td></tr>'}</tbody></table></div>
       ${h.interest_factors?.length ? `<h4 style="margin-top:12px">Interest factors ${EV.inferred}</h4><div class="muted" style="font-size:12px">${esc(h.interest_factors.join(" · "))}</div>` : ""}
-      ${h.cloud || h.cdn ? `<div class="muted" style="font-size:12px;margin-top:8px">${EV.inferred} ${esc([h.cdn, h.cloud].filter(Boolean).join(" · "))} — from CNAME / ASN evidence</div>` : ""}</div>
+      ${h.cloud || h.cdn ? `<div class="muted" style="font-size:12px;margin-top:8px">${EV.inferred} ${esc([h.cdn, h.cloud].filter(Boolean).join(" · "))} — from CNAME / ASN evidence</div>` : ""}
+      ${webCapture(h.web)}
+      ${h.code_refs?.length ? `<h4 style="margin-top:12px">Mentioned in public code ${EV.observed} <small class="muted">GitHub</small></h4><div style="font-size:12px">${h.code_refs.map(u => `<div><a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(u.replace("https://github.com/", ""))} ↗</a></div>`).join("")}</div>` : ""}</div>
   </div></td></tr>`;
+}
+/* Newest urlscan.io capture of the host: what it served when a third party scanned it. */
+function webCapture(w) {
+  if (!w) return "";
+  const link = (u, t) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener" style="color:var(--accent)">${t} ↗</a>` : "";
+  return `<h4 style="margin-top:12px">Archived page capture ${EV.observed} <small class="muted">urlscan.io · ${d10(w.captured_at)}${w.scans > 1 ? ` · ${w.scans} scans` : ""}</small></h4>` +
+    kvTable([["Title", w.title || "—"], ["URL", w.url], ["HTTP status", w.http_status], ["Server", w.server], ["IP / ASN", [w.ip, w.asn].filter(Boolean).join(" · ")], ["TLS issuer", w.tls_issuer], ["Technologies", (w.technologies || []).join(", ")]].filter(r => r[1])) +
+    `<div style="font-size:12px;margin-top:6px">${[link(w.scan_url, "urlscan result"), link(w.screenshot, "screenshot")].filter(Boolean).join(" · ")}</div>`;
 }
 
 /* ───────── DNS ───────── */
@@ -334,15 +344,45 @@ function drawCerts() {
   }).join("") || `<tr><td colspan="9" class="muted">No certificates match.</td></tr>`;
 }
 
+/* RIPEstat vs Team Cymru: agreement pill; conflicts and upstreams in the tooltip / below. */
+function routingCell(rc) {
+  if (!rc) return `<span class="muted">—</span>`;
+  const tip = [rc.holder, rc.prefix, rc.rir, rc.upstreams?.length ? "upstreams: " + rc.upstreams.join(", ") : ""].filter(Boolean).join(" · ");
+  if (rc.agreement === "disagree") return `<span title="${esc(tip)}">${pill("disagree", "lc-changed")}</span><div class="muted" style="font-size:11px">${esc(rc.conflicts.join("; "))}</div>`;
+  return `<span title="${esc(tip)}">${rc.agreement === "agree" ? pill("agrees", "lc-active") : pill("RIPEstat only", "lc-hist")}</span>`;
+}
+
+/* Shodan InternetDB exposure, one row per indexed IP. */
+function exposureTable(pi) {
+  const ag = pi.aggregates || {}, rows = (pi.ips || []).filter(ip => ip.exposure);
+  if (!rows.length) return "";
+  return `<h3>Exposure — Shodan InternetDB ${EV.observed}</h3><div class="evlegend">${ag.exposed_ips} of ${ag.unique_ips} IPs indexed · ${ag.open_ports} open ports · ${ag.reported_cves || 0} distinct CVE IDs, ${ag.kev_cves || 0} in CISA KEV (KEV first, then by EPSS — Shodan CVEDB). Shodan's last crawl, not a live check; CVE IDs are version-based, unverified indicators.</div>` +
+    `<div class="tbl scroll"><table><thead><tr><th>IP</th><th>Hostnames</th><th>Open ports</th><th>CPEs</th><th>Tags</th><th>Reported CVEs</th></tr></thead><tbody>` +
+    rows.map(ip => { const e = ip.exposure; return `<tr><td><code>${esc(ip.ip)}</code></td><td class="wrap">${esc((ip.hostnames || []).join(", "))}</td><td>${esc((e.ports || []).join(", "))}</td><td class="wrap muted">${esc((e.cpes || []).join(", "))}</td><td>${(e.tags || []).map(t => `<small class="ind">${esc(t)}</small>`).join(" ")}</td><td class="wrap">${cveCell(e.vulns || [])}</td></tr>`; }).join("") +
+    `</tbody></table></div>`;
+}
+
+/* CVE chips: KEV in red, EPSS ≥ 0.10 in orange; the rest collapse into "+N more". */
+function cveCell(vulns) {
+  const chip = v => {
+    const cls = v.kev ? "sev-high" : v.epss >= 0.1 ? "sev-medium" : "sev-info";
+    const tip = [v.kev ? "CISA KEV" : "", v.ransomware === "Known" ? "used in ransomware" : "", v.enriched ? `EPSS ${v.epss.toFixed(2)} (pct ${(v.epss_percentile * 100).toFixed(0)})` : "not in CVEDB", v.cvss ? `CVSS ${v.cvss}` : "", v.summary || ""].filter(Boolean).join(" · ");
+    return `<a class="tag ${cls}" style="text-decoration:none;margin:1px;padding:2px 7px;font-size:10.5px" title="${esc(tip)}" href="https://cvedb.shodan.io/cve/${encodeURIComponent(v.id)}" target="_blank" rel="noopener">${esc(v.id)}${v.kev ? " KEV" : ""}${v.enriched ? ` <small>${v.epss.toFixed(2)}</small>` : ""}</a>`;
+  };
+  const top = vulns.slice(0, 8).map(chip).join(" ");
+  return vulns.length > 8 ? `${top} <small class="muted">+${vulns.length - 8} more</small>` : top;
+}
+
 /* ───────── Infrastructure ───────── */
 function tabInfra(r) {
   const pi = r.passive_intel, ag = pi.aggregates || {};
   let h = `<h3>ASNs ${EV.enriched}</h3><div class="tbl"><table><thead><tr><th>ASN</th><th>Name</th><th class="num">IPs</th><th class="num">Host links</th><th>Countries</th><th>Likely provider ${EV.inferred}</th></tr></thead><tbody>` +
     (ag.by_asn || []).map(a => `<tr><td>${esc(a.asn)}</td><td>${esc(a.name || "")}</td><td class="num">${a.ips}</td><td class="num">${a.hosts}</td><td>${esc((a.countries || []).join(", "))}</td><td>${esc(a.provider || "—")}</td></tr>`).join("") + `</tbody></table></div>`;
-  h += `<h3>IP addresses</h3><div class="evlegend">${EV.observed} IP & hostnames (DNS) ${EV.enriched} ASN, prefix, RIR, geo, reverse DNS ${EV.inferred} provider</div>`;
-  h += `<div class="tbl scroll"><table><thead><tr><th>IP</th><th>Ver</th><th>Hostnames</th><th>ASN</th><th>Prefix</th><th>RIR</th><th>Organization / ISP</th><th>Location</th><th>Reverse DNS</th><th>Likely provider</th></tr></thead><tbody>` +
-    (pi.ips || []).map(ip => `<tr><td><code>${esc(ip.ip)}</code></td><td>${ip.version === "IPv6" ? "v6" : "v4"}</td><td class="wrap">${esc((ip.hostnames || []).slice(0, 4).join(", "))}${(ip.hostnames || []).length > 4 ? ` <small class="muted">+${ip.hostnames.length - 4}</small>` : ""}</td><td>${esc((ip.asn || "").split(" ")[0])}</td><td>${esc(ip.prefix || "")}</td><td>${esc(ip.rir || "")}</td><td>${esc(ip.organization || "")}${ip.isp && ip.isp !== ip.organization ? ` <small class="muted">${esc(ip.isp)}</small>` : ""}</td><td>${esc([ip.city, ip.region, ip.country].filter(Boolean).join(", "))}</td><td class="wrap muted">${esc(ip.reverse_dns || "")}</td><td>${esc(ip.provider || "")}${ip.hosting ? ' <small class="muted">hosting</small>' : ""}</td></tr>`).join("") + `</tbody></table></div>`;
+  h += `<h3>IP addresses</h3><div class="evlegend">${EV.observed} IP & hostnames (DNS) ${EV.enriched} ASN, prefix, RIR, geo, reverse DNS ${EV.inferred} provider · Routing check compares RIPEstat with Team Cymru${ag.routing_conflicts ? ` — <b>${ag.routing_conflicts} disagreement${ag.routing_conflicts > 1 ? "s" : ""}</b>` : ""}</div>`;
+  h += `<div class="tbl scroll"><table><thead><tr><th>IP</th><th>Ver</th><th>Hostnames</th><th>ASN</th><th>Prefix</th><th>RIR</th><th>Routing check</th><th>Organization / ISP</th><th>Location</th><th>Reverse DNS</th><th>Likely provider</th></tr></thead><tbody>` +
+    (pi.ips || []).map(ip => `<tr><td><code>${esc(ip.ip)}</code></td><td>${ip.version === "IPv6" ? "v6" : "v4"}</td><td class="wrap">${esc((ip.hostnames || []).slice(0, 4).join(", "))}${(ip.hostnames || []).length > 4 ? ` <small class="muted">+${ip.hostnames.length - 4}</small>` : ""}</td><td>${esc((ip.asn || "").split(" ")[0])}</td><td>${esc(ip.prefix || "")}</td><td>${esc(ip.rir || "")}</td><td>${routingCell(ip.routing)}</td><td>${esc(ip.organization || "")}${ip.isp && ip.isp !== ip.organization ? ` <small class="muted">${esc(ip.isp)}</small>` : ""}</td><td>${esc([ip.city, ip.region, ip.country].filter(Boolean).join(", "))}</td><td class="wrap muted">${esc(ip.reverse_dns || "")}</td><td>${esc(ip.provider || "")}${ip.hosting ? ' <small class="muted">hosting</small>' : ""}</td></tr>`).join("") + `</tbody></table></div>`;
   h += `<div class="muted" style="font-size:12px;margin-top:8px">Geolocation is as reported by ip-api.com and may be approximate. Reverse DNS is correlation evidence, not proof of ownership.</div>`;
+  h += exposureTable(pi);
   if (pi.providers?.length) h += `<h3>Cloud, CDN & third-party providers ${EV.inferred}</h3><div class="tbl"><table><thead><tr><th>Category</th><th>Likely provider</th><th class="num">Hosts</th><th>Evidence</th></tr></thead><tbody>` +
     pi.providers.map(p => `<tr><td>${esc(p.category)}</td><td>${esc(p.name)}</td><td class="num">${p.hosts}</td><td class="muted">${esc(p.evidence.join(" · "))}</td></tr>`).join("") + `</tbody></table></div>`;
   return h;

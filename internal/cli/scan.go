@@ -76,7 +76,9 @@ var scanCmd = &cobra.Command{
 			Timestamp: time.Now().UTC(),
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		// Passive phase budget: 8 subdomain sources plus enrichment stages, each
+		// with its own shorter budget, so one slow source cannot starve the rest.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
 
 		headerTitle := "FULL PASSIVE RECONNAISSANCE"
@@ -200,7 +202,7 @@ var scanCmd = &cobra.Command{
 		var provStatuses []orchestrator.ProviderStatus
 		if parsedTarget.Type == models.TargetTypeDomain {
 			if !silent {
-				fmt.Printf("\n[3/6] Passive Subdomain Discovery (5 OSINT sources)...\n")
+				fmt.Printf("\n[3/6] Passive Subdomain Discovery (%d OSINT sources)...\n", len(getSubdomainProviders()))
 			}
 			rawSubdomains, normalizedAssets, subHostnames, statuses := gatherSubdomains(ctx, parsedTarget)
 			provStatuses = statuses
@@ -209,7 +211,9 @@ var scanCmd = &cobra.Command{
 
 			if !silent {
 				fmt.Printf("[+] %d unique subdomains from %d raw results.\n", len(normalizedAssets), len(rawSubdomains))
-				fmt.Printf("[*] Providers: %s\n\n", providerStatusLine(provStatuses))
+				fmt.Printf("[*] Providers: %s\n", providerStatusLine(provStatuses))
+				printSkipped(provStatuses)
+				fmt.Println()
 				displayCount := len(normalizedAssets)
 				if displayCount > 25 {
 					displayCount = 25
@@ -288,6 +292,8 @@ var scanCmd = &cobra.Command{
 				if len(graph.Nodes) > 30 {
 					fmt.Printf("... and %d more assets (all in JSON/HTML reports).\n", len(graph.Nodes)-30)
 				}
+				printRoutingConflicts(report.Intel)
+				printExposure(report.Intel)
 			}
 		}
 
@@ -379,33 +385,27 @@ var scanCmd = &cobra.Command{
 		if !silent {
 			fmt.Printf("\n[6/6] Generating reports...\n")
 		}
-		_ = os.MkdirAll("reports", 0755)
-		safeName := strings.ReplaceAll(parsedTarget.Value, "/", "_")
-		safeName = strings.ReplaceAll(safeName, ":", "_")
-		timestampStr := time.Now().Format("20060102_150405")
-
-		// JSON
-		jsonPath := scanJSON
-		if jsonPath == "" {
-			jsonPath = filepath.Join("reports", fmt.Sprintf("recon_%s_%s.json", safeName, timestampStr))
+		jsonPath, htmlPath, mdPath := reportPaths(scanOutput, scanJSON, scanHTML, scanMD, parsedTarget.Value, time.Now())
+		var writeErrs []string
+		for _, p := range []string{jsonPath, htmlPath, mdPath} {
+			if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
+				writeErrs = append(writeErrs, err.Error())
+			}
 		}
-		if jsonData, err := json.MarshalIndent(report, "", "  "); err == nil {
-			_ = os.WriteFile(jsonPath, jsonData, 0644)
+		if jsonData, err := json.MarshalIndent(report, "", "  "); err != nil {
+			writeErrs = append(writeErrs, "JSON: "+err.Error())
+		} else if err := os.WriteFile(jsonPath, jsonData, 0644); err != nil {
+			writeErrs = append(writeErrs, "JSON: "+err.Error())
 		}
-
-		// HTML
-		htmlPath := scanHTML
-		if htmlPath == "" {
-			htmlPath = filepath.Join("reports", fmt.Sprintf("recon_%s_%s.html", safeName, timestampStr))
+		if err := reporter.GenerateHTML(report, htmlPath); err != nil {
+			writeErrs = append(writeErrs, "HTML: "+err.Error())
 		}
-		_ = reporter.GenerateHTML(report, htmlPath)
-
-		// Markdown
-		mdPath := scanMD
-		if mdPath == "" {
-			mdPath = filepath.Join("reports", fmt.Sprintf("recon_%s_%s.md", safeName, timestampStr))
+		if err := reporter.GenerateMarkdown(report, mdPath); err != nil {
+			writeErrs = append(writeErrs, "Markdown: "+err.Error())
 		}
-		_ = reporter.GenerateMarkdown(report, mdPath)
+		for _, e := range writeErrs {
+			fmt.Fprintf(os.Stderr, "[!] Report not written: %s\n", e)
+		}
 
 		// ── Summary ───────────────────────────────────────────────────────────────────
 		elapsed := time.Since(startTime).Round(time.Millisecond)
@@ -451,9 +451,26 @@ func init() {
 	scanCmd.Flags().StringVar(&scanNmapProfile, "nmap-profile", "quick", "nmap profile: quick | aggressive | full")
 	scanCmd.Flags().StringVar(&scanNmapPorts, "nmap-ports", "", "port spec for nmap -p (e.g. \"1-1024,8080\")")
 	scanCmd.Flags().StringVar(&scanNmapArgs, "nmap-args", "", "raw nmap flags (overrides --nmap-profile), e.g. \"-A --script vuln\"")
-	scanCmd.Flags().StringVarP(&scanOutput, "output", "o", "", "output directory for results")
+	scanCmd.Flags().StringVarP(&scanOutput, "output", "o", "", "directory for auto-named reports (default \"reports\"); --json/--html/--md paths override it")
 	scanCmd.Flags().StringVar(&scanJSON, "json", "", "export results to JSON file (auto-generated if omitted)")
 	scanCmd.Flags().StringVar(&scanHTML, "html", "", "export results to HTML report (auto-generated if omitted)")
 	scanCmd.Flags().StringVar(&scanMD, "md", "", "export results to Markdown file (auto-generated if omitted)")
 	addActiveAuthFlags(scanCmd.Flags())
+}
+
+// reportPaths returns where the JSON, HTML and Markdown reports are written.
+// Explicit per-format paths win; otherwise files are auto-named
+// recon_<target>_<timestamp>.<ext> inside outDir (default "reports").
+func reportPaths(outDir, jsonPath, htmlPath, mdPath, target string, now time.Time) (string, string, string) {
+	if outDir == "" {
+		outDir = "reports"
+	}
+	safe := strings.NewReplacer("/", "_", ":", "_", "\\", "_").Replace(target)
+	auto := func(explicit, ext string) string {
+		if explicit != "" {
+			return explicit
+		}
+		return filepath.Join(outDir, fmt.Sprintf("recon_%s_%s.%s", safe, now.Format("20060102_150405"), ext))
+	}
+	return auto(jsonPath, "json"), auto(htmlPath, "html"), auto(mdPath, "md")
 }
