@@ -66,6 +66,7 @@ func writeIntelMarkdown(sb *strings.Builder, rep *models.ScanReport) {
 	}
 
 	writeExposureMarkdown(sb, pi)
+	writeGeoMarkdown(sb, pi)
 	writeRoutingMarkdown(sb, pi)
 	writeCodeRefsMarkdown(sb, pi)
 
@@ -105,6 +106,9 @@ func writeIntelMarkdown(sb *strings.Builder, rep *models.ScanReport) {
 	sb.WriteString("## Sources\n\n| Source | Status | Duration | Results | Reliability | Note |\n| :--- | :--- | :--- | :--- | :--- | :--- |\n")
 	for _, s := range pi.Sources {
 		fmt.Fprintf(sb, "| %s | %s | %.1fs | %d | %s | %s |\n", s.Name, s.Status, float64(s.DurationMs)/1000, s.Results, s.Reliability, dash(s.Error))
+	}
+	if rep.RawArchive != "" {
+		fmt.Fprintf(sb, "\nRaw source responses (with a SHA-256 manifest) are archived in `%s`.\n", rep.RawArchive)
 	}
 	sb.WriteString("\n---\n\n")
 }

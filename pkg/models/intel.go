@@ -147,6 +147,9 @@ type IPInfo struct {
 	Region       string   `json:"region,omitempty"`
 	City         string   `json:"city,omitempty"`
 	Continent    string   `json:"continent,omitempty"`
+	// Lat/Lon are approximate (ip-api; often a city or country centroid).
+	Lat          float64  `json:"lat,omitempty"`
+	Lon          float64  `json:"lon,omitempty"`
 	ReverseDNS   string   `json:"reverse_dns,omitempty"`
 	Hosting      bool     `json:"hosting"`
 	Provider     string   `json:"provider,omitempty"`      // inferred

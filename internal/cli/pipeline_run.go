@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"reconx/internal/archive"
 	"reconx/internal/dns"
 	"reconx/internal/intel"
 	reporter "reconx/internal/report"
@@ -30,6 +31,9 @@ type ScanOptions struct {
 	NmapArgs    string `json:"nmap_args"`    // raw nmap flag passthrough (custom profile)
 	MaxDepth    int    `json:"max_depth"`
 	MaxPages    int    `json:"max_pages"`
+	// ArchiveRaw saves every raw third-party HTTP response of the passive
+	// phase under reports/raw/ (written immediately, even for unsaved scans).
+	ArchiveRaw bool `json:"archive_raw"`
 	// Persist, when true, writes the JSON/HTML/MD report files and a drift-DB
 	// entry. The web dashboard leaves this false and offers on-demand downloads
 	// instead, so scans aren't written to disk unless the user asks.
@@ -87,6 +91,18 @@ func RunScanPipeline(ctx context.Context, opts ScanOptions, progress func(Progre
 
 	// ── Passive phase ──────────────────────────────────────────────────────────
 	if opts.wantsPassive() && isDomain {
+		ctx := ctx // the passive phase may carry the raw-response archive
+		var arc *archive.Archive
+		if opts.ArchiveRaw {
+			name := fmt.Sprintf("recon_%s_%s", sanitizeForFilename(parsed.Value), report.Timestamp.Format("20060102_150405"))
+			if a, err := openRawArchive("reports", name, parsed.Value); err != nil {
+				emit("archive", "Raw-response archive unavailable: "+err.Error(), 6, "warn")
+			} else {
+				arc, ctx = a, archive.WithArchive(ctx, a)
+				emit("archive", "Archiving raw source responses to "+a.Dir(), 6, "info")
+			}
+		}
+
 		emit("rdap", "WHOIS / RDAP registration lookup…", 8, "info")
 		rdapStart := time.Now()
 		rec, rdapErr := whois.NewClient(10*time.Second).Lookup(ctx, parsed.Value)
@@ -120,6 +136,7 @@ func RunScanPipeline(ctx context.Context, opts ScanOptions, progress func(Progre
 			emit("changes", fmt.Sprintf("Since previous scan: +%d / -%d subdomains, %d hosts changed, +%d / -%d IPs, %d DNS changes",
 				c.SubdomainsAdded, c.SubdomainsRemoved, c.HostsChanged, c.IPsAdded, c.IPsRemoved, c.DNSChanges), 69, "info")
 		}
+		closeRawArchive(arc, report, func(msg string) { emit("archive", msg, 69, "info") })
 	}
 
 	// ── Active phase ───────────────────────────────────────────────────────────
@@ -164,6 +181,27 @@ func RunScanPipeline(ctx context.Context, opts ScanOptions, progress func(Progre
 
 	emit("done", fmt.Sprintf("Scan complete in %s", time.Since(start).Round(time.Second)), 100, "done")
 	return &ScanResult{Report: report, Files: files}, nil
+}
+
+// openRawArchive creates <base>/raw/<name>/ for a scan; name matches the
+// scan's report file name so the two are easy to pair up.
+func openRawArchive(base, name, target string) (*archive.Archive, error) {
+	return archive.New(filepath.Join(base, "raw", name), target)
+}
+
+// closeRawArchive writes the manifest and records the archive on the report.
+func closeRawArchive(a *archive.Archive, report *models.ScanReport, note func(string)) {
+	if a == nil {
+		return
+	}
+	if err := a.Close(); err != nil {
+		note("Raw-response manifest not written: " + err.Error())
+		return
+	}
+	report.RawArchive = filepath.ToSlash(a.Dir())
+	if note != nil {
+		note(fmt.Sprintf("Archived %d raw source responses in %s", a.Count(), a.Dir()))
+	}
 }
 
 // persistScan records a finished scan in the drift database and writes its

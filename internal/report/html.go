@@ -520,6 +520,7 @@ func reportFuncMap() template.FuncMap {
 		"cves":         cveList,
 		"sortFindings": sortFindings,
 		"sevStyle":     sevStyle,
+		"geomap":       geoMapSVG,
 		"day":          day,
 		"ms":           func(ms int64) string { return fmt.Sprintf("%.1fs", float64(ms)/1000) },
 		"yesno": func(b bool) string {

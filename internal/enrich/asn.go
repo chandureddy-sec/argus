@@ -25,6 +25,9 @@ type IPIntelligence struct {
 	Continent     string `json:"continent,omitempty"`
 	ASName        string `json:"as_name,omitempty"`
 	Hosting       bool   `json:"hosting,omitempty"`
+	// Lat/Lon are ip-api's approximate coordinates (city or country centroid).
+	Lat float64 `json:"lat,omitempty"`
+	Lon float64 `json:"lon,omitempty"`
 }
 
 type ipAPIBatchQuery struct {
@@ -42,11 +45,13 @@ type ipAPIBatchResponse struct {
 	AS      string `json:"as"`
 	Reverse string `json:"reverse"`
 
-	CountryCode string `json:"countryCode"`
-	RegionName  string `json:"regionName"`
-	Continent   string `json:"continent"`
-	ASName      string `json:"asname"`
-	Hosting     bool   `json:"hosting"`
+	CountryCode string  `json:"countryCode"`
+	RegionName  string  `json:"regionName"`
+	Continent   string  `json:"continent"`
+	ASName      string  `json:"asname"`
+	Hosting     bool    `json:"hosting"`
+	Lat         float64 `json:"lat"`
+	Lon         float64 `json:"lon"`
 }
 
 // IPEnricher performs ASN, Geolocation, and Provider intelligence on IPs.
@@ -101,7 +106,7 @@ func (e *IPEnricher) EnrichBatch(ctx context.Context, ips []string) map[string]I
 		for idx, ip := range chunk {
 			batchQueries[idx] = ipAPIBatchQuery{
 				Query:  ip,
-				Fields: "status,continent,country,countryCode,regionName,city,isp,org,as,asname,reverse,hosting,query",
+				Fields: "status,continent,country,countryCode,regionName,city,lat,lon,isp,org,as,asname,reverse,hosting,query",
 			}
 		}
 
@@ -143,6 +148,8 @@ func (e *IPEnricher) EnrichBatch(ctx context.Context, ips []string) map[string]I
 						Continent:     item.Continent,
 						ASName:        item.ASName,
 						Hosting:       item.Hosting,
+						Lat:           item.Lat,
+						Lon:           item.Lon,
 					}
 					results[item.Query] = intel
 				}

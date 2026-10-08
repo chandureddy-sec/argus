@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"reconx/internal/archive"
 	"reconx/internal/target"
 	"reconx/pkg/models"
 )
@@ -34,6 +35,8 @@ without sending intrusive probes to target systems.`,
 	Args: cobra.ArbitraryArgs,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		setupLogger()
+		loadStoredKeys()
+		archive.Install()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
@@ -84,6 +87,10 @@ func init() {
 
 	// Web dashboard
 	RootCmd.AddCommand(serveCmd)
+
+	// Configuration & continuous monitoring
+	RootCmd.AddCommand(keysCmd)
+	RootCmd.AddCommand(monitorCmd)
 }
 
 func setupLogger() {

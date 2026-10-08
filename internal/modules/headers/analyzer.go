@@ -180,6 +180,9 @@ func AnalyzeHeaders(headers map[string]string) ([]models.HeaderFinding, []models
 		})
 	}
 
+	headerFindings = append(headerFindings, crossOriginIsolation(normalized)...)
+	headerFindings = append(headerFindings, disclosureAndCORS(normalized)...)
+
 	for _, hf := range headerFindings {
 		if hf.Severity == "HIGH" || hf.Severity == "MEDIUM" {
 			generalFindings = append(generalFindings, models.Finding{

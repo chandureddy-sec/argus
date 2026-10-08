@@ -6,7 +6,7 @@ let DETAIL = null; // {rep, kind, id, tab, filter, role, q, sort, dir}
 
 const TABS = [
   ["overview", "Overview"], ["subdomains", "Subdomains"], ["dns", "DNS"], ["email", "Email Security"],
-  ["certs", "Certificates"], ["infra", "Infrastructure"], ["changes", "Changes"], ["sources", "Sources"], ["active", "Active Metadata"],
+  ["certs", "Certificates"], ["infra", "Infrastructure"], ["graph", "Graph"], ["map", "Map"], ["changes", "Changes"], ["sources", "Sources"], ["active", "Active Metadata"],
 ];
 
 function renderDetail(rep, kind, id) {
@@ -43,7 +43,7 @@ function tabAvailable(k, rep) {
     case "overview": return true;
     case "subdomains": return !!(pi?.hosts?.length || rep.attack_surface_graph?.nodes?.length || rep.normalized_assets?.length);
     case "dns": return !!(rep.dns || pi);
-    case "email": case "certs": case "infra": case "sources": return !!pi;
+    case "email": case "certs": case "infra": case "sources": case "graph": case "map": return !!pi;
     case "changes": return !!(pi || rep.normalized_assets);
     case "active": return !!(rep.active_recon || rep.web_map);
   }
@@ -61,11 +61,14 @@ function tabBadge(k, rep) {
 function renderTab() {
   const b = document.getElementById("tabBody");
   const r = DETAIL.rep;
-  const fn = { overview: tabOverview, subdomains: tabSubdomains, dns: tabDNS, email: tabEmail, certs: tabCerts, infra: tabInfra, changes: tabChanges, sources: tabSources, active: tabActive }[DETAIL.tab];
+  const fn = { overview: tabOverview, subdomains: tabSubdomains, dns: tabDNS, email: tabEmail, certs: tabCerts, infra: tabInfra, graph: tabGraph, map: tabMap, changes: tabChanges, sources: tabSources, active: tabActive }[DETAIL.tab];
+  if (GRAPH?.raf) cancelAnimationFrame(GRAPH.raf);
   b.innerHTML = fn ? fn(r) : "";
   if (DETAIL.tab === "subdomains") wireSubdomains();
   if (DETAIL.tab === "changes") wireChanges();
   if (DETAIL.tab === "certs") wireCerts();
+  if (DETAIL.tab === "graph") wireGraph();
+  if (DETAIL.tab === "map") wireMap();
 }
 
 /* ───────── shared bits ───────── */
@@ -430,7 +433,9 @@ function tabSources(r) {
   return `<div class="muted" style="margin-bottom:10px">Every data point keeps its source. A failed source never stops the scan; its results are simply missing. Reliability feeds the confidence model.</div>
     <div class="tbl"><table><thead><tr><th>Source</th><th>Purpose</th><th>Status</th><th class="num">Duration</th><th class="num">Results</th><th>Reliability</th><th>Error / note</th></tr></thead><tbody>` +
     src.map(s => { const [t, cls] = st[s.status] || [s.status, "lc-hist"]; return `<tr><td><b>${esc(s.name)}</b></td><td class="muted">${esc(s.purpose || "")}</td><td>${pill(t, cls)}</td><td class="num">${(s.duration_ms / 1000).toFixed(1)}s</td><td class="num">${s.results}</td><td>${pill(s.reliability, "rel-" + s.reliability)}</td><td class="wrap muted">${esc(s.error || "")}</td></tr>`; }).join("") +
-    `</tbody></table></div><div class="muted" style="font-size:12px;margin-top:8px">Model version ${r.passive_intel.version} · scanned ${esc(fmtFull(r.timestamp))}</div>`;
+    `</tbody></table></div>` +
+    (r.raw_archive ? `<div class="note2">Raw source responses (with a SHA-256 manifest) are archived in <code>${esc(r.raw_archive)}</code>.</div>` : "") +
+    `<div class="muted" style="font-size:12px;margin-top:8px">Model version ${r.passive_intel.version} · scanned ${esc(fmtFull(r.timestamp))}</div>`;
 }
 
 /* ───────── Active metadata (separate, authorization-gated mode) ───────── */
@@ -441,6 +446,7 @@ function tabActive(r) {
     const hp = ar.http_probe;
     if (hp) h += `<h3>HTTP</h3>` + kvTable([["URL", hp.final_url || hp.url], ["Status", hp.status_code], ["Title", hp.title]]);
     if (ar.tls) h += `<h3>TLS handshake</h3>` + kvTable([["Version", ar.tls.tls_version], ["Cipher", ar.tls.cipher_suite], ["Issuer", ar.tls.issuer], ["Expires", date(ar.tls.not_after)]]);
+    if (ar.header_analysis?.length) h += headerTable(ar.header_analysis);
     if (ar.tech_stack) h += `<h3>Technology (likely)</h3>` + kvTable([["Server", ar.tech_stack.web_server], ["Language", ar.tech_stack.language], ["CDN", ar.tech_stack.cdn], ["WAF", ar.tech_stack.waf], ["CMS", ar.tech_stack.cms]]);
     if (ar.open_ports?.length) h += `<h3>Open ports</h3><div>` + ar.open_ports.map(p => `<code>${esc(p.port)} ${esc(p.service || "")}</code>`).join(" ") + `</div>`;
     if (ar.nmap) h += nmapView(ar.nmap);
@@ -486,4 +492,12 @@ function verStr(p) {
   if (p.version) o += (o ? " " : "") + p.version;
   if (p.extra_info) o += ` (${p.extra_info})`;
   return o;
+}
+
+/* HTTP response header analysis (Active Metadata) */
+function headerTable(list) {
+  const rows = list.slice().sort((a, b) => sevRank(a.severity) - sevRank(b.severity) || a.header.localeCompare(b.header));
+  return `<h3>Security headers</h3><div class="tbl scroll"><table><thead><tr><th>Header</th><th>Status</th><th>Value</th><th>Assessment</th></tr></thead><tbody>` +
+    rows.map(x => `<tr><td><b>${esc(x.header)}</b></td><td><span class="tag ${sevCls(x.severity)}">${esc(x.severity)}</span> ${x.present ? "" : '<small class="muted">absent</small>'}</td><td class="wrap"><small class="muted">${esc(x.value || "")}</small></td><td class="muted">${esc(x.note)}</td></tr>`).join("") +
+    `</tbody></table></div>`;
 }

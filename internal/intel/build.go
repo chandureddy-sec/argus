@@ -256,6 +256,7 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 			IP: ip, Version: ipVersion(ip), Hostnames: dedupe(ipHosts[ip]),
 			ASN: m.ASN, ASName: m.ASName, Organization: m.Organization, ISP: m.ISP,
 			Country: m.Country, Region: m.Region, City: m.City, Continent: m.Continent,
+			Lat: m.Lat, Lon: m.Lon,
 			ReverseDNS: m.PTR, Hosting: m.Hosting, Sources: []string{"dns"},
 		}
 		if info.ReverseDNS == "" {

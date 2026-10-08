@@ -19,4 +19,7 @@ type ScanReport struct {
 	Intel       *PassiveIntel      `json:"passive_intel,omitempty"`
 	ActiveRecon *ActiveReconResult `json:"active_recon,omitempty"`
 	WebMap      *WebMapResult      `json:"web_map,omitempty"`
+	// RawArchive is the directory holding the passive sources' raw HTTP
+	// responses and their manifest, when the scan was run with archiving.
+	RawArchive string `json:"raw_archive,omitempty"`
 }

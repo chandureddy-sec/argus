@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"reconx/internal/archive"
 	"reconx/internal/dns"
 	"reconx/internal/orchestrator"
 	reporter "reconx/internal/report"
@@ -36,6 +37,7 @@ var (
 	scanJSON        string
 	scanHTML        string
 	scanMD          string
+	scanArchiveRaw  bool
 )
 
 var scanCmd = &cobra.Command{
@@ -80,6 +82,18 @@ var scanCmd = &cobra.Command{
 		// with its own shorter budget, so one slow source cannot starve the rest.
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
+
+		var rawArchive *archive.Archive
+		if scanArchiveRaw && parsedTarget.Type == models.TargetTypeDomain {
+			autoJSON, _, _ := reportPaths(scanOutput, "", "", "", parsedTarget.Value, startTime)
+			name := strings.TrimSuffix(filepath.Base(autoJSON), ".json")
+			a, err := openRawArchive(firstNonEmptyStr(scanOutput, "reports"), name, parsedTarget.Value)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[!] Raw-response archive unavailable: %v\n", err)
+			} else {
+				rawArchive, ctx = a, archive.WithArchive(ctx, a)
+			}
+		}
 
 		headerTitle := "FULL PASSIVE RECONNAISSANCE"
 		modeLabel := "100% Passive OSINT"
@@ -297,6 +311,12 @@ var scanCmd = &cobra.Command{
 			}
 		}
 
+		closeRawArchive(rawArchive, report, func(msg string) {
+			if !silent {
+				fmt.Printf("[*] %s\n", msg)
+			}
+		})
+
 		// ── 4.5 Active Recon (opt-in via --active; authorized above) ───────────────────
 		if scanActive && parsedTarget.Type == models.TargetTypeDomain {
 			if !silent {
@@ -385,7 +405,7 @@ var scanCmd = &cobra.Command{
 		if !silent {
 			fmt.Printf("\n[6/6] Generating reports...\n")
 		}
-		jsonPath, htmlPath, mdPath := reportPaths(scanOutput, scanJSON, scanHTML, scanMD, parsedTarget.Value, time.Now())
+		jsonPath, htmlPath, mdPath := reportPaths(scanOutput, scanJSON, scanHTML, scanMD, parsedTarget.Value, startTime)
 		var writeErrs []string
 		for _, p := range []string{jsonPath, htmlPath, mdPath} {
 			if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
@@ -455,6 +475,7 @@ func init() {
 	scanCmd.Flags().StringVar(&scanJSON, "json", "", "export results to JSON file (auto-generated if omitted)")
 	scanCmd.Flags().StringVar(&scanHTML, "html", "", "export results to HTML report (auto-generated if omitted)")
 	scanCmd.Flags().StringVar(&scanMD, "md", "", "export results to Markdown file (auto-generated if omitted)")
+	scanCmd.Flags().BoolVar(&scanArchiveRaw, "archive-raw", false, "save every raw third-party HTTP response of the passive phase (with a manifest) under <output>/raw/")
 	addActiveAuthFlags(scanCmd.Flags())
 }
 

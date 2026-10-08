@@ -95,6 +95,73 @@ RECONX_AUTHORIZE=1 reconx webmap --target example.com
 reconx portscan --target 10.0.0.5 --authorize --scope engagement-scope.txt
 ```
 
+Active header analysis covers CSP, HSTS, X-Frame-Options, X-Content-Type-Options,
+Referrer-Policy, Permissions-Policy, the cross-origin isolation headers
+(**COOP**, **COEP**, **CORP**), version-disclosing `Server` / `X-Powered-By`
+headers, and permissive CORS (`*`, `null`, `*` with credentials).
+
+### API keys
+
+Three passive sources work better (or at all) with a key. Store them once
+instead of exporting them in every shell:
+
+```bash
+reconx keys                 # which keys are set (values masked)
+reconx keys set github      # prompts for the token without echoing it
+reconx keys test            # checks each key with its service (no target contacted)
+reconx keys unset urlscan
+```
+
+Keys are saved to `%AppData%\reconx\keys.json` (Windows) or
+`~/.config/reconx/keys.json` (Linux/macOS) with owner-only permissions
+(override the path with `RECONX_KEYS_FILE`). An environment variable that is
+already set always wins over the stored key. The dashboard's **Settings** page
+does the same.
+
+### Raw response archive
+
+`reconx scan example.com --archive-raw` (or the dashboard checkbox) saves every
+raw HTTP response the passive sources return to
+`reports/raw/<scan name>/`, with a `manifest.json` listing URL, status, size and
+SHA-256 for each. Request headers are never written and key-like URL
+parameters are redacted. DNS lookups are not HTTP and are not archived.
+
+### Monitoring & alerts
+
+Monitors re-run a **passive** scan on a schedule, save it to `reports/` like any
+scan, compare it with the previous scan of the target, and raise alerts:
+
+```bash
+reconx monitor add example.com --every 1d \
+  --webhook https://hooks.slack.com/services/… --min-severity medium
+reconx monitor                   # list monitors and their last run
+reconx monitor run example.com   # run one now
+reconx monitor run               # run whatever is due, then exit (Task Scheduler / cron)
+reconx monitor daemon            # foreground scheduler
+reconx monitor alerts            # recent alerts
+reconx monitor test-webhook example.com
+reconx monitor rules             # the alert rules
+```
+
+Alert rules: new / removed subdomains, DNS changes, new certificates,
+certificates crossing 14/7 days to expiry, provider/ASN changes, new open
+ports or CVE IDs from Shodan on the target's own IPs (KEV → high), new
+potential dangling DNS, and weakened SPF/DMARC. The first run saves a baseline.
+Alerts are logged to `reports/monitor/alerts.jsonl`. Slack, Discord and Teams
+webhook URLs get chat-formatted messages; any other URL receives JSON
+(`{"text": …, "alert": {…}}`). Monitors run while `reconx serve` is open
+(disable with `--no-monitor`) or under `reconx monitor daemon`; the dashboard's
+**Monitoring** page manages them.
+
+### Dashboard visualisations
+
+Each scan's detail view has a **Graph** tab (domain → hosts → CNAMEs → IPs →
+ASNs → likely providers, plus nameservers and mail servers; drag, Ctrl+scroll
+to zoom, click to focus) and a **Map** tab (IP geolocation, coloured by
+Shodan exposure). The graph exports as GraphML (Gephi, yEd) or JSON; HTML and
+Markdown reports include the map and location table. The world outline is
+embedded (Natural Earth via world-atlas), so nothing is loaded from a CDN.
+
 ---
 
 ## 📡 Data Sources & Modules
@@ -152,6 +219,9 @@ reports them as **unverified indicators**, not confirmed vulnerabilities.
 | `RECONX_CERTSPOTTER_API_KEY` | Cert Spotter | Anonymous quota: 10 subdomain queries/hour, so at most 2 result pages per scan; a 429 is reported and the scan continues. A key raises this to 10 pages. |
 | `RECONX_GITHUB_TOKEN` | GitHub code search | Source is **skipped** (shown as `skipped`, not an error). GitHub requires a token for code search; any personal access token works, no scopes needed for public code. Limit: 9 searches/min, so ReconX reads at most 3 pages (300 files) per scan. |
 | `RECONX_AUTHORIZE=1` | Active modules | Active commands require `--authorize`. |
+| `RECONX_KEYS_FILE` | `reconx keys` | Key file defaults to the user config directory. |
+
+The three API keys can also be stored with `reconx keys set <name>` (see *API keys* above).
 
 ---
 
@@ -166,14 +236,17 @@ reconx/
 │   ├── orchestrator/           # Concurrency fan-out, rate limiting & provider status
 │   ├── providers/              # Provider interface & passive OSINT implementations
 │   ├── normalize/              # Normalization, dedup & confidence scoring
-│   ├── correlate/              # Attack-surface graph correlation
+│   ├── correlate/              # Attack-surface + infrastructure graph (GraphML export)
 │   ├── intel/                  # Passive intel: certs, DNS posture, Cymru, Shodan InternetDB/CVEDB, scoring
 │   ├── enrich/                 # IP enrichment: ip-api geo/ASN, RIPEstat routing
 │   ├── dns/                    # DNS record resolver
 │   ├── whois/                  # RDAP / WHOIS client
 │   ├── modules/                # Active recon modules (probe, portscan, crawler, tls, ...)
 │   ├── storage/                # SQLite storage (modernc.org/sqlite)
-│   ├── report/                 # JSON / HTML / Markdown export
+│   ├── report/                 # JSON / HTML / Markdown export, geo map
+│   ├── monitor/                # Scheduled passive scans, alert rules, webhooks
+│   ├── archive/                # Raw HTTP response archive for passive sources
+│   ├── keystore/               # Stored API keys (reconx keys)
 │   └── ui/                     # Terminal tables & formatting
 ├── pkg/models/                 # Shared data contracts (Target, Asset, Graph, Report)
 ├── configs/config.yaml.example # Configuration file template

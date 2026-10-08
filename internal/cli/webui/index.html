@@ -240,6 +240,33 @@
   td.wrap,code.wrap{word-break:break-all;white-space:normal}
   .nmapout{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:11.5px;margin:4px 0 0;max-height:300px;overflow:auto;color:var(--muted)}
 
+  /* Graph & map */
+  .gwrap{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .gsvg{display:block;width:100%;height:620px;cursor:grab;touch-action:none;user-select:none}
+  .msvg{height:auto;aspect-ratio:1000/410}
+  .gsvg text{fill:#c3c3c8;font-size:9px;pointer-events:none;paint-order:stroke;stroke:#161617;stroke-width:3px}
+  .gsvg .gn{cursor:pointer} .gsvg .gn.nolabel text{display:none} .gsvg .gn.hl text,.gsvg .gn.match text{display:block}
+  .gsvg .gn.dim{opacity:.15} .gsvg line.dim{opacity:.06} .gsvg line.hl{stroke:#a7e9c6;stroke-width:1.6}
+  .gsvg .gn.match circle{stroke:#fff;stroke-width:3}
+  .gtip{position:absolute;pointer-events:none;background:#1f1f22;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;max-width:320px;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  #monRows td:not(:first-child){white-space:nowrap}
+  .gzoom{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:4px;z-index:3}
+  .gzoom button{width:30px;height:30px;border-radius:8px;background:#1f1f22;border:1px solid var(--line);color:var(--text);font-size:16px;cursor:pointer;line-height:1}
+  .gzoom button:hover{border-color:var(--accent)}
+  .ginfo{position:absolute;top:10px;right:10px;width:300px;max-height:calc(100% - 20px);overflow:auto;background:#1f1f22;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:12.5px;z-index:4}
+  @media(max-width:720px){.gsvg{height:440px}.ginfo{position:static;width:auto;border-radius:0}}
+
+  /* Monitoring & settings */
+  .ghost.sm{padding:6px 10px;font-size:12px;border-radius:9px}
+  .ghost.danger:hover{color:var(--coral);border-color:rgba(240,163,157,.5)}
+  .alert{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .alert:last-child{border-bottom:none} .alert>.tag{min-width:62px;text-align:center}
+  .alert .notes{margin:6px 0 0}
+  .keyset{display:flex;gap:6px} .keyset .filter{min-width:0;flex:1}
+  .cream select,.cream input[type=url],.cream input[type=password]{width:100%;background:#fffdf3;border:1px solid #e4dcbf;border-radius:11px;padding:11px 12px;font-size:14px;color:#2b2a1e}
+  .rulebox{max-height:190px;overflow:auto;background:#fffdf3;border:1px solid #e4dcbf;border-radius:11px;padding:4px 10px}
+  .rulebox .ck{align-items:flex-start;margin:6px 0}
+
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f2c1e;color:var(--accent);border:1px solid var(--mint-deep);padding:9px 16px;border-radius:11px;font-size:13px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none}
   .toast.show{opacity:1}
 
@@ -271,6 +298,8 @@
       <a href="#/" data-nav="dashboard">▦ Dashboard</a>
       <a href="#/new" data-nav="new">⌖ New Scan <span class="run hidden" id="navRun" title="A scan is running"></span></a>
       <a href="#/scans" data-nav="scans">≣ Scan History</a>
+      <a href="#/monitor" data-nav="monitor">◎ Monitoring</a>
+      <a href="#/settings" data-nav="settings">⚙ Settings</a>
       <button type="button" onclick="refreshAll(true)">↻ Refresh</button>
     </nav>
     <div class="spacer"></div>
@@ -332,6 +361,11 @@
           <div class="note" id="donutNote"></div>
         </div>
 
+        <div class="card span3 hidden" id="alertCard">
+          <div class="head"><h2>Monitoring Alerts</h2><a class="linkbtn" href="#/monitor">All alerts →</a></div>
+          <div id="alertCardBody"></div>
+        </div>
+
         <div class="card span3">
           <div class="head">
             <h2>Recent Scans</h2>
@@ -383,6 +417,7 @@
             </div>
             <div class="authln"><label class="ck" style="margin:0"><input type="checkbox" id="optAuth"> I'm authorized to actively test this target</label></div>
           </div>
+          <label class="ck" id="archiveLn" title="Every raw response from the passive sources is written to reports/raw/ with a SHA-256 manifest — immediately, even if you don't save the scan."><input type="checkbox" id="optArchive"> Archive raw source responses <small style="color:#6f6a52">(passive phase → reports/raw/)</small></label>
 
           <div class="formerr hidden" id="formErr"></div>
           <button type="submit" class="send" id="startBtn">Start Scan</button>
@@ -418,6 +453,50 @@
       </div>
     </section>
 
+    <!-- ───────── MONITORING ───────── -->
+    <section class="view hidden" id="view-monitor">
+      <div class="ns">
+        <form class="cream" id="monForm" onsubmit="addMonitor(event)">
+          <h2>Monitor a domain</h2>
+          <div class="lead">ReconX re-runs a <b>passive</b> scan on a schedule, saves it to history, and alerts you when the attack surface changes. Monitors never contact the target.</div>
+          <label class="f" for="monTarget">Domain</label>
+          <input type="text" id="monTarget" placeholder="example.com" autocomplete="off" spellcheck="false">
+          <label class="f" for="monEvery">Scan every</label>
+          <select id="monEvery"><option value="6h">6 hours</option><option value="12h">12 hours</option><option value="1d" selected>day</option><option value="3d">3 days</option><option value="1w">week</option></select>
+          <label class="f" for="monHook">Alert webhook <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="url" id="monHook" placeholder="https://hooks.slack.com/services/… or Discord / Teams / any URL" autocomplete="off">
+          <div style="font-size:11.5px;color:#6f6a52;margin-top:5px">Slack, Discord and Teams URLs get chat-formatted messages; any other URL receives the alert as JSON. Alerts are always kept in the list on the right.</div>
+          <label class="f" for="monSev">Send to webhook when severity is at least</label>
+          <select id="monSev"><option value="high">high</option><option value="medium">medium</option><option value="low" selected>low</option><option value="info">info (everything)</option></select>
+          <label class="f">Alert on</label>
+          <div class="rulebox" id="monRules"></div>
+          <label class="ck"><input type="checkbox" id="monArchive"> Archive raw source responses on every run</label>
+          <div class="formerr hidden" id="monErr"></div>
+          <button type="submit" class="send" id="monAdd">Start monitoring</button>
+        </form>
+        <div style="display:flex;flex-direction:column;gap:18px;min-width:0">
+          <div class="card">
+            <div class="head"><h2>Monitors</h2><span class="muted" style="font-size:12px" id="monSched"></span></div>
+            <div class="tbl scroll"><table class="scans"><thead><tr><th>Target</th><th>Every</th><th>Status</th><th>Last run</th><th>Next run</th><th class="num">Alerts</th><th>Webhook</th><th></th></tr></thead>
+              <tbody id="monRows"><tr><td colspan="8" class="muted">Loading…</td></tr></tbody></table></div>
+          </div>
+          <div class="card">
+            <div class="head"><h2>Alerts</h2><div class="tright"><span class="muted" id="alertCount" style="font-size:12px;align-self:center"></span><select id="alertTarget" class="filter" onchange="renderAlerts()"></select></div></div>
+            <div id="alertList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── SETTINGS ───────── -->
+    <section class="view hidden" id="view-settings">
+      <div class="card">
+        <div class="head"><h2>API keys</h2><span class="muted" style="font-size:12px">Stored in <code id="keyFile"></code> (owner-only). Never sent anywhere except the service they belong to.</span></div>
+        <div class="muted" style="font-size:12.5px;margin-bottom:10px">All sources work without keys except GitHub code search. A key saved here is used by the next scan; a variable already set in the environment of <code>reconx serve</code> takes precedence. Same as <code>reconx keys set &lt;name&gt;</code> on the command line.</div>
+        <div class="tbl scroll"><table><thead><tr><th>Service</th><th>Status</th><th>Set / replace</th><th></th></tr></thead><tbody id="keyRows"></tbody></table></div>
+      </div>
+    </section>
+
     <!-- ───────── DETAIL ───────── -->
     <section class="view hidden" id="view-detail">
       <button class="ghost" onclick="goBack()">&larr; Back</button>
@@ -428,6 +507,8 @@
 <div class="toast" id="toast"></div>
 
 <script src="/static/detail.js"></script>
+<script src="/static/viz.js"></script>
+<script src="/static/admin.js"></script>
 <script>
 let TOKEN="", MODE="passive", SCANS=[], SHOW_ALL=false, NAV_DEPTH=0;
 let JOB=null; // {id, target, mode, status, es}
@@ -441,6 +522,8 @@ const VIEWS={
   dashboard:["Recon Dashboard.","Overview of your scans — saved reports plus unsaved scans from this session."],
   new:["New Scan.","Choose a target and mode, then follow progress live."],
   scans:["Scan History.","Every scan, newest first."],
+  monitor:["Monitoring.","Scheduled passive re-scans and the alerts they raise."],
+  settings:["Settings.","API keys for the optional passive sources."],
   detail:["Scan Details.",""]
 };
 
@@ -469,6 +552,8 @@ function route(){
   let view="dashboard";
   if(parts[0]==="new") view="new";
   else if(parts[0]==="scans") view="scans";
+  else if(parts[0]==="monitor") view="monitor";
+  else if(parts[0]==="settings") view="settings";
   else if((parts[0]==="scan"||parts[0]==="job")&&parts[1]) view="detail";
 
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("hidden",v.id!=="view-"+view));
@@ -485,6 +570,8 @@ function route(){
     if(!JOB||JOB.status!=="running") setTimeout(()=>document.getElementById("target").focus(),50);
   }
   if(view==="scans") renderHistory();
+  if(view==="monitor") showMonitoring();
+  if(view==="settings") showSettings();
   if(view==="detail") showDetail(parts[0],decodeURIComponent(parts.slice(1).join("/")));
 }
 function goBack(){ if(NAV_DEPTH>0) history.back(); else location.hash="#/"; }
@@ -501,7 +588,7 @@ async function loadScans(){
     const r=await fetch("/api/scans");
     SCANS=r.ok?await r.json():[];
   }catch(e){ SCANS=[]; }
-  renderStats(); renderBars(); renderDonut(); renderRecent();
+  renderStats(); renderBars(); renderDonut(); renderRecent(); renderAlertCard(true);
 }
 
 function scanHref(s){ return s.file?`#/scan/${encodeURIComponent(s.file)}`:`#/job/${s.job_id}`; }
@@ -587,6 +674,7 @@ function downloadMenu(u,solid){
     <a href="${u.dl("html")}" download>HTML report <span>.html</span></a>
     <a href="${u.dl("md")}" download>Markdown <span>.md</span></a>
     <a href="${u.dl("csv")}" download>Attack-surface table <span>.csv</span></a>
+    <a href="${u.dl("graphml")}" download>Infrastructure graph <span>.graphml</span></a>
     <a href="${u.dl("json")}" download>Raw data & evidence <span>.json</span></a></div></div>`;
 }
 
@@ -615,6 +703,7 @@ function setMode(m){
   document.querySelectorAll(".mode").forEach(x=>x.classList.toggle("on",x.dataset.mode===m));
   document.getElementById("copts").classList.toggle("hidden",m==="passive");
   document.getElementById("modeDesc").textContent=MODE_DESC[m];
+  document.getElementById("archiveLn").classList.toggle("hidden",m==="active");
 }
 function formError(msg){ const e=document.getElementById("formErr"); e.textContent=msg||""; e.classList.toggle("hidden",!msg); }
 
@@ -630,7 +719,8 @@ async function startScan(ev){
     ports:document.getElementById("optPorts").checked,
     browser:document.getElementById("optBrowser").checked,
     max_depth:clampInt("optDepth",1,5,2), max_pages:clampInt("optPages",1,200,25),
-    nmap:document.getElementById("optNmap").checked, nmap_profile:document.getElementById("optNmapProfile").value};
+    nmap:document.getElementById("optNmap").checked, nmap_profile:document.getElementById("optNmapProfile").value,
+    archive_raw:MODE!=="active"&&document.getElementById("optArchive").checked};
 
   setBusy(true);
   let res;

@@ -106,6 +106,11 @@ const intelTemplate = `{{define "intel"}}{{with .Intel}}
     <tbody>{{range .Certificates}}<tr><td>#{{.ID}}</td><td>{{.CommonName}}</td><td>{{.Issuer}}</td><td><small>{{join .SANs ", "}}</small></td><td>{{.NotBefore.Format "2006-01-02"}}</td><td>{{.NotAfter.Format "2006-01-02"}}</td><td>{{.ExpiryStatus}}</td><td>{{join .Indicators ", "}}</td></tr>{{end}}</tbody>
   </table>
 
+  {{with geomap .}}
+  <h2 class="section-title">Geographic Distribution</h2>
+  {{.}}
+  {{end}}
+
   <h2 class="section-title">Infrastructure — IP Addresses</h2>
   <table>
     <thead><tr><th>IP</th><th>Hostnames</th><th>ASN</th><th>Prefix / RIR</th><th>Routing cross-check</th><th>Organization</th><th>Location</th><th>Reverse DNS</th><th>Likely provider</th></tr></thead>
@@ -134,4 +139,5 @@ const intelTemplate = `{{define "intel"}}{{with .Intel}}
     <thead><tr><th>Source</th><th>Purpose</th><th>Status</th><th>Duration</th><th>Results</th><th>Reliability</th><th>Error / note</th></tr></thead>
     <tbody>{{range .Sources}}<tr><td><strong>{{.Name}}</strong></td><td>{{.Purpose}}</td><td>{{.Status}}</td><td>{{ms .DurationMs}}</td><td>{{.Results}}</td><td>{{.Reliability}}</td><td><small>{{.Error}}</small></td></tr>{{end}}</tbody>
   </table>
+  {{if $.RawArchive}}<p><small>Raw source responses (with a SHA-256 manifest) are archived in <code>{{$.RawArchive}}</code>.</small></p>{{end}}
 {{end}}{{end}}`

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"net/http"
@@ -15,13 +16,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"reconx/internal/correlate"
 	"reconx/internal/history"
+	"reconx/internal/keystore"
+	"reconx/internal/monitor"
 	reporter "reconx/internal/report"
 	"reconx/internal/target"
 	"reconx/pkg/models"
@@ -31,9 +36,10 @@ import (
 var webUI embed.FS
 
 var (
-	servePort   int
-	serveHost   string
-	serveNoOpen bool
+	servePort      int
+	serveHost      string
+	serveNoOpen    bool
+	serveNoMonitor bool
 )
 
 var serveCmd = &cobra.Command{
@@ -60,6 +66,14 @@ scans with live progress. The server binds to localhost only.`,
 			openBrowser(url)
 		}
 
+		if serveNoMonitor {
+			fmt.Printf("  Monitor scheduler: off (--no-monitor); \"Run now\" still works.\n\n")
+		} else {
+			srv.schedulerOn = true
+			go srv.monitors.Loop(context.Background(), time.Minute)
+			fmt.Printf("  Monitor scheduler: on — due monitors run while the dashboard is open.\n\n")
+		}
+
 		httpSrv := &http.Server{Handler: srv.routes()}
 		return httpSrv.Serve(ln)
 	},
@@ -69,19 +83,25 @@ func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", 8787, "port to serve the dashboard on")
 	serveCmd.Flags().StringVar(&serveHost, "host", "127.0.0.1", "host/interface to bind (keep localhost for safety)")
 	serveCmd.Flags().BoolVar(&serveNoOpen, "no-open", false, "do not auto-open the browser")
+	serveCmd.Flags().BoolVar(&serveNoMonitor, "no-monitor", false, "do not run scheduled monitors while serving")
 }
 
 // ── Web server ────────────────────────────────────────────────────────────────
 
 type webServer struct {
-	jobs  *jobManager
-	token string
+	jobs        *jobManager
+	token       string
+	monitors    *monitor.Runner
+	schedulerOn bool
 }
 
 func newWebServer() *webServer {
 	return &webServer{
 		jobs:  newJobManager(),
 		token: randomToken(),
+		monitors: newMonitorRunner(func(msg string) {
+			fmt.Printf("  %s  %s\n", time.Now().Format("15:04:05"), msg)
+		}),
 	}
 }
 
@@ -94,8 +114,20 @@ func (s *webServer) routes() http.Handler {
 	mux.HandleFunc("/api/newscan", s.handleNewScan) // POST
 	mux.HandleFunc("/api/job/", s.handleJob)        // /api/job/{id}[/events|/report|/html|/download|/save]
 	mux.HandleFunc("/api/compare", s.handleCompare) // ?a=<ref>&b=<ref>
+	mux.HandleFunc("/api/worldmap", s.handleWorldMap)
+	mux.HandleFunc("/api/monitors", s.handleMonitors) // GET list, POST add
+	mux.HandleFunc("/api/monitors/", s.handleMonitor) // POST /api/monitors/{id}/{run|pause|resume|delete|test}
+	mux.HandleFunc("/api/alerts", s.handleAlerts)     // ?target=&limit=
+	mux.HandleFunc("/api/keys", s.handleKeys)         // GET status, POST {name,value}
+	mux.HandleFunc("/api/keys/test", s.handleKeyTest) // POST {name}
 	if static, err := fs.Sub(webUI, "webui"); err == nil {
-		mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
+		// Embedded files carry no modification time, so browsers would cache
+		// them heuristically and keep stale scripts after an upgrade.
+		files := http.StripPrefix("/static/", http.FileServer(http.FS(static)))
+		mux.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-cache")
+			files.ServeHTTP(w, r)
+		}))
 	}
 	return mux
 }
@@ -150,17 +182,22 @@ func (s *webServer) handleScanFile(w http.ResponseWriter, r *http.Request) {
 	case "":
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(data)
-	case "html", "download":
+	case "html", "download", "graph", "geo":
 		var rep models.ScanReport
 		if err := json.Unmarshal(data, &rep); err != nil {
 			http.Error(w, "report file is corrupt", http.StatusInternalServerError)
 			return
 		}
-		if action == "html" {
+		switch action {
+		case "html":
 			renderInlineHTML(w, &rep)
-			return
+		case "graph":
+			writeGraph(w, r, &rep)
+		case "geo":
+			writeGeo(w, &rep)
+		default:
+			writeReportDownload(w, r, &rep, strings.TrimSuffix(name, ".json"))
 		}
-		writeReportDownload(w, r, &rep, strings.TrimSuffix(name, ".json"))
 	default:
 		http.NotFound(w, r)
 	}
@@ -236,7 +273,7 @@ func (s *webServer) handleJob(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, resp)
 	case "events":
 		s.streamJob(w, r, job)
-	case "report", "html", "download":
+	case "report", "html", "download", "graph", "geo":
 		rep := job.report()
 		if rep == nil {
 			http.Error(w, "report not ready", http.StatusNotFound)
@@ -247,6 +284,10 @@ func (s *webServer) handleJob(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, rep)
 		case "html":
 			renderInlineHTML(w, rep)
+		case "graph":
+			writeGraph(w, r, rep)
+		case "geo":
+			writeGeo(w, rep)
 		default:
 			writeReportDownload(w, r, rep, reportBaseName(rep))
 		}
@@ -323,6 +364,69 @@ func (s *webServer) resolveReport(ref string) (*models.ScanReport, error) {
 	return history.Load(filepath.Join("reports", ref))
 }
 
+// handleKeys lists the API-key statuses (masked, never the keys) and, on
+// POST, stores or removes a key. A stored key is used by the next scan.
+func (s *webServer) handleKeys(w http.ResponseWriter, r *http.Request) {
+	store := keystore.Open("")
+	if r.Method == http.MethodPost {
+		if !s.checkToken(w, r) {
+			return
+		}
+		var body struct{ Name, Value string }
+		if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&body); err != nil {
+			http.Error(w, "bad request body", http.StatusBadRequest)
+			return
+		}
+		if err := store.SetAndApply(body.Name, body.Value); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	} else if r.Method != http.MethodGet {
+		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	statuses, err := store.Statuses()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]interface{}{"keys": statuses, "file": store.Path()})
+}
+
+// handleKeyTest checks the key a scan would use (environment or stored)
+// against its service.
+func (s *webServer) handleKeyTest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.checkToken(w, r) {
+		return
+	}
+	var body struct{ Name string }
+	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<10)).Decode(&body); err != nil {
+		http.Error(w, "bad request body", http.StatusBadRequest)
+		return
+	}
+	k, ok := keystore.Lookup(body.Name)
+	if !ok {
+		http.Error(w, "unknown key", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+	defer cancel()
+	writeJSON(w, keystore.Verify(ctx, k.Name, strings.TrimSpace(os.Getenv(k.Env))))
+}
+
+// checkToken rejects state-changing requests without the session token.
+func (s *webServer) checkToken(w http.ResponseWriter, r *http.Request) bool {
+	if r.Header.Get("X-ReconX-Token") != s.token {
+		http.Error(w, "invalid session token — reload the page", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 // renderInlineHTML renders the styled HTML report for viewing in a browser tab.
 func renderInlineHTML(w http.ResponseWriter, rep *models.ScanReport) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -352,9 +456,53 @@ func writeReportDownload(w http.ResponseWriter, r *http.Request, rep *models.Sca
 	case "csv":
 		attach(w, base+"_attack_surface.csv", "text/csv; charset=utf-8")
 		_ = reporter.WriteHostsCSV(rep, w)
+	case "graphml", "graph":
+		g := correlate.BuildInfraGraph(rep, correlate.GraphOptions{IncludeHistorical: true, MaxHosts: 5000})
+		if g == nil {
+			http.Error(w, "this scan has no passive intelligence to graph", http.StatusNotFound)
+			return
+		}
+		if r.URL.Query().Get("format") == "graph" {
+			attach(w, base+"_graph.json", "application/json")
+			_ = json.NewEncoder(w).Encode(g)
+			return
+		}
+		attach(w, base+"_graph.graphml", "application/graphml+xml")
+		_ = correlate.WriteGraphML(g, w)
 	default:
-		http.Error(w, "format must be json, html, md, or csv", http.StatusBadRequest)
+		http.Error(w, "format must be json, html, md, csv, graph, or graphml", http.StatusBadRequest)
 	}
+}
+
+// writeGraph returns the infrastructure graph for the dashboard.
+// ?historical=1 includes hosts that don't resolve now; ?max=N caps the hosts.
+func writeGraph(w http.ResponseWriter, r *http.Request, rep *models.ScanReport) {
+	opt := correlate.GraphOptions{IncludeHistorical: r.URL.Query().Get("historical") == "1"}
+	if n, err := strconv.Atoi(r.URL.Query().Get("max")); err == nil && n > 0 && n <= 5000 {
+		opt.MaxHosts = n
+	}
+	g := correlate.BuildInfraGraph(rep, opt)
+	if g == nil {
+		http.Error(w, "this scan has no passive intelligence to graph", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, g)
+}
+
+// writeGeo returns the map markers for a scan's geolocated IPs.
+func writeGeo(w http.ResponseWriter, rep *models.ScanReport) {
+	pts, missing := reporter.GeoPoints(rep.Intel)
+	if pts == nil {
+		pts = []reporter.GeoPoint{}
+	}
+	writeJSON(w, map[string]interface{}{"points": pts, "missing": missing})
+}
+
+// handleWorldMap serves the embedded land outline used by the map tab.
+func (s *webServer) handleWorldMap(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	_, _ = io.WriteString(w, reporter.WorldLandPath)
 }
 
 // reportBaseName is the file name (without extension) used for a report.
