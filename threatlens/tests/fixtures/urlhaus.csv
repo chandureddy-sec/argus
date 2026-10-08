@@ -1,0 +1,13 @@
+################################################################
+# abuse.ch URLhaus Database Dump (CSV - recent URLs only)      #
+# Last updated: 2026-10-08 17:02:09 (UTC)                      #
+#                                                              #
+# Terms Of Use: https://urlhaus.abuse.ch/api/                  #
+# For questions please contact urlhaus [at] abuse.ch           #
+################################################################
+#
+# id,dateadded,url,url_status,last_online,threat,tags,urlhaus_link,reporter
+"9000001","2026-10-08 17:02:09","http://93.184.216.34:60557/bin.sh","online","2026-10-08 17:02:09","malware_download","Mozi","https://urlhaus.abuse.ch/url/9000001/","synthetic"
+"9000002","2026-10-07 09:15:00","https://malware-drop.example.net/payload.exe","offline","2026-10-07 10:00:00","malware_download","exe,AgentTesla","https://urlhaus.abuse.ch/url/9000002/","synthetic"
+"9000003","2026-10-06 08:00:00","http://10.0.0.5/internal.sh","online","","malware_download","None","https://urlhaus.abuse.ch/url/9000003/","synthetic"
+"9000004","2026-10-06 08:00:00","https://login.microsoft.com/evil","online","","malware_download","None","https://urlhaus.abuse.ch/url/9000004/","synthetic"

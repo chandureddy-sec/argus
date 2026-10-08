@@ -1,0 +1,29 @@
+{
+  "pages": [
+    {
+      "count": 2,
+      "next": null,
+      "results": [
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaa", "name": "SYNTHETIC phishing campaign", "author_name": "synthetic",
+          "modified": "2026-10-08T10:00:00.000000", "tlp": "green", "adversary": "", "tags": ["phishing", "fintech"],
+          "malware_families": [], "attack_ids": ["T1566"],
+          "indicators": [
+            {"indicator": "secure-login.example.com", "type": "domain", "created": "2026-10-08T09:00:00", "is_active": 1},
+            {"indicator": "http://secure-login.example.com/verify", "type": "URL", "created": "2026-10-08T09:00:00", "is_active": 1},
+            {"indicator": "SyntheticMutex_0451", "type": "Mutex", "created": "2026-10-08T09:00:00", "is_active": 1},
+            {"indicator": "old.example.com", "type": "hostname", "created": "2026-10-01T09:00:00", "is_active": 0}
+          ]
+        },
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbb", "name": "SYNTHETIC restricted pulse", "author_name": "synthetic",
+          "modified": "2026-10-08T11:00:00.000000", "tlp": "amber", "tags": [],
+          "indicators": [
+            {"indicator": "192.0.43.10", "type": "IPv4", "created": "2026-10-08T11:00:00"}
+          ]
+        }
+      ]
+    }
+  ],
+  "modified_since": "2026-10-01T00:00:00+00:00"
+}

@@ -12,9 +12,13 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from threatlens.api.v1 import router as v1_router
+from threatlens.auth import MemoryRateLimiter, RateLimiter, RedisRateLimiter
 
 from threatlens import __version__
-from threatlens.db import make_engine, ping
+from threatlens.db import make_engine, make_sessionmaker, ping
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import Environment, Settings, get_settings
@@ -42,16 +46,35 @@ _DOCS_CSP = (
 )
 
 
-def create_app(settings: Settings | None = None, checks: dict[str, Check] | None = None) -> FastAPI:
-    """Build the app. ``checks`` overrides the readiness probes (tests)."""
+Enqueue = Callable[[str, bool], Awaitable[bool]]
+
+
+def create_app(
+    settings: Settings | None = None,
+    checks: dict[str, Check] | None = None,
+    *,
+    sessionmaker: async_sessionmaker[AsyncSession] | None = None,
+    limiter: RateLimiter | None = None,
+    enqueue: Enqueue | None = None,
+) -> FastAPI:
+    """Build the app. ``checks``, ``sessionmaker``, ``limiter`` and ``enqueue``
+    override the real dependencies (tests)."""
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_json)
     dev = settings.env != Environment.PROD
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        app.state.rate_limits = {
+            "viewer": settings.rate_limit_viewer,
+            "analyst": settings.rate_limit_analyst,
+            "admin": settings.rate_limit_admin,
+        }
         if checks is not None:
             app.state.checks = checks
+            app.state.sessionmaker = sessionmaker
+            app.state.limiter = limiter or MemoryRateLimiter()
+            app.state.enqueue = enqueue
             yield
             return
         engine = make_engine(settings.database_url.get_secret_value())
@@ -60,11 +83,25 @@ def create_app(settings: Settings | None = None, checks: dict[str, Check] | None
         async def redis_ping() -> None:
             await redis.ping()
 
+        from arq import create_pool
+        from arq.connections import RedisSettings
+
+        pool = await create_pool(RedisSettings.from_dsn(settings.redis_url.get_secret_value()))
+
+        async def enqueue_run(name: str, force: bool) -> bool:
+            # A fixed job id makes a second trigger a no-op while one is queued.
+            job = await pool.enqueue_job("collect_source", name, force, _job_id=f"collect:{name}")
+            return job is not None
+
         app.state.checks = {"postgres": lambda: ping(engine), "redis": redis_ping}
+        app.state.sessionmaker = make_sessionmaker(engine)
+        app.state.limiter = RedisRateLimiter(redis)
+        app.state.enqueue = enqueue or enqueue_run
         log.info("api.startup", version=__version__, env=settings.env.value)
         try:
             yield
         finally:
+            await pool.aclose()
             await redis.aclose()
             await engine.dispose()
             log.info("api.shutdown")
@@ -77,6 +114,7 @@ def create_app(settings: Settings | None = None, checks: dict[str, Check] | None
         redoc_url=None,
         openapi_url="/openapi.json" if dev else None,
     )
+    app.include_router(v1_router)
 
     @app.middleware("http")
     async def request_context(

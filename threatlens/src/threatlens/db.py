@@ -23,6 +23,9 @@ class Base(DeclarativeBase):
 
 
 def make_engine(url: str) -> AsyncEngine:
+    if url.startswith("sqlite"):
+        # SQLite (tests and quick local trials only): one file, no server.
+        return create_async_engine(url)
     # pool_pre_ping drops connections the server closed (e.g. after a DB restart).
     return create_async_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=5)
 

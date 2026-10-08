@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy.engine import Connection
 
+import threatlens.models  # noqa: F401 - registers every table on Base.metadata
 from threatlens.db import Base, make_engine
 from threatlens.settings import get_settings
 

@@ -1,0 +1,10 @@
+{
+  "query_status": "ok",
+  "data": [
+    {"id": "1000001", "ioc": "93.184.216.34:443", "threat_type": "botnet_cc", "threat_type_desc": "Botnet C2", "ioc_type": "ip:port", "malware": "win.cobalt_strike", "malware_printable": "Cobalt Strike", "malware_malpedia": "https://malpedia.caad.fkie.fraunhofer.de/details/win.cobalt_strike", "confidence_level": 100, "first_seen": "2026-10-08 06:00:00 UTC", "last_seen": null, "reference": null, "reporter": "synthetic", "tags": ["CobaltStrike"]},
+    {"id": "1000002", "ioc": "c2-panel.example.org", "threat_type": "botnet_cc", "ioc_type": "domain", "malware": "win.qakbot", "malware_printable": "QakBot", "confidence_level": 75, "first_seen": "2026-10-07 12:00:00 UTC", "reporter": "synthetic", "tags": null},
+    {"id": "1000003", "ioc": "https://payload.example.org/stage2.bin", "threat_type": "payload_delivery", "ioc_type": "url", "malware": "unknown", "malware_printable": "Unknown malware", "confidence_level": 50, "first_seen": "2026-10-07 12:00:00 UTC", "reporter": "synthetic", "tags": ["dropper"]},
+    {"id": "1000004", "ioc": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", "threat_type": "payload", "ioc_type": "sha256_hash", "malware": "win.qakbot", "malware_printable": "QakBot", "confidence_level": 90, "first_seen": "2026-10-07 13:00:00 UTC", "reporter": "synthetic", "tags": []},
+    {"id": "1000005", "ioc": "weird-thing", "threat_type": "payload", "ioc_type": "unknown_type", "confidence_level": 10, "first_seen": "2026-10-07 13:00:00 UTC", "reporter": "synthetic", "tags": []}
+  ]
+}

@@ -1,0 +1,7 @@
+{"cidr":"1.10.16.0/20","sblid":"SBL256894","rir":"apnic"}
+{"cidr":"1.19.0.0/16","sblid":"SBL434604","rir":"apnic"}
+{"cidr":"1.32.128.0/18","sblid":"SBL286275","rir":"apnic"}
+{"type":"metadata","timestamp":1791459842,"size":102012,"records":1672,"copyright":"(c) 2026 The Spamhaus Project SLU","terms":"https://www.spamhaus.org/drop/terms/"}
+{"cidr":"2001:678:254::/48","sblid":"SBL697648","rir":"ripencc"}
+{"cidr":"2001:678:6c0::/48","sblid":"SBL624855","rir":"ripencc"}
+{"type":"metadata","timestamp":1791477842,"size":5759,"records":91,"copyright":"(c) 2026 The Spamhaus Project SLU","terms":"https://www.spamhaus.org/drop/terms/"}

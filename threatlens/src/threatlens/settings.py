@@ -40,6 +40,22 @@ class Settings(BaseSettings):
     # Readiness probes must answer quickly even when a dependency hangs.
     readiness_timeout_s: float = Field(default=2.0, gt=0, le=30)
 
+    # Raw feed documents are stored here, content-addressed and gzipped.
+    data_dir: Path = Path("data")
+
+    # Third-party keys (free tiers). A connector whose key is missing is
+    # recorded as "skipped", never as an error.
+    abusech_auth_key: SecretStr | None = None  # ThreatFox (required), URLhaus (optional)
+    otx_api_key: SecretStr | None = None  # AlienVault OTX (required)
+
+    # Allowlisting: the top-N Tranco domains never become active indicators.
+    tranco_top: int = Field(default=10_000, ge=0, le=1_000_000)
+
+    # Requests per minute per API key, by role.
+    rate_limit_viewer: int = Field(default=120, ge=1)
+    rate_limit_analyst: int = Field(default=300, ge=1)
+    rate_limit_admin: int = Field(default=600, ge=1)
+
 
 @lru_cache
 def get_settings() -> Settings:

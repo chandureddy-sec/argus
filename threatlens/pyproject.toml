@@ -18,6 +18,7 @@ dependencies = [
     "redis>=5.3.1",
     "sqlalchemy[asyncio]>=2",
     "structlog>=26.1.0",
+    "tldextract>=5.4.0",
     "uvicorn[standard]>=0.54.0",
 ]
 
@@ -75,6 +76,7 @@ exclude_dirs = ["tests", "migrations"]
 
 [dependency-groups]
 dev = [
+    "aiosqlite>=0.22.1",
     "bandit>=1.9.4",
     "hypothesis>=6.168.5",
     "mypy>=2.4.0",
