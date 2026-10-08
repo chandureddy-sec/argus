@@ -3,8 +3,10 @@ name: Build & Cross-Compile ReconX
 on:
   push:
     branches: [ main, master ]
+    paths-ignore: [ "threatlens/**", ".github/workflows/threatlens.yml" ]
   pull_request:
     branches: [ main, master ]
+    paths-ignore: [ "threatlens/**", ".github/workflows/threatlens.yml" ]
 
 jobs:
   build:

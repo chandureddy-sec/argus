@@ -1,0 +1,33 @@
+# pre-commit hooks for the repo. Install once: `uvx pre-commit install`.
+# ThreatLens hooks only look at threatlens/; ReconX (Go) keeps its own checks.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: threatlens-ruff
+        name: ruff (threatlens)
+        entry: bash -c 'cd threatlens && uv run ruff check --fix src tests migrations && uv run ruff format src tests migrations'
+        language: system
+        files: ^threatlens/.*\.py$
+        pass_filenames: false
+      - id: threatlens-mypy
+        name: mypy --strict (threatlens)
+        entry: bash -c 'cd threatlens && uv run mypy'
+        language: system
+        files: ^threatlens/src/.*\.py$
+        pass_filenames: false

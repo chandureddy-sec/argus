@@ -1,0 +1,78 @@
+# ThreatLens development / single-host stack.
+#   cp .env.example .env   (then set POSTGRES_PASSWORD)
+#   docker compose up -d --build --wait
+# Every published port binds to 127.0.0.1 only.
+name: threatlens
+
+x-app: &app
+  build: .
+  image: threatlens:dev
+  env_file: .env
+  environment:
+    TL_DATABASE_URL: postgresql+asyncpg://threatlens:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/threatlens
+    TL_REDIS_URL: redis://redis:6379/0
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: threatlens
+      POSTGRES_DB: threatlens
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U threatlens -d threatlens"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    healthcheck: { disable: true }
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8000:8000"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2)"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    <<: *app
+    command: ["arq", "threatlens.worker.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck: { disable: true }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  redisdata:

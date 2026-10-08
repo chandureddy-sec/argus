@@ -1,0 +1,101 @@
+name: ThreatLens CI
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["threatlens/**", ".github/workflows/threatlens.yml"]
+  pull_request:
+    paths: ["threatlens/**", ".github/workflows/threatlens.yml"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: threatlens
+
+jobs:
+  lint-type:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv run ruff check src tests migrations
+      - run: uv run ruff format --check src tests migrations
+      - run: uv run mypy
+      - run: uv run threatlens validate-profile
+
+  test:
+    name: Tests (unit + integration)
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: threatlens, POSTGRES_PASSWORD: ci-only-password, POSTGRES_DB: threatlens }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U threatlens" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 20
+    env:
+      TL_DATABASE_URL: postgresql+asyncpg://threatlens:ci-only-password@localhost:5432/threatlens
+      TL_REDIS_URL: redis://localhost:6379/0
+      TL_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - run: uv sync --frozen
+      - run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@v4
+        with: { name: coverage, path: threatlens/coverage.xml }
+
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - run: uv sync --frozen
+      - name: bandit (SAST)
+        run: uv run bandit -c pyproject.toml -r src
+      - name: pip-audit (known-vulnerable dependencies)
+        run: uv run pip-audit
+      - name: semgrep
+        run: uvx semgrep scan --config p/python --config p/secrets --error src
+      - name: gitleaks (secrets in history)
+        uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+
+  image:
+    name: Image build, scan & SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t threatlens:ci .
+      - name: Trivy (image vulnerabilities)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: threatlens:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          image: threatlens:ci
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+      - name: Compose smoke test
+        run: |
+          printf 'POSTGRES_PASSWORD=ci-only-password\n' > .env
+          docker compose up -d --wait
+          curl -fsS http://127.0.0.1:8000/readyz
+          docker compose down -v

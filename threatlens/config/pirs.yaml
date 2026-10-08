@@ -1,0 +1,14 @@
+# Priority Intelligence Requirements (SYNTHETIC example — replace with your own).
+# Each PIR is a question leadership needs answered, plus what to watch for.
+# `watch.match` names org-profile fields; the loader rejects PIRs that watch
+# for data the profile doesn't contain (they could never match).
+pirs:
+  - id: PIR-1
+    question: "Which ransomware groups are actively targeting our sectors and geographies, and what are their initial-access techniques?"
+    watch: { sectors: [it_services, fintech], techniques: [T1190, T1078, T1566] }
+  - id: PIR-2
+    question: "Which newly exploited vulnerabilities affect products in our stack?"
+    watch: { sources: [cisa_kev, epss], match: tech_stack }
+  - id: PIR-3
+    question: "Is our brand or domain being impersonated for phishing?"
+    watch: { match: [domains, brands], sources: [ct_logs, openphish, urlscan] }

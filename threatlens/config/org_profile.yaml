@@ -1,0 +1,14 @@
+# Organization profile (SYNTHETIC example — replace with your organization's values).
+# Validated by `threatlens validate-profile`. No secrets belong in this file.
+org:
+  name: "Example Corp (SYNTHETIC)"
+  sectors: [it_services, fintech]
+  geography: [IN, US, SG]
+  domains: [example.com, example.in]
+  brands: ["Example Corp", "ExamplePay"]
+  ip_ranges: ["203.0.113.0/24"]          # RFC 5737 documentation range
+  vendors: [microsoft, cisco, fortinet, palo_alto, vmware, atlassian]
+  tech_stack:
+    - { product: "Windows Server 2022", cpe: "cpe:2.3:o:microsoft:windows_server_2022:*" }
+    - { product: "FortiGate",           cpe: "cpe:2.3:o:fortinet:fortios:*" }
+    - { product: "Apache Tomcat",       cpe: "cpe:2.3:a:apache:tomcat:*" }
