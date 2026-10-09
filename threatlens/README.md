@@ -8,7 +8,23 @@ assets (see [ADR 0002](docs/adr/0002-monorepo-and-reconx-link.md)).
 
 **Status:** Phases 1 (collection) and 2 (knowledge base: ATT&CK, NVD, EPSS, KEV, OSV, graph) complete; Docker verification pending. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
-## Quickstart
+## Quickstart (Windows)
+
+From the `threatlens` folder, in PowerShell (`.	l …`) or Command Prompt (`tl …`):
+
+```powershell
+.	l up              # starts Docker Desktop if needed, creates .env, starts the stack
+.	l key me admin    # prints an API key (shown once)
+.	l sources         # source health; any threatlens CLI command works: .	l collect nvd
+.	l status          # containers and readiness
+.	l logs            # follow worker + API logs
+.	l down            # stop (data is kept)
+```
+
+`tl` finds Docker even in a terminal opened before Docker was installed. API docs:
+http://127.0.0.1:8000/docs. After changing code, `.	l up --build`.
+
+## Quickstart (any OS)
 
 Requirements: [uv](https://docs.astral.sh/uv/) and Docker (Desktop on Windows).
 
