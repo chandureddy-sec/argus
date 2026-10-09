@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ ind.defanged | truncate(40, True) }}{% endblock %}
+{% block heading %}Indicator{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="hero">
+    <span class="big mono">{{ ind.defanged }}</span>
+    {% if ind.status == "active" %}<span class="pill green">active</span>{% elif ind.status == "false_positive" %}<span class="pill gray">allowlisted</span>{% else %}<span class="pill gray">{{ ind.status }}</span>{% endif %}
+    <span class="pill yellow">{{ ind.tlp }}</span>
+  </div>
+  {% if ind.allowlist_reason %}<p class="note">Allowlisted: {{ ind.allowlist_reason }}</p>{% endif %}
+  <div class="facts">
+    <div class="fact"><b>{{ ind.type }}</b><span>type</span></div>
+    <div class="fact"><b class="{{ 'band-1' if ind.confidence >= 80 else 'band-2' if ind.confidence >= 50 else 'band-3' }}">{{ ind.confidence }}</b><span>confidence</span></div>
+    <div class="fact"><b>{{ ind.sources | length }}</b><span>source{{ "s" if ind.sources | length != 1 }}</span></div>
+    <div class="fact"><b>{{ ind.first_seen.strftime("%Y-%m-%d") }}</b><span>first seen</span></div>
+    <div class="fact"><b>{{ ind.last_seen | ago }}</b><span>last seen</span></div>
+  </div>
+  {% if ind.labels %}<div class="tags">{% for l in ind.labels %}<span class="tag">{{ l }}</span>{% endfor %}</div>{% endif %}
+  {% if ind.pattern %}<p class="note">STIX pattern: <code>{{ ind.pattern }}</code></p>{% endif %}
+</section>
+
+<section class="grid-side">
+  <article class="panel">
+    <header class="panel-head"><h2>Sightings</h2><span class="hint">who reported it, and what they said</span></header>
+    <table class="data"><thead><tr><th>Source</th><th>Reported</th><th class="num">Times</th><th>Context</th></tr></thead><tbody>
+    {% for sg in ind.sightings %}
+      <tr><td><b>{{ sg.source }}</b><small>confidence {{ sg.confidence }}</small></td>
+        <td>{{ sg.first_seen.strftime("%Y-%m-%d") }}<small>last {{ sg.last_seen | ago }}</small></td>
+        <td class="num">{{ sg.times_reported }}</td>
+        <td><dl class="kv">{% for k, v in sg.context.items() if v not in (none, "", [], {}) %}<dt>{{ k }}</dt><dd>{{ v | string | truncate(160, True) }}</dd>{% endfor %}</dl></td></tr>
+    {% endfor %}
+    </tbody></table>
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2>Linked to</h2></header>
+    {% for r in related %}
+      <p><b>{{ r.edge.rel_type }}</b> →
+        {% if r.node.kind == "vulnerability" %}<a href="/ui/vulnerabilities/{{ r.node.label }}">{{ r.node.label }}</a>
+        {% elif r.node.kind == "entity" %}<a href="/ui/entities/{{ (r.node.external_id or r.node.ref) | quote }}">{{ r.node.label }}</a> <span class="tag">{{ r.node.type }}</span>
+        {% else %}{{ r.node.label }}{% endif %}
+        <br><span class="evidence">via {{ r.edge.source or r.edge.origin }}{% if r.edge.provenance.field %} · field “{{ r.edge.provenance.field }}”{% endif %}</span></p>
+    {% else %}<p class="empty">No links yet. Feeds that name malware (Feodo, ThreatFox, OTX) create them.</p>{% endfor %}
+  </article>
+</section>
+
+{% if techniques %}
+<section class="panel">
+  <header class="panel-head"><h2>Techniques of the linked malware</h2><span class="hint">from MITRE ATT&CK</span></header>
+  <table class="data"><thead><tr><th>Technique</th><th>Malware</th></tr></thead><tbody>
+  {% for t in techniques %}
+    <tr><td><a href="/ui/entities/{{ t.node.external_id }}"><span class="mono">{{ t.node.external_id }}</span> {{ t.node.label }}</a></td>
+      <td>{{ t.via }}</td></tr>
+  {% endfor %}
+  </tbody></table>
+</section>
+{% endif %}
+{% endblock %}

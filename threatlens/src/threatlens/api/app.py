@@ -10,7 +10,8 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -22,8 +23,11 @@ from threatlens.db import make_engine, make_sessionmaker, ping
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import Environment, Settings, get_settings
+from threatlens.ui.routes import HERE as UI_DIR
+from threatlens.ui.routes import router as ui_router
 
 log = get_logger("threatlens.api")
+UI_STATIC = UI_DIR / "static"
 
 # A caller-supplied request ID is echoed only if it is short and boring;
 # otherwise it could inject content into logs or response headers.
@@ -116,6 +120,13 @@ def create_app(
     )
     app.include_router(v1_router)
     app.include_router(kb_router)
+    app.include_router(ui_router)
+    app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
+    app.state.settings = settings
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        return RedirectResponse("/ui", status_code=307)
 
     @app.middleware("http")
     async def request_context(

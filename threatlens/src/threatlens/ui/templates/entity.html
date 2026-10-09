@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ e.name }}{% endblock %}
+{% block heading %}{{ e.name }}{% endblock %}
+{% block subheading %}<p class="sub">{{ e.type.replace("x-mitre-", "").replace("-", " ") }}{% if e.external_id %} · {{ e.external_id }}{% endif %}{% if e.origin == "feed" %} · named by a feed (not in ATT&CK){% endif %}</p>{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="hero">
+    {% if e.url %}<a class="btn" href="{{ e.url }}" rel="noopener noreferrer" target="_blank">Open on attack.mitre.org ↗</a>{% endif %}
+    {% if e.revoked %}<span class="pill red">revoked</span>{% endif %}{% if e.deprecated %}<span class="pill gray">deprecated</span>{% endif %}
+    {% for d in e.domains %}<span class="tag">{{ d }}</span>{% endfor %}
+  </div>
+  <div class="facts">
+    <div class="fact"><b>{{ techniques | length }}</b><span>techniques used</span></div>
+    <div class="fact"><b>{{ used_by | length }}</b><span>used by (groups, campaigns)</span></div>
+    <div class="fact"><b>{{ indicators_n }}</b><span>indicators in our feeds</span></div>
+    <div class="fact"><b>{{ mentions | length }}</b><span>CVEs mentioned</span></div>
+  </div>
+  {% if e.aliases %}<p class="note">Also known as: {{ e.aliases | join(", ") }}</p>{% endif %}
+  {% if e.description %}<p class="prose">{{ e.description | plain }}</p>{% endif %}
+</section>
+
+{% if matrix and techniques %}
+<section class="panel">
+  <header class="panel-head"><h2>ATT&CK profile</h2><span class="hint">techniques {{ e.name }} uses, by tactic (sub-techniques roll up)</span></header>
+  <div class="matrix">
+  {% for col in matrix.columns if col.hits %}
+    <div class="col"><h3>{{ col.tactic.name }}<small>{{ col.hits }} technique{{ "s" if col.hits != 1 }}</small></h3>
+    {% for t, n in col.cells if n %}<a class="cell h3" href="/ui/entities/{{ t.external_id }}"><span class="id">{{ t.external_id }}</span> {{ t.name }}</a>{% endfor %}
+    </div>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="grid-side">
+  <article class="panel">
+    <header class="panel-head"><h2>{% if e.type == "attack-pattern" %}Used by{% else %}Techniques{% endif %}</h2><span class="hint">each line is a sourced relationship</span></header>
+    <table class="data"><tbody>
+    {% for u in (used_by if e.type == "attack-pattern" else techniques) %}
+      <tr><td><a href="/ui/entities/{{ (u.node.external_id or u.node.ref) | quote }}">{% if u.node.external_id %}<span class="mono">{{ u.node.external_id }}</span> {% endif %}{{ u.node.label }}</a>
+        <small>{{ u.edge.description | plain(220) }}</small></td>
+        <td class="num"><span class="tag">{{ u.edge.source or u.edge.origin }}</span></td></tr>
+    {% else %}<tr><td class="empty">None recorded.</td></tr>{% endfor %}
+    </tbody></table>
+  </article>
+  <article class="panel">
+    {% if e.type != "attack-pattern" %}
+    <header class="panel-head"><h2>Used by</h2></header>
+    {% for u in used_by %}<p><a href="/ui/entities/{{ (u.node.external_id or u.node.ref) | quote }}">{{ u.node.label }}</a> <span class="tag">{{ u.node.type }}</span></p>
+    {% else %}<p class="empty">No group or campaign recorded.</p>{% endfor %}
+    {% endif %}
+    {% if software %}<header class="panel-head"><h2>Software</h2></header>
+      {% for u in software %}<p><a href="/ui/entities/{{ (u.node.external_id or u.node.ref) | quote }}">{{ u.node.label }}</a> <span class="tag">{{ u.node.type }}</span></p>{% endfor %}{% endif %}
+    {% if mentions %}<header class="panel-head"><h2>CVEs in ATT&CK text</h2></header>
+      {% for m in mentions %}<p><a class="mono" href="/ui/vulnerabilities/{{ m.node.label }}">{{ m.node.label }}</a>{% if m.node.extra.kev %} <span class="pill red">KEV</span>{% endif %}
+        <br><span class="evidence">“{{ m.edge.provenance.quote | plain(220) }}”</span></p>{% endfor %}{% endif %}
+    {% if indicators_n %}<p><a class="btn" href="/ui/search?q={{ e.name | quote }}">Indicators linked to {{ e.name }} →</a></p>{% endif %}
+  </article>
+</section>
+{% endblock %}

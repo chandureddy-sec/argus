@@ -66,12 +66,18 @@ function New-Secret {
 }
 
 function Initialize-Env {
-    if (Test-Path '.env') { return }
-    $lines = Get-Content '.env.example' | ForEach-Object {
-        if ($_ -like 'POSTGRES_PASSWORD=*') { "POSTGRES_PASSWORD=$(New-Secret)" } else { $_ }
+    $path = Join-Path $Root '.env'
+    if (-not (Test-Path $path)) {
+        $lines = Get-Content '.env.example' | ForEach-Object {
+            if ($_ -like 'POSTGRES_PASSWORD=*') { "POSTGRES_PASSWORD=$(New-Secret)" } else { $_ }
+        }
+        [IO.File]::WriteAllLines($path, [string[]]$lines)   # UTF-8 without BOM
+        Write-Host 'Created .env with a random database password (git-ignored).'
     }
-    [IO.File]::WriteAllLines((Join-Path $Root '.env'), [string[]]$lines)   # UTF-8 without BOM
-    Write-Host 'Created .env with a random database password (git-ignored).'
+    if (-not (Select-String -Path $path -Pattern '^TL_SECRET_KEY=' -Quiet)) {
+        [IO.File]::AppendAllText($path, "`nTL_SECRET_KEY=$(New-Secret)`n")
+        Write-Host 'Added TL_SECRET_KEY (signs UI sessions) to .env.'
+    }
 }
 
 function Show-Ready {

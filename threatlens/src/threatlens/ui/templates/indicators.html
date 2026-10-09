@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Indicators{% endblock %}
+{% block heading %}Indicators{% endblock %}
+{% block subheading %}<p class="sub">{{ "{:,}".format(res.total) }} matching · values are shown defanged</p>{% endblock %}
+{% block content %}
+<section class="panel">
+  <form class="filters" method="get" action="/ui/indicators">
+    <label>Search<input name="q" value="{{ f.q }}" placeholder="value contains…" maxlength="200"></label>
+    <label>Type<select name="type"><option value="">Any</option>
+      {% for k, v in types.items() %}<option value="{{ k }}"{% if f.type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Status<select name="status"><option value="">Any</option>
+      {% for s in ["active", "false_positive", "expired", "revoked", "new"] %}<option value="{{ s }}"{% if f.status == s %} selected{% endif %}>{{ s.replace("_", " ") }}</option>{% endfor %}</select></label>
+    <label>Source<select name="source"><option value="">Any</option>
+      {% for s in sources %}<option value="{{ s }}"{% if f.source == s %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+    <button class="primary" type="submit">Filter</button>
+    {% if f.q or f.type or f.status or f.source %}<a class="btn" href="/ui/indicators">Clear</a>{% endif %}
+  </form>
+</section>
+<section class="panel">
+  <table class="data">
+    <thead><tr><th>Indicator</th><th>Type</th><th>Sources</th><th>Labels</th><th class="num">Confidence</th><th>Status</th><th class="num">Last seen</th></tr></thead>
+    <tbody>
+    {% for i in res.items %}
+      <tr>
+        <td><a class="mono" href="/ui/indicators/{{ i.id }}">{{ i.defanged | truncate(90, True) }}</a></td>
+        <td>{{ types.get(i.type, i.type) }}</td>
+        <td>{% for s in i.sources %}<span class="tag">{{ s }}</span> {% endfor %}</td>
+        <td>{% for l in i.labels[:3] %}<span class="tag">{{ l | truncate(24, True) }}</span> {% endfor %}</td>
+        <td class="num"><span class="{{ 'band-1' if i.confidence >= 80 else 'band-2' if i.confidence >= 50 else 'band-3' }}">{{ i.confidence }}</span></td>
+        <td>{% if i.status == "active" %}<span class="pill green">active</span>{% elif i.status == "false_positive" %}<span class="pill gray" title="{{ i.allowlist_reason or '' }}">allowlisted</span>{% else %}<span class="pill gray">{{ i.status }}</span>{% endif %}</td>
+        <td class="num muted">{{ i.last_seen | ago }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="empty">Nothing matches.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% set last = ((res.total - 1) // 50) + 1 %}
+  <div class="pager">
+    {% if page_no > 1 %}<a class="btn" href="?q={{ f.q | quote }}&amp;type={{ f.type }}&amp;status={{ f.status }}&amp;source={{ f.source | quote }}&amp;page={{ page_no - 1 }}">← Previous</a>{% endif %}
+    <span>Page {{ page_no }} of {{ last }}</span>
+    {% if page_no < last %}<a class="btn" href="?q={{ f.q | quote }}&amp;type={{ f.type }}&amp;status={{ f.status }}&amp;source={{ f.source | quote }}&amp;page={{ page_no + 1 }}">Next →</a>{% endif %}
+  </div>
+</section>
+{% endblock %}

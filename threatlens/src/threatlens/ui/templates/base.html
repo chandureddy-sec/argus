@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="same-origin">
+<title>{% block title %}ThreatLens{% endblock %} · ThreatLens</title>
+<link rel="icon" href="/ui/static/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/ui/static/app.css?v={{ version }}">
+</head>
+<body>
+{% set nav = [
+  ("/ui", "Overview", "M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"),
+  ("/ui/indicators", "Indicators", "M12 3l8 4v5c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V7z"),
+  ("/ui/vulnerabilities", "Vulnerabilities", "M12 2 2 20h20zM12 9v5M12 17h.01"),
+  ("/ui/attack", "ATT&CK", "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"),
+  ("/ui/sources", "Sources", "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"),
+] %}
+<aside class="sidebar">
+  <a class="brand" href="/ui" title="ThreatLens"><img src="/ui/static/logo.svg" alt="ThreatLens" width="34" height="34"></a>
+  <nav>
+  {% for href, label, d in nav %}
+    <a class="nav{% if path == href or (href != '/ui' and path.startswith(href)) %} active{% endif %}" href="{{ href }}" title="{{ label }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="{{ d }}"/></svg><span>{{ label }}</span>
+    </a>
+  {% endfor %}
+  </nav>
+  <a class="nav docs" href="/docs" title="API reference"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h9l3 3v13H8zM4 8v12h12"/></svg><span>API</span></a>
+</aside>
+<main>
+  <header class="topbar">
+    <div>
+      <h1>{% block heading %}{% endblock %}</h1>
+      {% block subheading %}{% endblock %}
+    </div>
+    <form class="search" action="/ui/search" method="get" role="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4-4"/></svg>
+      <input name="q" placeholder="Search IOC, CVE, malware, group, T-id…" autocomplete="off" maxlength="300" aria-label="Search">
+    </form>
+    {% if me %}
+    <form class="user" action="/ui/logout" method="post">
+      <span class="avatar">{{ me.name[:1] | upper }}</span>
+      <span class="who"><b>{{ me.name }}</b><small>{{ me.role }}</small></span>
+      <button type="submit" class="ghost" title="Sign out">Sign out</button>
+    </form>
+    {% endif %}
+  </header>
+  {% block content %}{% endblock %}
+  <footer>ThreatLens {{ version }} · data © its sources (see <a href="/ui/sources">Sources</a> for licences and attribution) · MITRE ATT&CK® © The MITRE Corporation</footer>
+</main>
+</body>
+</html>

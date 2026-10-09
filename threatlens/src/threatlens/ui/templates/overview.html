@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block heading %}Overview{% endblock %}
+{% block subheading %}<p class="sub">Threat picture from {{ d.sources | length }} sources · {{ d.window }}</p>{% endblock %}
+{% block content %}
+
+<section class="panel kpis">
+  {% for k in d.kpis %}
+  <a class="kpi" href="{{ k.href }}">
+    <span class="kpi-value tone-{{ k.tone }}">{{ "{:,}".format(k.value) }}</span>
+    <span class="kpi-label">{{ k.label }}</span>
+    <span class="kpi-sub">{{ k.sub }}</span>
+  </a>
+  {% endfor %}
+</section>
+
+<section class="grid-3">
+  <article class="panel">
+    <header class="panel-head"><h2>Ingestion rate</h2><span class="hint">items collected · {{ d.window }}</span></header>
+    {{ charts.area_chart(d.collected, color="#5b8def", unit=" items") }}
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2>New indicators</h2><span class="hint">first seen · {{ d.window }}</span></header>
+    {{ charts.area_chart(d.new_items, color="#22d3ee", unit=" new") }}
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2>Known exploited (KEV) additions</h2><span class="hint">CISA, per month</span></header>
+    {{ charts.area_chart(d.kev_months, color="#ef4444", unit=" CVEs", xlabels=5) }}
+  </article>
+</section>
+
+<section class="grid-map">
+  <article class="panel stats">
+    <header class="panel-head"><h2>Indicator stats</h2></header>
+    <div class="tabs">
+      <input type="radio" name="ist" id="ist1" checked><label for="ist1">Confidence</label>
+      <input type="radio" name="ist" id="ist2"><label for="ist2">By source</label>
+      <input type="radio" name="ist" id="ist3"><label for="ist3">Types</label>
+      <div class="tabpane p1">
+        <table class="mini"><thead><tr><th>Confidence</th><th class="num">Active</th></tr></thead><tbody>
+        {% for b, n in d.confidence %}<tr><td class="band-{{ loop.index }}">{{ b }}</td><td class="num">{{ "{:,}".format(n) }}</td></tr>{% endfor %}
+        <tr><td class="muted">Allowlisted (suppressed)</td><td class="num">{{ "{:,}".format(d.status.get("false_positive", 0)) }}</td></tr>
+        </tbody></table>
+        <p class="note">Priority scores (decay, corroboration, relevance) arrive with Phase 4.</p>
+      </div>
+      <div class="tabpane p2">
+        <table class="mini"><thead><tr><th>Source</th><th class="num">Indicators</th></tr></thead><tbody>
+        {% for n, c in d.by_source %}<tr><td><a href="/ui/indicators?source={{ n | quote }}">{{ n }}</a></td><td class="num">{{ "{:,}".format(c) }}</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+      <div class="tabpane p3">{{ charts.bar_list(d.types, color="#5b8def") }}</div>
+    </div>
+  </article>
+
+  <article class="panel map-panel">
+    <header class="panel-head"><h2>Botnet C2 locations</h2>
+      <span class="hint">{{ d.geo_located }} of {{ "{:,}".format(d.ips) }} IP indicators carry a location (Feodo Tracker); IP geolocation comes with enrichment</span></header>
+    {{ charts.world_map(d.geo) }}
+    <div class="legend"><span class="dot crit"></span>Most C2 <span class="dot high"></span>Some <span class="dot med"></span>Few</div>
+  </article>
+
+  <article class="panel stats">
+    <header class="panel-head"><h2>Threat stats</h2></header>
+    <div class="tabs">
+      <input type="radio" name="tst" id="tst1" checked><label for="tst1">Malware</label>
+      <input type="radio" name="tst" id="tst2"><label for="tst2">Techniques</label>
+      <div class="tabpane p1">
+        {% if d.families %}
+        <table class="mini"><thead><tr><th>Family</th><th class="num">IOCs</th></tr></thead><tbody>
+        {% for name, n, href in d.families %}<tr><td><a href="{{ href }}">{{ name }}</a></td><td class="num">{{ n }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% else %}<p class="empty">No feed has named a malware family yet.</p>{% endif %}
+      </div>
+      <div class="tabpane p2">
+        {% if d.techniques %}{{ charts.bar_list(d.techniques, color="#b06cff") }}
+        <p class="note">ATT&CK techniques used by the malware your feeds see.</p>
+        {% else %}<p class="empty">Load ATT&CK and collect a feed that names malware.</p>{% endif %}
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="grid-3">
+  <article class="panel">
+    <header class="panel-head"><h2>Exploited in our stack</h2><a class="more" href="/ui/vulnerabilities?kev=true&amp;stack=true">All →</a></header>
+    {% if d.kev_stack %}
+    <table class="list"><tbody>
+    {% for v in d.kev_stack %}
+      <tr><td><a class="mono" href="/ui/vulnerabilities/{{ v.cve_id }}">{{ v.cve_id }}</a><small>{{ d.products.get(v.id, "") }}</small></td>
+        <td class="num">{% if v.epss is not none %}<span class="pill epss">EPSS {{ "%.0f" | format(v.epss * 100) }}%</span>{% endif %}</td>
+        <td class="num muted">{{ v.kev_date_added or "" }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+    {% elif not d.stack %}<p class="empty">Add products to <code>config/org_profile.yaml</code> (tech_stack) to see this.</p>
+    {% else %}<p class="empty">No known exploited CVE matches your tech stack. Good.</p>{% endif %}
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2>Latest KEV additions</h2><a class="more" href="/ui/vulnerabilities?kev=true&amp;sort=kev_date">All →</a></header>
+    <table class="list"><tbody>
+    {% for v in d.kev_latest %}
+      <tr><td><a class="mono" href="/ui/vulnerabilities/{{ v.cve_id }}">{{ v.cve_id }}</a><small>{{ v.kev_name or d.products.get(v.id, "") }}</small></td>
+        <td class="num">{% if v.kev_ransomware == "Known" %}<span class="pill red">ransomware</span>{% endif %}{% if v.id in d.stack_ids %}<span class="pill cyan">our stack</span>{% endif %}</td>
+        <td class="num muted">{{ v.kev_date_added or "" }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2>Source health</h2><a class="more" href="/ui/sources">All →</a></header>
+    <table class="list"><tbody>
+    {% for s in d.sources %}{% set r = d.last_runs.get(s.id) %}
+      <tr><td><span class="health {{ s.health }}"></span>{{ s.name }}<small>{{ s.kind }}</small></td>
+        <td class="num">{% if r %}{{ "{:,}".format(r.items_total) }}<small>last run</small>{% endif %}</td>
+        <td class="num muted">{{ s.last_success_at | ago }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+  </article>
+</section>
+{% endblock %}

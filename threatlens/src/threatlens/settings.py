@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     abusech_auth_key: SecretStr | None = None  # ThreatFox (required), URLhaus (optional)
     otx_api_key: SecretStr | None = None  # AlienVault OTX (required)
 
+    # Signs analyst UI session cookies. Without it, sessions end when the API restarts.
+    secret_key: SecretStr | None = None
+
     # Knowledge base (Phase 2).
     attack_domains: list[str] = Field(
         default_factory=lambda: ["enterprise-attack", "mobile-attack", "ics-attack"]

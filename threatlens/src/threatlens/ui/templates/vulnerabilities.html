@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Vulnerabilities{% endblock %}
+{% block heading %}Vulnerabilities{% endblock %}
+{% block subheading %}<p class="sub">{{ "{:,}".format(total) }} CVEs · CVSS says how bad, KEV says it's being exploited, EPSS says how likely exploitation is</p>{% endblock %}
+{% block content %}
+<section class="panel">
+  <form class="filters" method="get" action="/ui/vulnerabilities">
+    <label>Search<input name="q" value="{{ f.q }}" placeholder="CVE id or text…" maxlength="200"></label>
+    <label>Known exploited<select name="kev"><option value="">Any</option>
+      <option value="true"{% if f.kev == "true" %} selected{% endif %}>Yes (CISA KEV)</option>
+      <option value="false"{% if f.kev == "false" %} selected{% endif %}>No</option></select></label>
+    <label>Sort by<select name="sort">
+      {% for k, v in [("epss", "Exploit probability (EPSS)"), ("cvss", "Severity (CVSS)"), ("kev_date", "Date added to KEV"), ("published", "Published")] %}
+      <option value="{{ k }}"{% if f.sort == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+    <label class="check"><input type="checkbox" name="stack" value="true"{% if f.stack %} checked{% endif %}> Only our tech stack</label>
+    <button class="primary" type="submit">Apply</button>
+  </form>
+</section>
+<section class="panel">
+  <table class="data">
+    <thead><tr><th>CVE</th><th>Product</th><th class="num">CVSS</th><th class="num">EPSS</th><th>Exploitation</th><th class="num">Published</th></tr></thead>
+    <tbody>
+    {% for v in rows %}
+      <tr>
+        <td><a class="mono" href="/ui/vulnerabilities/{{ v.cve_id }}">{{ v.cve_id }}</a><small>{{ v.kev_name or (v.description | truncate(80, True)) }}</small></td>
+        <td>{{ prods.get(v.id, "") }}</td>
+        <td class="num">{% if v.cvss_score is not none %}<span class="sev {{ v.cvss_severity or 'NONE' }}">{{ "%.1f" | format(v.cvss_score) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="num">{% if v.epss is not none %}{{ "%.1f" | format(v.epss * 100) }}%<small>top {{ "%.0f" | format((1 - (v.epss_percentile or 0)) * 100) }}%</small>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td>{% if v.kev %}<span class="pill red">KEV {{ v.kev_date_added or "" }}</span>{% endif %}{% if v.kev_ransomware == "Known" %}<span class="pill red">ransomware</span>{% endif %}{% if v.exploit_refs %}<span class="pill yellow">public exploit</span>{% endif %}</td>
+        <td class="num muted">{{ v.published.strftime("%Y-%m-%d") if v.published else "stub" }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">Nothing matches.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% set last = ((total - 1) // 50) + 1 %}
+  <div class="pager">
+    {% set qs = "q=" ~ (f.q | quote) ~ "&kev=" ~ f.kev ~ "&sort=" ~ f.sort ~ ("&stack=true" if f.stack else "") %}
+    {% if page_no > 1 %}<a class="btn" href="?{{ qs }}&amp;page={{ page_no - 1 }}">← Previous</a>{% endif %}
+    <span>Page {{ page_no }} of {{ last }}</span>
+    {% if page_no < last %}<a class="btn" href="?{{ qs }}&amp;page={{ page_no + 1 }}">Next →</a>{% endif %}
+  </div>
+</section>
+{% endblock %}
