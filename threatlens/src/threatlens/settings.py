@@ -31,9 +31,9 @@ class Settings(BaseSettings):
 
     # asyncpg DSN, e.g. postgresql+asyncpg://threatlens:***@db:5432/threatlens
     database_url: SecretStr = SecretStr(
-        "postgresql+asyncpg://threatlens:threatlens@localhost:5432/threatlens"
+        "postgresql+asyncpg://threatlens:threatlens@127.0.0.1:5432/threatlens"
     )
-    redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
+    redis_url: SecretStr = SecretStr("redis://127.0.0.1:6379/0")  # IPv4: see .env.example
 
     profile_path: Path = Path("config/org_profile.yaml")
     pirs_path: Path = Path("config/pirs.yaml")

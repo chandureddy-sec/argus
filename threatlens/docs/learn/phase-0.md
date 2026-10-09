@@ -44,7 +44,7 @@ containers) — because the platform will ingest content written by adversaries.
 3. Change an IP range to `203.0.113.5/24`. Why does `strict=True` reject a
    network with host bits set?
 4. With the stack up, run `docker compose stop redis`, then
-   `curl -i localhost:8000/readyz` and `curl -i localhost:8000/healthz`.
+   `curl -i 127.0.0.1:8000/readyz` and `curl -i 127.0.0.1:8000/healthz`.
    Explain the two status codes.
 5. `uv run alembic upgrade head --sql` — find the extension statements and
    explain what `pg_trgm` will be used for.

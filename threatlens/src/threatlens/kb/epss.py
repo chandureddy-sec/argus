@@ -2,7 +2,9 @@
 
 One gzipped CSV holds every scored CVE (~385 k rows). FIRST's docs say the
 API is meant for lookups and the CSV for bulk use, so this downloads the CSV
-once a day and updates the CVEs this platform already tracks. It doesn't
+with a conditional GET every 6 hours and updates the CVEs this platform
+already tracks; when the file is unchanged, CVEs added since are scored from
+the archived copy. It doesn't
 create rows: EPSS scores context, it doesn't decide what's relevant.
 
 Format (checked 2026-10-09)::
@@ -23,7 +25,8 @@ from sqlalchemy import select, update
 
 from threatlens.connectors.base import SchemaDriftError, SourceInfo, parse_time
 from threatlens.kb.base import KbContext, KbResult, KnowledgeSource, archive, register_kb
-from threatlens.models import Vulnerability
+from threatlens.models import RawDocument, Vulnerability
+from threatlens.rawstore import RawStoreError
 
 EPSS_URL = "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
 _MAX_UNZIPPED = 128 * 1024 * 1024  # ~20 MB today; guards against a decompression bomb
@@ -80,7 +83,7 @@ class Epss(KnowledgeSource):
         redistribution=False,  # not addressed by FIRST; treated conservatively
         attribution="EPSS scores by FIRST.org (https://www.first.org/epss/)",
         upstream="first",
-        interval=timedelta(hours=24),
+        interval=timedelta(hours=6),  # a cheap conditional GET; new CVEs get scored within hours
         min_interval=timedelta(hours=1),
         default_confidence=80,
         max_bytes=32 * 1024 * 1024,
@@ -91,28 +94,25 @@ class Epss(KnowledgeSource):
         r = await ctx.http.get(EPSS_URL, etag=ctx.checkpoint.get("etag"), max_bytes=self.info.max_bytes)
         cp = {**ctx.checkpoint, **({"etag": r.etag} if r.etag else {})}
         if r.not_modified:
-            return KbResult(status="not_modified", http_status=304, checkpoint=cp)
+            # Same file as last time: CVEs added since then (by NVD, KEV, feeds)
+            # still get today's score, read back from the raw archive.
+            body = await _latest_archived(ctx)
+            if body is None:
+                return KbResult(status="not_modified", http_status=304, checkpoint=cp)
+            meta, scores = parse_epss(body)
+            filled = await _apply(ctx, meta, scores, only_missing=True)
+            return KbResult(
+                status="not_modified",
+                http_status=304,
+                items_total=len(scores),
+                items_updated=filled,
+                checkpoint=cp,
+                note=f"unchanged file; scored {filled} new CVE(s) from the archive",
+            )
         meta, scores = parse_epss(r.body)
         raw_id = await archive(ctx, r.url, r.body, r.content_type, len(scores))
-        day = parse_time(meta.get("score_date"))
-        model = meta.get("model_version")
-        updated = 0
-        async with ctx.sm() as s, s.begin():
-            rows = (await s.execute(select(Vulnerability.id, Vulnerability.cve_id))).all()
-            batch = [
-                {
-                    "id": vid,
-                    "epss": scores[cve][0],
-                    "epss_percentile": scores[cve][1],
-                    "epss_date": day.date() if day else None,
-                }
-                for vid, cve in rows
-                if cve in scores
-            ]
-            for i in range(0, len(batch), 1000):
-                await s.execute(update(Vulnerability), batch[i : i + 1000])
-            updated = len(batch)
-        cp["model_version"] = model
+        updated = await _apply(ctx, meta, scores, only_missing=False)
+        cp["model_version"] = meta.get("model_version")
         cp["score_date"] = meta.get("score_date")
         return KbResult(
             items_total=len(scores),
@@ -120,5 +120,44 @@ class Epss(KnowledgeSource):
             http_status=r.status,
             raw_id=raw_id,
             checkpoint=cp,
-            note=f"model {model}, scores of {meta.get('score_date')}",
+            note=f"model {meta.get('model_version')}, scores of {meta.get('score_date')}",
         )
+
+
+async def _latest_archived(ctx: KbContext) -> bytes | None:
+    async with ctx.sm() as s:
+        doc = await s.scalar(
+            select(RawDocument)
+            .where(RawDocument.source_id == ctx.source_id)
+            .order_by(RawDocument.fetched_at.desc(), RawDocument.id.desc())
+            .limit(1)
+        )
+    if doc is None:
+        return None
+    try:
+        return ctx.store.get(doc.payload_ref, doc.sha256)
+    except (OSError, RawStoreError):
+        return None
+
+
+async def _apply(
+    ctx: KbContext, meta: dict[str, str], scores: dict[str, tuple[float, float]], *, only_missing: bool
+) -> int:
+    day = parse_time(meta.get("score_date"))
+    async with ctx.sm() as s, s.begin():
+        stmt = select(Vulnerability.id, Vulnerability.cve_id)
+        if only_missing:
+            stmt = stmt.where(Vulnerability.epss.is_(None))
+        batch = [
+            {
+                "id": vid,
+                "epss": scores[cve][0],
+                "epss_percentile": scores[cve][1],
+                "epss_date": day.date() if day else None,
+            }
+            for vid, cve in (await s.execute(stmt)).all()
+            if cve in scores
+        ]
+        for i in range(0, len(batch), 1000):
+            await s.execute(update(Vulnerability), batch[i : i + 1000])
+    return len(batch)

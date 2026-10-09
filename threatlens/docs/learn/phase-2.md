@@ -52,7 +52,7 @@ graph that joins them:
 With a scratch SQLite database (see Phase 1's exercise for the environment variables):
 
 1. `uv run threatlens collect mitre_attack`. Then
-   `curl -H "X-API-Key: $KEY" localhost:8000/api/v1/entities/Emotet/techniques`.
+   `curl -H "X-API-Key: $KEY" 127.0.0.1:8000/api/v1/entities/Emotet/techniques`.
    Pick one technique and open the `evidence.provenance.references` URL. What does the citation say?
 2. `uv run threatlens attack-load --version 19.1 --force` loads an older release over the current one.
    Then load 19.2 again (`attack-load --version 19.2 --force`) and list the changes:

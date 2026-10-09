@@ -35,6 +35,22 @@ pytestmark = [
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def _env_from_dotenv() -> None:
+    """With the compose stack up, point at its published ports using the
+    password from .env, so `make test-integration` needs no extra setup."""
+    if "TL_DATABASE_URL" in os.environ or not (ROOT / ".env").exists():
+        return
+    for line in (ROOT / ".env").read_text(encoding="utf-8").splitlines():
+        if line.startswith("POSTGRES_PASSWORD="):
+            pw = line.split("=", 1)[1].strip()
+            os.environ["TL_DATABASE_URL"] = f"postgresql+asyncpg://threatlens:{pw}@127.0.0.1:5432/threatlens"
+            os.environ.setdefault("TL_REDIS_URL", "redis://127.0.0.1:6379/0")
+            get_settings.cache_clear()
+
+
+_env_from_dotenv()
+
+
 def _head() -> str:
     from alembic.config import Config
     from alembic.script import ScriptDirectory

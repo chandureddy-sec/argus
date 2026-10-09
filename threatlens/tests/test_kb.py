@@ -417,9 +417,18 @@ async def test_epss_osv_and_kev(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> 
     signals = {x["signal"] for x in exploit_signals(panos)}
     assert {"exploited-in-the-wild", "exploitation-active", "public-exploit-reference"} <= signals
 
-    clock.advance(days=1)
+    async with sm() as s, s.begin():
+        from threatlens.kb.vulns import ensure_stubs
+
+        await ensure_stubs(s, ["CVE-2025-64118"])  # a CVE first seen after the last EPSS download
+    clock.advance(hours=7)
     again = await c.run("epss")
     assert again.status == "not_modified"
+    assert again.items_updated == 1
+    assert "from the archive" in (again.note or "")
+    async with sm() as s:
+        late = await s.scalar(select(Vulnerability.epss).where(Vulnerability.cve_id == "CVE-2025-64118"))
+    assert late is not None
 
 
 # ── linking and the graph ───────────────────────────────────────────────────
