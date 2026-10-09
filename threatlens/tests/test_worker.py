@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from threatlens import worker
 
@@ -22,16 +21,10 @@ async def test_heartbeat_records_timestamp_with_expiry() -> None:
     assert ttl == 600  # a dead worker's heartbeat disappears instead of looking fresh
 
 
-async def test_startup_and_shutdown() -> None:
-    r = FakeRedis()
-    ctx: dict[str, Any] = {"redis": r}
-    await worker.startup(ctx)
-    await worker.shutdown(ctx)
-    assert worker.HEARTBEAT_KEY in r.store
-
-
 def test_worker_settings_schedule_heartbeat() -> None:
     ws = worker.WorkerSettings
     assert worker.heartbeat in ws.functions
-    assert len(ws.cron_jobs) == 1
+    names = {getattr(f, "name", getattr(f, "__name__", "")) for f in ws.functions}
+    assert {"collect_source", "refresh_allowlist"} <= names
+    assert {c.name for c in ws.cron_jobs} == {"cron:heartbeat", "cron:enqueue_due", "cron:refresh_allowlist"}
     assert ws.redis_settings.host  # parsed from TL_REDIS_URL

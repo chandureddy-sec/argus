@@ -12,6 +12,7 @@ from typing import Any, ClassVar
 from threatlens.connectors.base import (
     Connector,
     Item,
+    MissingKeyError,
     SchemaDriftError,
     SourceInfo,
     clip,
@@ -199,7 +200,8 @@ class ThreatFox(Connector):
         # One day of data when we ran recently, the API's maximum (7) otherwise.
         last = parse_time(checkpoint.get("last_success"))
         days = 1 if last and datetime.now(UTC) - last < timedelta(hours=20) else 7
-        assert self.api_key  # enforced in __init__
+        if not self.api_key:  # enforced in __init__; re-checked so -O can't drop it
+            raise MissingKeyError(f"{self.info.name} needs TL_ABUSECH_AUTH_KEY")
         return await http.post_json(
             self.info.url, {"query": "get_iocs", "days": days}, headers={"Auth-Key": self.api_key}
         )
@@ -339,7 +341,8 @@ class Otx(Connector):
     )
 
     async def fetch(self, http: SafeHttp, checkpoint: Mapping[str, Any]) -> FetchResult:
-        assert self.api_key
+        if not self.api_key:
+            raise MissingKeyError(f"{self.info.name} needs TL_OTX_API_KEY")
         since = checkpoint.get("modified_since") or (datetime.now(UTC) - timedelta(days=7)).isoformat()
         pages: list[Any] = []
         url: str | None = self.info.url
@@ -350,7 +353,8 @@ class Otx(Connector):
             page = _json(last.body, "OTX page")
             pages.append(page)
             url, params = (page.get("next") if isinstance(page, dict) else None), None
-        assert last is not None
+        if last is None:  # the loop always runs once; this satisfies the type checker
+            raise SchemaDriftError("OTX returned no pages")
         # Pages are combined into one raw document, archived as fetched.
         body = json.dumps({"pages": pages, "modified_since": since}).encode()
         return FetchResult(last.url, 200, body, "application/json", None, None)
@@ -407,14 +411,19 @@ class SpamhausDrop(Connector):
         reliability_note=(
             "Netblocks hijacked or operated by criminals; long-established, low false-positive list."
         ),
-        license="Spamhaus DROP terms (free for all uses, attribution required)",
+        # "no cost, regardless of size or business type"; credit Spamhaus and keep
+        # the date and (c) text with the data. The terms grant no licence to the
+        # list itself, so we don't redistribute it (exports exclude it).
+        license="Spamhaus DROP terms (free incl. commercial, attribution required, no redistribution)",
         license_url="https://www.spamhaus.org/drop/terms/",
         commercial_use=True,
-        redistribution=True,
+        redistribution=False,
         attribution="Spamhaus DROP list, (c) The Spamhaus Project SLU",
         upstream="spamhaus",
-        interval=12 * H,
-        min_interval=H,  # "Please DO NOT auto-fetch the DROP list more than once per hour"
+        # The product page says both "not more than once per hour" and "not more
+        # than once per day"; we honour the stricter one.
+        interval=24 * H,
+        min_interval=24 * H,
         default_confidence=95,
         verified=VERIFIED,
     )

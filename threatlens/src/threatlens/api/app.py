@@ -14,10 +14,9 @@ from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from threatlens import __version__
 from threatlens.api.v1 import router as v1_router
 from threatlens.auth import MemoryRateLimiter, RateLimiter, RedisRateLimiter
-
-from threatlens import __version__
 from threatlens.db import make_engine, make_sessionmaker, ping
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger

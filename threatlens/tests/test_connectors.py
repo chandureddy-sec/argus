@@ -43,7 +43,8 @@ def test_registry_metadata_is_complete() -> None:
         i = cls.info
         assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", i.verified), i.name
         assert i.min_interval <= i.interval, i.name
-        assert i.url.startswith("https://") and i.license_url.startswith("https://"), i.name
+        assert i.url.startswith("https://"), i.name
+        assert i.license_url.startswith("https://"), i.name
         assert 0 <= i.default_confidence <= 100
         assert i.key_required <= bool(i.key_setting), i.name  # required keys must name their setting
 
@@ -54,7 +55,8 @@ def test_kev() -> None:
     assert all(i.type == IOCType.CVE and i.value.startswith("CVE-") for i in got)
     assert all("kev" in i.labels for i in got)
     assert any("ransomware" in i.labels for i in got)
-    assert got[0].context["vendor"] and got[0].seen_at is not None
+    assert got[0].context["vendor"]
+    assert got[0].seen_at is not None
 
 
 def test_urlhaus() -> None:
@@ -63,8 +65,10 @@ def test_urlhaus() -> None:
         "http://93.184.216.34:60557/bin.sh",
         "https://malware-drop.example.net/payload.exe",
     ]
-    assert got[0].confidence == 85 and got[1].confidence == 60  # online vs offline
-    assert "Mozi" in got[0].labels and "None" not in got[2].labels
+    assert got[0].confidence == 85
+    assert got[1].confidence == 60
+    assert "Mozi" in got[0].labels
+    assert "None" not in got[2].labels
     assert got[0].context["reference"].startswith("https://urlhaus.abuse.ch/url/")
 
 
@@ -74,7 +78,8 @@ def test_threatfox_requires_key_and_parses() -> None:
     got = items(ThreatFox(api_key="k"), "threatfox.json")
     ip = got[0]
     assert (ip.value, ip.type, ip.context["port"], ip.confidence) == ("93.184.216.34", IOCType.IPV4, 443, 100)
-    assert got[1].type == IOCType.DOMAIN and got[1].context["malware"] == "QakBot"
+    assert got[1].type == IOCType.DOMAIN
+    assert got[1].context["malware"] == "QakBot"
     assert got[3].type == IOCType.SHA256
     assert got[4].type is None  # unknown ioc_type → guessed (and rejected) downstream
     assert list(ThreatFox(api_key="k").parse(b'{"query_status": "no_result"}')) == []
@@ -108,7 +113,8 @@ def test_spamhaus() -> None:
 def test_tor_and_openphish() -> None:
     assert len(items(TorExits(), "tor_exits.txt")) == 3
     phish = items(OpenPhish(), "openphish.txt")
-    assert len(phish) == 3 and all(i.type == IOCType.URL for i in phish)
+    assert len(phish) == 3
+    assert all(i.type == IOCType.URL for i in phish)
 
 
 @pytest.mark.parametrize(
@@ -157,5 +163,7 @@ def test_kev_tolerates_new_fields() -> None:
 )
 def test_parse_time(raw: str, iso: str) -> None:
     t = parse_time(raw)
-    assert t is not None and t.isoformat() == iso
-    assert parse_time("not a date") is None and parse_time(None) is None
+    assert t is not None
+    assert t.isoformat() == iso
+    assert parse_time("not a date") is None
+    assert parse_time(None) is None

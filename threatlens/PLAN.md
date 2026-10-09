@@ -64,7 +64,7 @@ backoff + jitter, ETag/If-Modified-Since, raw-response archive.
 | — | **API auth + RBAC moves to Phase 1** (spec leaves it unscheduled) | Phase 1 adds the first data endpoints; they must not ship unauthenticated. |
 | — | **Corroboration counts independent upstreams**, via an `upstream` lineage field on sources | Mirrors and re-publishers of one feed must not look like two confirmations. |
 | — | **KEV is a non-decaying floor** in the vulnerability model | A KEV entry stays exploited; time doesn't make it safe. |
-| — | **Per-source licence flags block exports** (e.g. VirusTotal's free API is non-commercial; Spamhaus DROP is free for non-commercial use) | The spec requires licence-aware exports; these are the known cases to verify first. |
+| — | **Per-source licence flags block exports** (e.g. VirusTotal's free API is non-commercial; abuse.ch and OpenPhish free tiers are non-commercial; Spamhaus DROP may not be redistributed) | The spec requires licence-aware exports; these are the known cases to verify first. |
 | — | **MaxMind GeoLite2 optional** (needs an account licence key) | Use RIPEstat/Team Cymru for ASN and add GeoLite2 only when a key is provided. |
 
 ## 5. Risk register
@@ -84,8 +84,8 @@ backoff + jitter, ETag/If-Modified-Since, raw-response archive.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Foundation: layout, Compose, config, Alembic baseline, CI, pre-commit, logging, health, org profile + PIRs, threat model, ADR 0001 | **in progress** |
-| 1 | Collection + processing core; hardened HTTP client; IOC extractor; allowlist; dedup; first 5–8 connectors (verified); API keys + RBAC | planned |
+| 0 | Foundation: layout, Compose, config, Alembic baseline, CI, pre-commit, logging, health, org profile + PIRs, threat model, ADR 0001 | code complete; Docker run pending |
+| 1 | Collection + processing core; hardened HTTP client; IOC extractor; allowlist; dedup; first 5–8 connectors (verified); API keys + RBAC | **complete** (8 connectors, ADR 0003); Docker run pending |
 | 2 | Knowledge base: ATT&CK, NVD/EPSS/KEV/OSV, relationship graph | planned |
 | 3 | Enrichment engine (RDAP, DNS, ASN, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh); lookup + bulk enrich API | planned |
 | 3b | **ReconX link**: ReconX `--threatlens` sends assets, shows verdicts, monitor alert rule; ThreatLens imports ReconX scans as assets/observed CPEs | planned |

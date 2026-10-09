@@ -90,7 +90,8 @@ async def test_rerun_creates_zero_duplicates(sm: SM, mock_http: MakeHttp, tmp_pa
 
     async with sm() as s:
         sg = (await s.scalars(select(Sighting))).first()
-        assert sg is not None and sg.times_reported == 2
+        assert sg is not None
+        assert sg.times_reported == 2
         runs = (await s.scalars(select(ConnectorRun.status).order_by(ConnectorRun.id))).all()
     assert runs == ["success", "unchanged", "success"]
 
@@ -105,7 +106,8 @@ async def test_same_ioc_from_two_sources_is_one_indicator(
     await c.run("openphish")  # has http://93.184.216.34/paypal/
     async with sm() as s:
         ip = await s.scalar(select(ObsRow).where(ObsRow.canonical_key == "ipv4-addr|93.184.216.34"))
-        assert ip is not None and ip.sightings_count == 1
+        assert ip is not None
+        assert ip.sightings_count == 1
         n = await s.scalar(
             select(func.count()).select_from(ObsRow).where(ObsRow.value.like("%93.184.216.34%"))
         )
@@ -139,7 +141,8 @@ async def test_allowlisted_domains_never_become_active(sm: SM, mock_http: MakeHt
             ).all()
         }
     own = rows["c2-panel.example.org"]
-    assert own.status == "false_positive" and "own domain" in (own.allowlist_reason or "")
+    assert own.status == "false_positive"
+    assert "own domain" in (own.allowlist_reason or "")
     assert "own-asset" in own.labels
     stage = rows["https://payload.example.org/stage2.bin"]
     assert stage.status == "false_positive"  # own domains suppress URLs under them too
@@ -161,13 +164,16 @@ async def test_allowlist_changes_are_reapplied(sm: SM, mock_http: MakeHttp, tmp_
     assert await c.reapply_allowlist() == 1
     async with sm() as s:
         ind = await s.scalar(select(Indicator).join(ObsRow).where(ObsRow.value == ip_value))
-        assert ind is not None and ind.status == "false_positive"
+        assert ind is not None
+        assert ind.status == "false_positive"
 
     await c.replace_allowlist("manual", [])
     assert await c.reapply_allowlist() == 1
     async with sm() as s:
         ind = await s.scalar(select(Indicator).join(ObsRow).where(ObsRow.value == ip_value))
-        assert ind is not None and ind.status == "active" and ind.allowlist_reason is None
+        assert ind is not None
+        assert ind.status == "active"
+        assert ind.allowlist_reason is None
 
 
 async def test_analyst_false_positive_is_not_overwritten(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
@@ -195,16 +201,20 @@ async def test_conditional_get_not_modified(sm: SM, mock_http: MakeHttp, tmp_pat
     assert r.status == "not_modified"
     async with sm() as s:
         src = await s.scalar(select(Source).where(Source.name == "tor_exits"))
-    assert src is not None and src.health == "ok" and src.checkpoint["etag"] == '"v1"'
+    assert src is not None
+    assert src.health == "ok"
+    assert src.checkpoint["etag"] == '"v1"'
 
 
 async def test_missing_key_is_skipped_not_failed(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
     c = collector(sm, mock_http(feed_handler()), tmp_path, Clock())
     r = await c.run("otx")
-    assert r.status == "skipped" and "TL_OTX_API_KEY" in (r.error or "")
+    assert r.status == "skipped"
+    assert "TL_OTX_API_KEY" in (r.error or "")
     async with sm() as s:
         src = await s.scalar(select(Source).where(Source.name == "otx"))
-    assert src is not None and src.health == "skipped"
+    assert src is not None
+    assert src.health == "skipped"
 
 
 async def test_failures_degrade_health_and_back_off(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
@@ -220,7 +230,9 @@ async def test_failures_degrade_health_and_back_off(sm: SM, mock_http: MakeHttp,
     ok = False
     clock.advance(minutes=31)
     r = await c.run("feodo")
-    assert r.status == "failed" and r.http_status is None and "503" in (r.error or "")
+    assert r.status == "failed"
+    assert r.http_status is None
+    assert "503" in (r.error or "")
     async with sm() as s:
         src = await s.scalar(select(Source).where(Source.name == "feodo"))
     assert src is not None
@@ -233,7 +245,9 @@ async def test_failures_degrade_health_and_back_off(sm: SM, mock_http: MakeHttp,
     await c.run("feodo")
     async with sm() as s:
         src = await s.scalar(select(Source).where(Source.name == "feodo"))
-    assert src is not None and src.health == "failing" and src.consecutive_failures == 2
+    assert src is not None
+    assert src.health == "failing"
+    assert src.consecutive_failures == 2
 
 
 async def test_schema_drift_marks_source_failing(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
@@ -241,22 +255,26 @@ async def test_schema_drift_marks_source_failing(sm: SM, mock_http: MakeHttp, tm
         sm, mock_http(lambda _: httpx.Response(200, content=b'{"unexpected": true}')), tmp_path, Clock()
     )
     r = await c.run("cisa_kev")
-    assert r.status == "failed" and "SchemaDriftError" in (r.error or "")
+    assert r.status == "failed"
+    assert "SchemaDriftError" in (r.error or "")
     async with sm() as s:
         src = await s.scalar(select(Source).where(Source.name == "cisa_kev"))
         doc = (await s.scalars(select(RawDocument))).first()
-    assert src is not None and src.health == "failing"
-    assert doc is not None and doc.parse_status == "failed"  # kept for reprocessing after the fix
+    assert src is not None
+    assert src.health == "failing"
+    assert doc is not None
+    assert doc.parse_status == "failed"
 
 
 async def test_source_rate_limit_is_respected(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
     clock = Clock()
     c = collector(sm, mock_http(feed_handler()), tmp_path, clock)
     await c.run("spamhaus_drop")
-    clock.advance(minutes=30)  # DROP asks for at most one fetch per hour
+    clock.advance(hours=12)  # DROP asks for at most one fetch per day
     assert (await c.run("spamhaus_drop")).status == "too_soon"
-    clock.advance(minutes=31)
-    assert (await c.run("spamhaus_drop", force=True)).status == "success"
+    assert (await c.run("spamhaus_drop", force=True)).status == "success"  # explicit operator override
+    clock.advance(hours=24, minutes=1)
+    assert (await c.run("spamhaus_drop")).status == "unchanged"  # fetched again; same body
 
 
 async def test_due_and_tlp(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
@@ -282,4 +300,5 @@ async def test_every_anonymous_connector_ingests(
     name: str, sm: SM, mock_http: MakeHttp, tmp_path: Path
 ) -> None:
     r = await collector(sm, mock_http(feed_handler()), tmp_path, Clock()).run(name)
-    assert r.status == "success" and r.items_new > 0, r
+    assert r.status == "success", r
+    assert r.items_new > 0, r

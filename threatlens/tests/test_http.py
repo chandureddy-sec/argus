@@ -157,7 +157,7 @@ async def test_alternative_ip_spellings_are_refused(server: str) -> None:
 
 async def test_redirect_to_metadata_is_refused(server: str) -> None:
     async with lab_client() as http:
-        with pytest.raises(BlockedAddressError, match="169.254.169.254"):
+        with pytest.raises(BlockedAddressError, match=r"169\.254\.169\.254"):
             await http.get(f"{server}/redirect-meta")
 
 

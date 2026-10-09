@@ -217,7 +217,8 @@ class Collector:
             await self.sync_sources()
             async with self.sm() as s:
                 src = await s.scalar(select(Source).where(Source.name == name))
-        assert src is not None
+        if src is None:
+            raise RuntimeError(f"source {name!r} missing after sync")
         if not src.enabled and not force:
             return RunSummary(name, "disabled")
         last_run = aware(src.last_run_at)
@@ -544,7 +545,8 @@ class Collector:
     ) -> None:
         async with self.sm() as s, s.begin():
             src = await s.get(Source, source_id)
-            assert src is not None
+            if src is None:
+                raise RuntimeError(f"source id {source_id} disappeared during a run")
             failures = (src.consecutive_failures or 0) + 1
             last_ok = aware(src.last_success_at)
             recent = last_ok is not None and now - last_ok < 2 * interval

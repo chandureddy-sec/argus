@@ -6,7 +6,7 @@ Requirements, explains every verdict, and shares it in standard formats.
 Lives alongside [ReconX](../README.md), which feeds it the organization's real
 assets (see [ADR 0002](docs/adr/0002-monorepo-and-reconx-link.md)).
 
-**Status:** Phase 0 (foundation) — see [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+**Status:** Phase 1 (collection core) complete; Docker verification pending. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Quickstart
 
@@ -21,6 +21,29 @@ curl http://127.0.0.1:8000/readyz
 
 Expected: `{"status":"ready","checks":{"postgres":{"ok":true,…},"redis":{"ok":true,…}}}`
 
+Then create an API key and look at what the worker has collected:
+
+```bash
+docker compose exec worker threatlens keys create me --role admin   # prints the key once
+docker compose exec worker threatlens allowlist-refresh             # also runs daily at 03:17 UTC
+docker compose exec worker threatlens sources
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/indicators?type=ipv4-addr&limit=5"
+```
+
+The worker collects every enabled source on its own schedule. Sources that
+need a free key (ThreatFox, OTX) show `skipped` until `TL_ABUSECH_AUTH_KEY` /
+`TL_OTX_API_KEY` are set in `.env`. API docs: http://127.0.0.1:8000/docs (dev only).
+
+### Without Docker (SQLite trial)
+
+```bash
+export TL_DATABASE_URL=sqlite+aiosqlite:///./trial.db TL_LOG_JSON=false
+uv run threatlens init-db
+uv run threatlens allowlist-refresh
+uv run threatlens collect --all
+uv run threatlens sources
+```
+
 ## Development
 
 | Task | Command (`make` target in brackets) |
@@ -33,6 +56,12 @@ Expected: `{"status":"ready","checks":{"postgres":{"ok":true,…},"redis":{"ok":
 | Validate profile + PIRs | `uv run threatlens validate-profile` (`make profile`) |
 | Migration SQL without a DB | `uv run alembic upgrade head --sql` (`make sql`) |
 | Run API natively | `uv run threatlens api` |
+| Collect now | `uv run threatlens collect SOURCE… \| --due \| --all [--force]` |
+| Sources / health | `uv run threatlens sources [enable\|disable NAME]` |
+| Allowlist refresh | `uv run threatlens allowlist-refresh` |
+| API keys | `uv run threatlens keys create NAME --role viewer\|analyst\|admin`, `keys list`, `keys revoke NAME` |
+| Extract IOCs from text | `uv run threatlens extract [FILE] [--defang] [--rejected]` |
+| Run worker natively | `uv run arq threatlens.worker.WorkerSettings` |
 
 Windows PowerShell sets the integration flag with `$env:TL_INTEGRATION=1`.
 
@@ -42,11 +71,12 @@ Windows PowerShell sets the integration flag with `$env:TL_INTEGRATION=1`.
 threatlens/
 ├── config/            org_profile.yaml, pirs.yaml (SYNTHETIC examples)
 ├── migrations/        Alembic (async)
-├── src/threatlens/    api/, settings, logs, profile, db, health, worker, cli
+├── src/threatlens/    api/, net/ (hardened HTTP), ioc/, connectors/, collect, allowlist,
+│                      auth, jobs, worker, cli, settings, logs, profile, db, models
 ├── tests/             unit tests; integration/ needs Postgres + Redis
 └── docs/              PLAN-linked ADRs, THREAT_MODEL, SOURCES, learn/
 ```
 
 ## Docs
-[PLAN](PLAN.md) · [Threat model](docs/THREAT_MODEL.md) · [Sources](docs/SOURCES.md) ·
+[PLAN](PLAN.md) · [Data model](docs/DATA_MODEL.md) · [Threat model](docs/THREAT_MODEL.md) · [Sources](docs/SOURCES.md) ·
 [ADRs](docs/adr/) · [Learning notes](docs/learn/) · [Original spec](PROMPT.md)
