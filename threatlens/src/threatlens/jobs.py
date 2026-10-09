@@ -7,6 +7,7 @@ API trigger or ``threatlens collect`` ran it.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
@@ -26,12 +27,16 @@ log = get_logger("threatlens.jobs")
 
 
 @asynccontextmanager
-async def open_collector(settings: Settings, http: SafeHttp | None = None) -> AsyncIterator[Collector]:
-    """Yield a ready collector; ``http`` overrides the real client (tests)."""
+async def open_collector(
+    settings: Settings,
+    http: SafeHttp | None = None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> AsyncIterator[Collector]:
+    """Yield a ready collector; ``http`` and ``sleep`` override the real ones (tests)."""
     engine = make_engine(settings.database_url.get_secret_value())
     http = http or SafeHttp()
     try:
-        c = Collector(make_sessionmaker(engine), http, RawStore(settings.data_dir), settings)
+        c = Collector(make_sessionmaker(engine), http, RawStore(settings.data_dir), settings, sleep=sleep)
         await c.sync_sources()
         yield c
     finally:

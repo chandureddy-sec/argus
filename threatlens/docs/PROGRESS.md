@@ -4,7 +4,8 @@
 |---|---|---|
 | 0 Foundation | code complete; awaiting Docker verification | Unit tests, lint, strict typing, bandit and pip-audit pass locally. `docker compose up` and the integration tests run once Docker Desktop is installed; CI runs them on push. |
 | 1 Collection core | complete; awaiting Docker verification | 8 connectors, hardened HTTP client, IOC extraction, allowlist, idempotent pipeline, API keys/RBAC/rate limits, v1 API, worker scheduling, CLI. Live collection checked on SQLite (below). |
-| 2–9 | not started | see PLAN.md |
+| 2 Knowledge base | complete; awaiting Docker verification | ATT&CK (3 domains, versioned, diffed), NVD/EPSS/KEV/OSV vulnerability records, relationship graph with provenance, path API. Live check on SQLite (below); Postgres pipeline test written, runs with the stack. |
+| 3–9 | not started | see PLAN.md |
 
 ## Phase 0 log
 - 2026-10-08: scaffold, settings, structured logging, org profile + PIR validation, API health/readiness, worker heartbeat, Alembic baseline (pg_trgm, citext, app_meta), Dockerfile + Compose, CI workflow, pre-commit, PLAN, ADR 0001/0002, threat model, sources register, learning notes.
@@ -29,3 +30,23 @@ entries. 37 857 observables = indicators = sightings. A forced re-run gave
 `not_modified` (KEV, Feodo via ETag) and `0 new / 1762 updated` (DROP): no
 duplicates. 1 556 URLhaus URLs carry `popular-domain-host` (flagged, still
 active). The raw archive was 1.5 MB.
+
+## Phase 2 log
+- 2026-10-09: verified ATT&CK index/bundles, NVD API 2.0 (live responses), EPSS CSV, OSV API; recorded fixtures. Entities/aliases/relationships/vulnerabilities/products/releases/changes (migration 0003), ATT&CK loader with meaningful-change diffing, NVD (scoped, paced, budgeted, resumable), EPSS, OSV, KEV from the Phase 1 connector, feed → graph linking with merge into ATT&CK, graph resolve/neighbours/shortest paths, `/api/v1` knowledge routes, `attack-load` CLI. Fixed during live testing: feed entities created before ATT&CK was loaded (now merged), naive/aware timestamp compare making every reload rewrite all rows, an O(n²) set rebuild (identical reload 145 s → 4 s), non-resumable NVD baseline.
+- Spamhaus DROP fixture replaced with synthetic records (terms grant no redistribution); ATT&CK fixture notice added.
+
+### Live check (2026-10-09, SQLite, real sources, no NVD key)
+| Step | Result | Time |
+|---|---|---|
+| `collect cisa_kev feodo` | 1 739 KEV CVEs, 5 Feodo C2 IPs | 13 s |
+| `collect mitre_attack` | Enterprise, Mobile, ICS 19.2: 30 894 objects → 5 931 entities, 24 788 relationships, 290 CVE-mention edges | 22 s |
+| `collect nvd` (budget 30) | `partial` as designed: KEV + tech-stack baseline done, 6 214 CVEs with NVD data | 294 s |
+| `collect epss` | 384 993 scores; 6 224 tracked CVEs updated | 8 s |
+| `collect osv` (150) | 29 CVEs with GHSA advisories | 142 s |
+| ATT&CK identical reload / 19.1 → 19.2 diff | 4 s / 17 meaningful changes, 237 relationships added | 4–11 s |
+
+Acceptance, through the API:
+* Techniques linked to malware: `GET /api/v1/entities/Emotet/techniques` → 47 techniques, each with MITRE's relationship and cited description.
+* CVE flags: CVE-2024-3400 → `kev: true` (2024-04-12), EPSS 0.99999 (percentile 1.0), CVSS 10.0; exploit signals: exploited-in-the-wild, ransomware-use, exploitation-active, public-exploit-reference.
+* Graph paths with provenance: live Feodo IP 162.243.103.246 → T1071.001 Web Protocols, length 2 (`indicates` via feodo, `uses` via mitre_attack). Emotet → CVE-2021-44228: 5 shortest paths of length 3 (via campaign C0017's ATT&CK text) in 0.06 s.
+* Tech stack (PIR-2): 20 FortiOS CVEs in KEV via `?vendor=fortinet&product=fortios&kev=true`.

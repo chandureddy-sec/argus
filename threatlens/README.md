@@ -6,7 +6,7 @@ Requirements, explains every verdict, and shares it in standard formats.
 Lives alongside [ReconX](../README.md), which feeds it the organization's real
 assets (see [ADR 0002](docs/adr/0002-monorepo-and-reconx-link.md)).
 
-**Status:** Phase 1 (collection core) complete; Docker verification pending. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+**Status:** Phases 1 (collection) and 2 (knowledge base: ATT&CK, NVD, EPSS, KEV, OSV, graph) complete; Docker verification pending. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Quickstart
 
@@ -28,6 +28,9 @@ docker compose exec worker threatlens keys create me --role admin   # prints the
 docker compose exec worker threatlens allowlist-refresh             # also runs daily at 03:17 UTC
 docker compose exec worker threatlens sources
 curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/indicators?type=ipv4-addr&limit=5"
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/entities/Emotet/techniques"
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/vulnerabilities?kev=true&sort=epss&limit=10"
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/graph/paths?from=<feodo-ip>&to=T1047"
 ```
 
 The worker collects every enabled source on its own schedule. Sources that
@@ -40,7 +43,7 @@ need a free key (ThreatFox, OTX) show `skipped` until `TL_ABUSECH_AUTH_KEY` /
 export TL_DATABASE_URL=sqlite+aiosqlite:///./trial.db TL_LOG_JSON=false
 uv run threatlens init-db
 uv run threatlens allowlist-refresh
-uv run threatlens collect --all
+uv run threatlens collect --all      # NVD paces itself without a key: a few minutes
 uv run threatlens sources
 ```
 
@@ -60,6 +63,7 @@ uv run threatlens sources
 | Sources / health | `uv run threatlens sources [enable\|disable NAME]` |
 | Allowlist refresh | `uv run threatlens allowlist-refresh` |
 | API keys | `uv run threatlens keys create NAME --role viewer\|analyst\|admin`, `keys list`, `keys revoke NAME` |
+| Load one ATT&CK release | `uv run threatlens attack-load --version 19.1 [--domain mobile-attack] [--force]` |
 | Extract IOCs from text | `uv run threatlens extract [FILE] [--defang] [--rejected]` |
 | Run worker natively | `uv run arq threatlens.worker.WorkerSettings` |
 

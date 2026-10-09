@@ -41,26 +41,29 @@ flowchart LR
 
 | ID | Threat | Component | Mitigation | Status |
 |---|---|---|---|---|
-| S1 | Caller impersonates an analyst or integration | API | API keys (hashed at rest) + JWT, per-key scopes, RBAC (admin/analyst/viewer) | planned · Phase 1 |
-| S2 | Forged feed (DNS/TLS interception) injects indicators | Connectors | HTTPS only, certificate verification on, source pinned to its documented host | planned · Phase 1 |
+| S1 | Caller impersonates an analyst or integration | API | API keys (256-bit, SHA-256 at rest, shown once, expiry/revocation) + RBAC (admin/analyst/viewer) on every data route | **done · Phase 1** (API keys); JWT for the Phase 5 UI session |
+| S2 | Forged feed (DNS/TLS interception) injects indicators | Connectors | HTTPS only, certificate verification on, source pinned to its documented host | **done · Phase 1** |
 | S3 | Spoofed request ID / headers poison logs | API | Request ID echoed only if it matches `[A-Za-z0-9._-]{1,64}`; otherwise generated | **done · Phase 0** |
-| T1 | Malicious or wrong feed entry blocks a critical service | Pipeline, exports | Allowlist (Tranco, CDN/cloud ranges, own assets) before scoring; confidence thresholds per export; analyst FP feedback | planned · Phases 1, 4, 6 |
+| T1 | Malicious or wrong feed entry blocks a critical service | Pipeline, exports | Allowlist (Tranco, CDN/cloud ranges, own assets) before scoring; confidence thresholds per export; analyst FP feedback | **allowlist done · Phase 1**; thresholds/feedback Phases 4, 6 |
 | T2 | SQL injection via search or filters | API, DB | SQLAlchemy parameterized queries only; no string-built SQL | **done (policy) · Phase 0**; tests in Phase 5 |
-| T3 | Tampering with stored raw documents | DB | Raw documents stored with SHA-256; reprocessing verifies the hash | planned · Phase 1 |
+| T3 | Tampering with stored raw documents | DB | Raw documents stored with SHA-256; reading one back verifies the hash; path traversal refused | **done · Phase 1** |
 | T4 | Malicious dependency or base image | Build | Locked dependencies (uv.lock), pip-audit, Trivy image scan, SBOM, gitleaks, bandit, semgrep in CI | **done · Phase 0** (CI defined; first green run pending) |
 | R1 | Analyst denies changing a verdict or exporting data | API | Append-only `audit_log` (who, what, when, before/after) | planned · Phase 4 |
-| R2 | Unclear where an indicator came from | Pipeline | Provenance on every sighting and enrichment (source, fetch time, raw document) | planned · Phase 1 |
+| R2 | Unclear where an indicator came from | Pipeline | Provenance on every sighting and graph edge (source, fetch time, raw document, evidence) | **done · Phases 1–2** (enrichment: Phase 3) |
 | I1 | Secrets leak via logs, errors or reprs | All | `SecretStr` settings; log processor redacts key-like fields; readiness reports exception *type* only | **done · Phase 0** |
 | I2 | TLP:AMBER/RED data reaches a viewer or external sink | API, exports | TLP 2.0 enforced in the query layer and per sink; tests attempt bypasses | planned · Phase 4 |
 | I3 | Stored XSS from feed content in the UI | UI | Server-side escaping by default, no raw HTML rendering, IOCs defanged in display, strict CSP | partial · Phase 0 (CSP + headers); UI in Phase 5 |
 | I4 | CSV/formula injection in exports opened in Excel | Exports | Prefix `= + - @` cells; quote all fields | planned · Phase 6 |
 | I5 | Org profile reveals attack surface | Config | Profile has no secrets; access via RBAC; deploy on private network | partial · Phase 0 |
 | I6 | Database/Redis exposed on the network | Infra | Compose binds ports to 127.0.0.1; services on a private network; Redis password/ACL for non-dev | partial · Phase 0 (localhost bind) |
-| D1 | Huge or decompression-bomb responses exhaust memory | Connectors | Size caps before and after decompression; streaming parsers; timeouts | planned · Phase 1 |
-| D2 | API flooding | API | Per-key rate limits in Redis; request size limits | planned · Phase 1 |
+| D1 | Huge or decompression-bomb responses exhaust memory | Connectors | Per-source size caps while streaming, unzipped-size checks (Tranco, EPSS), timeouts | **done · Phases 1–2** (ATT&CK Enterprise is parsed in memory, ≤ 128 MB cap) |
+| D2 | API flooding | API | Per-key rate limits in Redis; request size limits; page size ≤ 500 | **done · Phase 1** |
 | D3 | Dependency outage stalls readiness probe | API | Readiness checks run concurrently with a hard timeout (default 2 s); liveness never touches dependencies | **done · Phase 0** |
 | D4 | Free-tier quota exhaustion | Enrichment | Quota buckets, TTL cache, partial results with `skipped_reason` | planned · Phase 3 |
-| E1 | SSRF: user or feed-supplied URL reaches internal services or cloud metadata | HTTP client | Single hardened client: block private/loopback/link-local/metadata ranges, re-validate after DNS resolution and each redirect, reject non-canonical IP forms | planned · Phase 1 |
+| T5 | Poisoned knowledge: a feed names a fake or misleading malware/actor to create false links | Graph | Feed-named entities are marked `origin=feed` and attributed; ATT&CK entities win name resolution; feed-derived edges carry the feed's confidence (OTX co-mentions: 40) and the field as evidence; CVE mentions are `related-to`, never `exploits` | **done · Phase 2**; analyst merge/override in Phase 4 |
+| D5 | Expensive graph queries (hub techniques, deep searches) | API, graph | `max_depth` ≤ 6, `limit` ≤ 50, bidirectional BFS with a visited-node budget (20 000) that returns `truncated`; neighbour lists capped | **done · Phase 2** |
+| I7 | Licence breach: ATT&CK/EPSS/OSV data shared without required notices | API, exports | Per-source licence, redistribution and attribution flags (`/api/v1/sources`); ATT&CK copies must keep MITRE's notice | partial · Phase 2 (flags); enforced in Phase 6 exports |
+| E1 | SSRF: user or feed-supplied URL reaches internal services or cloud metadata | HTTP client | Single hardened client: block private/loopback/link-local/metadata ranges, re-validate after DNS resolution and each redirect, reject non-canonical IP forms | **done · Phase 1** |
 | E2 | Container breakout or privilege escalation | Infra | Non-root user, read-only root FS, `cap_drop: ALL`, `no-new-privileges` | **done · Phase 0** |
 | E3 | YAML deserialization executes code | Config | `yaml.safe_load` only; test proves `!!python/object` tags are rejected | **done · Phase 0** |
 | E4 | Prompt injection makes the AI module act or fabricate IOCs | AI | Model has no tools or side effects; feed text delimited as data; every extracted IOC must appear literally in the source; analyst approval; injection test suite | planned · Phase 8 |

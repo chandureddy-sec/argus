@@ -1,0 +1,1330 @@
+{
+ "note": "Real NVD API 2.0 CVE records (2026-10-09), trimmed: <=12 cpeMatch/node, <=12 references.",
+ "vulnerabilities": [
+  {
+   "cve": {
+    "id": "CVE-2024-3400",
+    "sourceIdentifier": "psirt@paloaltonetworks.com",
+    "published": "2024-04-12T08:15:06.230",
+    "lastModified": "2026-06-17T07:44:11.533",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "A command injection as a result of arbitrary file creation vulnerability in the GlobalProtect feature of Palo Alto Networks PAN-OS software for specific PAN-OS versions and distinct feature configurations may enable an unauthenticated attacker to execute arbitrary code with root privileges on the firewall.\n\nCloud NGFW, Panorama appliances, and Prisma Access are not impacted by this vulnerability."
+     },
+     {
+      "lang": "es",
+      "value": "Una vulnerabilidad de inyección de comandos en la función GlobalProtect del software PAN-OS de Palo Alto Networks para versiones específicas de PAN-OS y configuraciones de funciones distintas puede permitir que un atacante no autenticado ejecute código arbitrario con privilegios de root en el firewall. Cloud NGFW, dispositivos Panorama y Prisma Access no se ven afectados por esta vulnerabilidad."
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "psirt@paloaltonetworks.com",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        "baseScore": 10.0,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "NONE",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 3.9,
+       "impactScore": 6.0
+      },
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        "baseScore": 10.0,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "NONE",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 3.9,
+       "impactScore": 6.0
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2024-04-17T04:00:13.543064Z",
+        "id": "CVE-2024-3400",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "yes"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2024-04-12",
+    "cisaActionDue": "2024-04-19",
+    "cisaRequiredAction": "Apply mitigations per vendor instructions as they become available. Otherwise, users with vulnerable versions of affected devices should enable Threat Prevention IDs available from the vendor. See the vendor bulletin for more details and a patch release schedule.",
+    "cisaVulnerabilityName": "Palo Alto Networks PAN-OS Command Injection Vulnerability",
+    "weaknesses": [
+     {
+      "source": "psirt@paloaltonetworks.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-20"
+       },
+       {
+        "lang": "en",
+        "value": "CWE-77"
+       }
+      ]
+     },
+     {
+      "source": "nvd@nist.gov",
+      "type": "Primary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-77"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.0:-:*:*:*:*:*:*",
+          "matchCriteriaId": "F54B40AC-A555-4447-B147-576D17CAB12A"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.0:h1:*:*:*:*:*:*",
+          "matchCriteriaId": "BEC5E9D4-1B58-4C89-8B68-47F996C04234"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.0:h2:*:*:*:*:*:*",
+          "matchCriteriaId": "DDDEB31F-EFDD-4A66-9687-7FFCF8EFDAAF"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.1:-:*:*:*:*:*:*",
+          "matchCriteriaId": "0F30A71D-281E-4BF8-803F-05B517399C6A"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.1:h1:*:*:*:*:*:*",
+          "matchCriteriaId": "5CB7F608-4F03-46EF-A27E-4C8F5363FF5E"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.2:-:*:*:*:*:*:*",
+          "matchCriteriaId": "33340036-0E81-41CD-AFC4-480F509F8DD2"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.2:h1:*:*:*:*:*:*",
+          "matchCriteriaId": "5D7986DC-187D-4798-8B4A-7D23DF0EE0C8"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.2:h2:*:*:*:*:*:*",
+          "matchCriteriaId": "9D1FAC78-7714-48EC-9FDB-1A565814B958"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.2:h4:*:*:*:*:*:*",
+          "matchCriteriaId": "4B86668F-7BC5-4F50-AE80-E99F6DE370D7"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.3:-:*:*:*:*:*:*",
+          "matchCriteriaId": "98F219AD-A22F-47AC-88FE-B3F75AE059AC"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.3:h11:*:*:*:*:*:*",
+          "matchCriteriaId": "A79C13FD-C909-4FEE-AE24-A085E953D887"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:paloaltonetworks:pan-os:10.2.3:h12:*:*:*:*:*:*",
+          "matchCriteriaId": "A7FCFB45-1150-4F9C-8E4B-3DB2ADE89454"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://security.paloaltonetworks.com/CVE-2024-3400",
+      "source": "psirt@paloaltonetworks.com",
+      "tags": [
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://unit42.paloaltonetworks.com/cve-2024-3400/",
+      "source": "psirt@paloaltonetworks.com",
+      "tags": [
+       "Exploit",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://www.paloaltonetworks.com/blog/2024/04/more-on-the-pan-os-cve/",
+      "source": "psirt@paloaltonetworks.com",
+      "tags": [
+       "Technical Description",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/",
+      "source": "psirt@paloaltonetworks.com",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://security.paloaltonetworks.com/CVE-2024-3400",
+      "source": "af854a3a-2127-422b-91ae-364da2661108",
+      "tags": [
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://unit42.paloaltonetworks.com/cve-2024-3400/",
+      "source": "af854a3a-2127-422b-91ae-364da2661108",
+      "tags": [
+       "Exploit",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://www.paloaltonetworks.com/blog/2024/04/more-on-the-pan-os-cve/",
+      "source": "af854a3a-2127-422b-91ae-364da2661108",
+      "tags": [
+       "Technical Description",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://www.volexity.com/blog/2024/04/12/zero-day-exploitation-of-unauthenticated-remote-code-execution-vulnerability-in-globalprotect-cve-2024-3400/",
+      "source": "af854a3a-2127-422b-91ae-364da2661108",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2024-3400",
+      "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+      "tags": [
+       "US Government Resource"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2021-44228",
+    "sourceIdentifier": "security@apache.org",
+    "published": "2021-12-10T10:15:09.143",
+    "lastModified": "2026-08-11T19:33:44.513",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "Apache Log4j2 2.0-beta9 through 2.15.0 (excluding security releases 2.12.2, 2.12.3, and 2.3.1) JNDI features used in configuration, log messages, and parameters do not protect against attacker controlled LDAP and other JNDI related endpoints. An attacker who can control log messages or log message parameters can execute arbitrary code loaded from LDAP servers when message lookup substitution is enabled. From log4j 2.15.0, this behavior has been disabled by default. From version 2.16.0 (along with 2.12.2, 2.12.3, and 2.3.1), this functionality has been completely removed. Note that this vulnerability is specific to log4j-core and does not affect log4net, log4cxx, or other Apache Logging Services projects."
+     },
+     {
+      "lang": "es",
+      "value": "Las características JNDI de Apache Log4j2 2.0-beta9 hasta 2.15.0 (excluyendo las versiones de seguridad 2.12.2, 2.12.3 y 2.3.1) utilizadas en la configuración, los mensajes de registro y los parámetros no protegen contra LDAP controlado por un atacante y otros puntos finales relacionados con JNDI. Un atacante que pueda controlar los mensajes de registro o los parámetros de los mensajes de registro puede ejecutar código arbitrario cargado desde servidores LDAP cuando la sustitución de la búsqueda de mensajes está habilitada. A partir de la versión 2.15.0 de log4j, este comportamiento ha sido deshabilitado por defecto. A partir de la versión 2.16.0 (junto con las versiones 2.12.2, 2.12.3 y 2.3.1), esta funcionalidad se ha eliminado por completo. Tenga en cuenta que esta vulnerabilidad es específica de log4j-core y no afecta a log4net, log4cxx u otros proyectos de Apache Logging Services"
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        "baseScore": 10.0,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "NONE",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 3.9,
+       "impactScore": 6.0
+      },
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        "baseScore": 10.0,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "NONE",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 3.9,
+       "impactScore": 6.0
+      }
+     ],
+     "cvssMetricV2": [
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "2.0",
+        "vectorString": "AV:N/AC:M/Au:N/C:C/I:C/A:C",
+        "baseScore": 9.3,
+        "accessVector": "NETWORK",
+        "accessComplexity": "MEDIUM",
+        "authentication": "NONE",
+        "confidentialityImpact": "COMPLETE",
+        "integrityImpact": "COMPLETE",
+        "availabilityImpact": "COMPLETE"
+       },
+       "baseSeverity": "HIGH",
+       "exploitabilityScore": 8.6,
+       "impactScore": 10.0,
+       "acInsufInfo": false,
+       "obtainAllPrivilege": false,
+       "obtainUserPrivilege": false,
+       "obtainOtherPrivilege": false,
+       "userInteractionRequired": false
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2025-02-04T14:25:34.416117Z",
+        "id": "CVE-2021-44228",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "yes"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2021-12-10",
+    "cisaActionDue": "2021-12-24",
+    "cisaRequiredAction": "For all affected software assets for which updates exist, the only acceptable remediation actions are: 1) Apply updates; OR 2) remove affected assets from agency networks. Temporary mitigations using one of the measures provided at https://www.cisa.gov/uscert/ed-22-02-apache-log4j-recommended-mitigation-measures are only acceptable until updates are available.",
+    "cisaVulnerabilityName": "Apache Log4j2 Remote Code Execution Vulnerability",
+    "weaknesses": [
+     {
+      "source": "security@apache.org",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-20"
+       },
+       {
+        "lang": "en",
+        "value": "CWE-400"
+       },
+       {
+        "lang": "en",
+        "value": "CWE-502"
+       }
+      ]
+     },
+     {
+      "source": "nvd@nist.gov",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-917"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "operator": "AND",
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:siemens:6bk1602-0aa12-0tp0_firmware:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "2.7.0",
+          "matchCriteriaId": "BD64FC36-CC7B-4FD7-9845-7EA1DDB0E627"
+         }
+        ]
+       },
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:h:siemens:6bk1602-0aa12-0tp0:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "CF99FE8F-40D0-48A8-9A40-43119B259535"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "operator": "AND",
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:siemens:6bk1602-0aa22-0tp0_firmware:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "2.7.0",
+          "matchCriteriaId": "D0012304-B1C8-460A-B891-42EBF96504F5"
+         }
+        ]
+       },
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:h:siemens:6bk1602-0aa22-0tp0:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "F3F61BCB-64FA-463C-8B95-8868995EDBC0"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "operator": "AND",
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:siemens:6bk1602-0aa32-0tp0_firmware:*:*:*:*:*:*:*:*",
+          "versionEndExcluding": "2.7.0",
+          "matchCriteriaId": "B02BCF56-D9D3-4BF3-85A2-D445E997F5EC"
+         }
+        ]
+       },
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": false,
+          "criteria": "cpe:2.3:h:siemens:6bk1602-0aa32-0tp0:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "B5A189B7-DDBF-4B84-997F-637CEC5FF12B"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "http://packetstormsecurity.com/files/165225/Apache-Log4j2-2.14.1-Remote-Code-Execution.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165260/VMware-Security-Advisory-2021-0028.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165261/Apache-Log4j2-2.14.1-Information-Disclosure.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165270/Apache-Log4j2-2.14.1-Remote-Code-Execution.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165281/Log4j2-Log4Shell-Regexes.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165282/Log4j-Payload-Generator.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165306/L4sh-Log4j-Remote-Code-Execution.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165307/Log4j-Remote-Code-Execution-Word-Bypassing.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165311/log4j-scan-Extensive-Scanner.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Broken Link",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165371/VMware-Security-Advisory-2021-0028.4.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165532/Log4Shell-HTTP-Header-Injection.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/165642/VMware-vCenter-Server-Unauthenticated-Log4Shell-JNDI-Injection-Remote-Code-Execution.html",
+      "source": "security@apache.org",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2020-1472",
+    "sourceIdentifier": "secure@microsoft.com",
+    "published": "2020-08-17T19:15:15.117",
+    "lastModified": "2026-06-17T03:01:29.760",
+    "vulnStatus": "Analyzed",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "An elevation of privilege vulnerability exists when an attacker establishes a vulnerable Netlogon secure channel connection to a domain controller, using the Netlogon Remote Protocol (MS-NRPC). An attacker who successfully exploited the vulnerability could run a specially crafted application on a device on the network.\nTo exploit the vulnerability, an unauthenticated attacker would be required to use MS-NRPC to connect to a domain controller to obtain domain administrator access.\nMicrosoft is addressing the vulnerability in a phased two-part rollout. These updates address the vulnerability by modifying how Netlogon handles the usage of Netlogon secure channels.\nFor guidelines on how to manage the changes required for this vulnerability and more information on the phased rollout, see  How to manage the changes in Netlogon secure channel connections associated with CVE-2020-1472 (updated September 28, 2020).\nWhen the second phase of Windows updates become available in Q1 2021, customers will be notified via a revision to this security vulnerability. If you wish to be notified when these updates are released, we recommend that you register for the security notifications mailer to be alerted of content changes to this advisory. See Microsoft Technical Security Notifications."
+     },
+     {
+      "lang": "es",
+      "value": "Se presenta una vulnerabilidad de elevación de privilegios cuando un atacante establece una conexión de canal seguro Netlogon vulnerable hacia un controlador de dominio, usando el Netlogon Remote Protocol (MS-NRPC), también se conoce como \"Netlogon Elevation of Privilege Vulnerability\"."
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "secure@microsoft.com",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+        "baseScore": 5.5,
+        "baseSeverity": "MEDIUM",
+        "attackVector": "LOCAL",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "LOW",
+        "userInteraction": "NONE",
+        "scope": "UNCHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "NONE",
+        "availabilityImpact": "NONE"
+       },
+       "exploitabilityScore": 1.8,
+       "impactScore": 3.6
+      },
+      {
+       "source": "nvd@nist.gov",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:H",
+        "baseScore": 10.0,
+        "baseSeverity": "CRITICAL",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "NONE",
+        "scope": "CHANGED",
+        "confidentialityImpact": "HIGH",
+        "integrityImpact": "HIGH",
+        "availabilityImpact": "HIGH"
+       },
+       "exploitabilityScore": 3.9,
+       "impactScore": 6.0
+      }
+     ],
+     "cvssMetricV2": [
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "2.0",
+        "vectorString": "AV:N/AC:M/Au:N/C:C/I:C/A:C",
+        "baseScore": 9.3,
+        "accessVector": "NETWORK",
+        "accessComplexity": "MEDIUM",
+        "authentication": "NONE",
+        "confidentialityImpact": "COMPLETE",
+        "integrityImpact": "COMPLETE",
+        "availabilityImpact": "COMPLETE"
+       },
+       "baseSeverity": "HIGH",
+       "exploitabilityScore": 8.6,
+       "impactScore": 10.0,
+       "acInsufInfo": false,
+       "obtainAllPrivilege": false,
+       "obtainUserPrivilege": false,
+       "obtainOtherPrivilege": false,
+       "userInteractionRequired": false
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2024-01-30T18:45:11.261978Z",
+        "id": "CVE-2020-1472",
+        "options": [
+         {
+          "exploitation": "active"
+         },
+         {
+          "automatable": "yes"
+         },
+         {
+          "technicalImpact": "total"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "cisaExploitAdd": "2021-11-03",
+    "cisaActionDue": "2022-05-03",
+    "cisaRequiredAction": "Apply updates per vendor instructions.",
+    "cisaVulnerabilityName": "Microsoft Netlogon Privilege Escalation Vulnerability",
+    "weaknesses": [
+     {
+      "source": "nvd@nist.gov",
+      "type": "Primary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "NVD-CWE-noinfo"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_1903:*:*:*:*:*:*:*:*",
+          "matchCriteriaId": "0A5713AE-B7C5-4599-8E4F-9C235E73E5F6"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_1909:*:*:*:*:*:*:*:*",
+          "matchCriteriaId": "8DA2F119-5266-4D1E-9C3C-86C55C99DD7A"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_2004:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "62224791-644C-4D1F-AD77-56B16CF27630"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_2008:r2:sp1:*:*:*:*:x64:*",
+          "matchCriteriaId": "AF07A81D-12E5-4B1D-BFF9-C8D08C32FF4F"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_2012:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "A7DF96F8-BA6A-4780-9CA3-F719B3F81074"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_2012:r2:*:*:*:*:*:*:*",
+          "matchCriteriaId": "DB18C4CE-5917-401E-ACF7-2747084FD36E"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_2016:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "041FF8BA-0B12-4A1F-B4BF-9C4F33B7C1E7"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_2019:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "DB79EE26-FC32-417D-A49C-A1A63165A968"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:microsoft:windows_server_20h2:-:*:*:*:*:*:*:*",
+          "matchCriteriaId": "84F9B6B1-4FEE-4D4B-B35F-B07822CCD669"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fedoraproject:fedora:31:*:*:*:*:*:*:*",
+          "matchCriteriaId": "80F0FA5D-8D3B-4C0E-81E2-87998286AF33"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fedoraproject:fedora:32:*:*:*:*:*:*:*",
+          "matchCriteriaId": "36D96259-24BD-44E2-96D9-78CE1D41F956"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fedoraproject:fedora:33:*:*:*:*:*:*:*",
+          "matchCriteriaId": "E460AA51-FCDA-46B9-AE97-E6676AA5E194"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:opensuse:leap:15.1:*:*:*:*:*:*:*",
+          "matchCriteriaId": "B620311B-34A3-48A6-82DF-6F078D7A4493"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:opensuse:leap:15.2:*:*:*:*:*:*:*",
+          "matchCriteriaId": "B009C22E-30A4-4288-BCF6-C3E81DEAF45A"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "http://lists.opensuse.org/opensuse-security-announce/2020-09/msg00080.html",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "http://lists.opensuse.org/opensuse-security-announce/2020-09/msg00086.html",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/159190/Zerologon-Proof-Of-Concept.html",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://packetstormsecurity.com/files/160127/Zerologon-Netlogon-Privilege-Escalation.html",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Exploit",
+       "Third Party Advisory",
+       "VDB Entry"
+      ]
+     },
+     {
+      "url": "http://www.openwall.com/lists/oss-security/2020/09/17/2",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://lists.debian.org/debian-lts-announce/2020/11/msg00041.html",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/H4OTFBL6YDVFH2TBJFJIE4FMHPJEEJK3/",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/ST6X3A2XXYMGD4INR26DQ4FP4QSM753B/",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://lists.fedoraproject.org/archives/list/package-announce%40lists.fedoraproject.org/message/TAPQQZZAT4TG3XVRTAFV2Y3S7OAHFBUP/",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Mailing List",
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://portal.msrc.microsoft.com/en-US/security-guidance/advisory/CVE-2020-1472",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Patch",
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://security.gentoo.org/glsa/202012-24",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Third Party Advisory"
+      ]
+     },
+     {
+      "url": "https://usn.ubuntu.com/4510-1/",
+      "source": "secure@microsoft.com",
+      "tags": [
+       "Third Party Advisory"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2025-43892",
+    "sourceIdentifier": "psirt@fortinet.com",
+    "published": "2026-07-14T16:16:42.340",
+    "lastModified": "2026-09-29T14:10:00.117",
+    "vulnStatus": "Modified",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "A buffer over-read vulnerability in Fortinet FortiOS 7.6.0 through 7.6.3, FortiOS 7.4.0 through 7.4.8, FortiOS 7.2 all versions, FortiOS 7.0 all versions, FortiOS 6.4 all versions may allow an authenticated remote attacker to return a portion of device memory in the redirect response via submitting a specially crafted request."
+     },
+     {
+      "lang": "es",
+      "value": "Una vulnerabilidad de lectura excesiva de búfer en Fortinet FortiOS 7.6.0 hasta 7.6.3, FortiOS 7.4.0 hasta 7.4.8, FortiOS 7.2 todas las versiones, FortiOS 7.0 todas las versiones, FortiOS 6.4 todas las versiones puede permitir a un atacante remoto autenticado devolver una porción de la memoria del dispositivo en la respuesta de redirección mediante el envío de una solicitud especialmente diseñada."
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "psirt@fortinet.com",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N",
+        "baseScore": 4.3,
+        "baseSeverity": "MEDIUM",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "LOW",
+        "userInteraction": "NONE",
+        "scope": "UNCHANGED",
+        "confidentialityImpact": "LOW",
+        "integrityImpact": "NONE",
+        "availabilityImpact": "NONE"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 1.4
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2026-07-14T15:57:30.990330Z",
+        "id": "CVE-2025-43892",
+        "options": [
+         {
+          "exploitation": "none"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "partial"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "weaknesses": [
+     {
+      "source": "psirt@fortinet.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-126"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:fortinet:fortiproxy:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.2.0",
+          "versionEndIncluding": "7.2.15",
+          "matchCriteriaId": "33FE9C6F-F5A1-43E4-917E-32497D6CC5A6"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:fortinet:fortiproxy:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.4.0",
+          "versionEndIncluding": "7.4.13",
+          "matchCriteriaId": "124559B6-EFA8-428D-B205-C0216B5FA1ED"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:fortinet:fortiproxy:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.6.0",
+          "versionEndIncluding": "7.6.5",
+          "matchCriteriaId": "B9154BCC-5BD2-4453-AFCD-20ECD82341AD"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fortinet:fortios:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.2.0",
+          "versionEndIncluding": "7.2.13",
+          "matchCriteriaId": "BEA4D8BF-96C4-49ED-8DB4-C17DAB050B14"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fortinet:fortios:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.4.0",
+          "versionEndIncluding": "7.4.8",
+          "matchCriteriaId": "ACF34737-DB9E-4E9D-80A1-6185BFFEB8D0"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fortinet:fortios:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.6.0",
+          "versionEndIncluding": "7.6.2",
+          "matchCriteriaId": "4F98567C-A320-4AA1-947B-974567EB770C"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://fortiguard.fortinet.com/psirt/#5944",
+      "source": "psirt@fortinet.com",
+      "tags": [
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://cert-portal.siemens.com/productcert/html/ssa-864900.html",
+      "source": "0b142b55-0307-4c5a-b3c9-f314f3fb7c5e"
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2025-62675",
+    "sourceIdentifier": "psirt@fortinet.com",
+    "published": "2026-07-14T16:16:42.617",
+    "lastModified": "2026-09-29T15:10:00.193",
+    "vulnStatus": "Modified",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "An Improper Neutralization of CRLF Sequences in HTTP Headers ('HTTP Response Splitting') vulnerability [CWE-113] vulnerability in Fortinet FortiOS 7.6.0 through 7.6.4, FortiOS 7.4 all versions, FortiOS 7.2 all versions, FortiProxy 7.6.0 through 7.6.4, FortiProxy 7.4 all versions, FortiProxy 7.2 all versions may allow an attacker in possession of a valid web filter override token to inject arbitrary headers via tricking a user into clicking on a crafted link."
+     },
+     {
+      "lang": "es",
+      "value": "Una vulnerabilidad de neutralización incorrecta de secuencias CRLF en encabezados HTTP ('División de respuesta HTTP') [CWE-113] vulnerabilidad en Fortinet FortiOS 7.6.0 hasta 7.6.4, FortiOS 7.4 todas las versiones, FortiOS 7.2 todas las versiones, FortiProxy 7.6.0 hasta 7.6.4, FortiProxy 7.4 todas las versiones, FortiProxy 7.2 todas las versiones puede permitir a un atacante en posesión de un token de anulación de filtro web válido inyectar encabezados arbitrarios mediante el engaño a un usuario para que haga clic en un enlace manipulado."
+     }
+    ],
+    "metrics": {
+     "cvssMetricV31": [
+      {
+       "source": "psirt@fortinet.com",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:C/C:N/I:L/A:N",
+        "baseScore": 3.4,
+        "baseSeverity": "LOW",
+        "attackVector": "NETWORK",
+        "attackComplexity": "HIGH",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "CHANGED",
+        "confidentialityImpact": "NONE",
+        "integrityImpact": "LOW",
+        "availabilityImpact": "NONE"
+       },
+       "exploitabilityScore": 1.6,
+       "impactScore": 1.4
+      },
+      {
+       "source": "nvd@nist.gov",
+       "type": "Primary",
+       "cvssData": {
+        "version": "3.1",
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:L/A:N",
+        "baseScore": 4.3,
+        "baseSeverity": "MEDIUM",
+        "attackVector": "NETWORK",
+        "attackComplexity": "LOW",
+        "privilegesRequired": "NONE",
+        "userInteraction": "REQUIRED",
+        "scope": "UNCHANGED",
+        "confidentialityImpact": "NONE",
+        "integrityImpact": "LOW",
+        "availabilityImpact": "NONE"
+       },
+       "exploitabilityScore": 2.8,
+       "impactScore": 1.4
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2026-07-14T16:02:37.813993Z",
+        "id": "CVE-2025-62675",
+        "options": [
+         {
+          "exploitation": "none"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "partial"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "weaknesses": [
+     {
+      "source": "psirt@fortinet.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-113"
+       }
+      ]
+     }
+    ],
+    "configurations": [
+     {
+      "nodes": [
+       {
+        "operator": "OR",
+        "negate": false,
+        "cpeMatch": [
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:a:fortinet:fortiproxy:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.2.0",
+          "versionEndExcluding": "7.6.5",
+          "matchCriteriaId": "C0C2DFB7-AFEB-41CF-B1E2-52F908AFF405"
+         },
+         {
+          "vulnerable": true,
+          "criteria": "cpe:2.3:o:fortinet:fortios:*:*:*:*:*:*:*:*",
+          "versionStartIncluding": "7.2.0",
+          "versionEndExcluding": "7.6.5",
+          "matchCriteriaId": "5AAADD9A-703E-4E09-8D23-8DE9A5E5EC56"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://fortiguard.fortinet.com/psirt/FG-IR-26-152",
+      "source": "psirt@fortinet.com",
+      "tags": [
+       "Vendor Advisory"
+      ]
+     },
+     {
+      "url": "https://cert-portal.siemens.com/productcert/html/ssa-864900.html",
+      "source": "0b142b55-0307-4c5a-b3c9-f314f3fb7c5e"
+     }
+    ]
+   }
+  },
+  {
+   "cve": {
+    "id": "CVE-2025-64118",
+    "sourceIdentifier": "security-advisories@github.com",
+    "published": "2025-10-30T18:15:33.673",
+    "lastModified": "2026-10-07T22:10:00.217",
+    "vulnStatus": "Deferred",
+    "cveTags": [],
+    "descriptions": [
+     {
+      "lang": "en",
+      "value": "node-tar is a Tar for Node.js. In 7.5.1, using .t (aka .list) with { sync: true } to read tar entry contents returns uninitialized memory contents if tar file was changed on disk to a smaller size while being read. This vulnerability is fixed in 7.5.2."
+     },
+     {
+      "lang": "es",
+      "value": "node-tar es un Tar para Node.js. En 7.5.1, el uso de .t (también conocido como .list) con { sync: true } para leer el contenido de una entrada tar devuelve contenido de memoria no inicializado si el archivo tar fue modificado en disco a un tamaño menor mientras se estaba leyendo. Esta vulnerabilidad está corregida en 7.5.2."
+     }
+    ],
+    "metrics": {
+     "cvssMetricV40": [
+      {
+       "source": "security-advisories@github.com",
+       "type": "Secondary",
+       "cvssData": {
+        "version": "4.0",
+        "vectorString": "CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:P/VC:H/VI:L/VA:L/SC:H/SI:H/SA:H/E:X/CR:X/IR:X/AR:X/MAV:X/MAC:X/MAT:X/MPR:X/MUI:X/MVC:X/MVI:X/MVA:X/MSC:X/MSI:X/MSA:X/S:X/AU:X/R:X/V:X/RE:X/U:X",
+        "baseScore": 6.1,
+        "baseSeverity": "MEDIUM",
+        "attackVector": "LOCAL",
+        "attackComplexity": "HIGH",
+        "attackRequirements": "PRESENT",
+        "privilegesRequired": "LOW",
+        "userInteraction": "PASSIVE",
+        "vulnConfidentialityImpact": "HIGH",
+        "vulnIntegrityImpact": "LOW",
+        "vulnAvailabilityImpact": "LOW",
+        "subConfidentialityImpact": "HIGH",
+        "subIntegrityImpact": "HIGH",
+        "subAvailabilityImpact": "HIGH",
+        "exploitMaturity": "NOT_DEFINED",
+        "confidentialityRequirement": "NOT_DEFINED",
+        "integrityRequirement": "NOT_DEFINED",
+        "availabilityRequirement": "NOT_DEFINED",
+        "modifiedAttackVector": "NOT_DEFINED",
+        "modifiedAttackComplexity": "NOT_DEFINED",
+        "modifiedAttackRequirements": "NOT_DEFINED",
+        "modifiedPrivilegesRequired": "NOT_DEFINED",
+        "modifiedUserInteraction": "NOT_DEFINED",
+        "modifiedVulnConfidentialityImpact": "NOT_DEFINED",
+        "modifiedVulnIntegrityImpact": "NOT_DEFINED",
+        "modifiedVulnAvailabilityImpact": "NOT_DEFINED",
+        "modifiedSubConfidentialityImpact": "NOT_DEFINED",
+        "modifiedSubIntegrityImpact": "NOT_DEFINED",
+        "modifiedSubAvailabilityImpact": "NOT_DEFINED",
+        "Safety": "NOT_DEFINED",
+        "Automatable": "NOT_DEFINED",
+        "Recovery": "NOT_DEFINED",
+        "valueDensity": "NOT_DEFINED",
+        "vulnerabilityResponseEffort": "NOT_DEFINED",
+        "providerUrgency": "NOT_DEFINED"
+       }
+      }
+     ],
+     "ssvcV203": [
+      {
+       "source": "134c704f-9b21-4f2e-91b3-4a467353bcc0",
+       "ssvcData": {
+        "timestamp": "2025-10-30T18:41:54.563697Z",
+        "id": "CVE-2025-64118",
+        "options": [
+         {
+          "exploitation": "poc"
+         },
+         {
+          "automatable": "no"
+         },
+         {
+          "technicalImpact": "partial"
+         }
+        ],
+        "role": "CISA Coordinator",
+        "version": "2.0.3"
+       }
+      }
+     ]
+    },
+    "weaknesses": [
+     {
+      "source": "security-advisories@github.com",
+      "type": "Secondary",
+      "description": [
+       {
+        "lang": "en",
+        "value": "CWE-362"
+       },
+       {
+        "lang": "en",
+        "value": "CWE-367"
+       }
+      ]
+     }
+    ],
+    "references": [
+     {
+      "url": "https://github.com/isaacs/node-tar/commit/5330eb04bc43014f216e5c271b40d5c00d45224d",
+      "source": "security-advisories@github.com"
+     },
+     {
+      "url": "https://github.com/isaacs/node-tar/issues/445",
+      "source": "security-advisories@github.com"
+     },
+     {
+      "url": "https://github.com/isaacs/node-tar/pull/446",
+      "source": "security-advisories@github.com"
+     },
+     {
+      "url": "https://github.com/isaacs/node-tar/security/advisories/GHSA-29xp-372q-xqph",
+      "source": "security-advisories@github.com"
+     }
+    ],
+    "configurations": []
+   }
+  }
+ ]
+}

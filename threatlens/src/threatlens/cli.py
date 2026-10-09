@@ -23,9 +23,13 @@ from threatlens.ioc.defang import defang
 from threatlens.ioc.extract import extract
 from threatlens.ioc.types import Observable, Rejected
 from threatlens.jobs import collect_due, open_collector, refresh_allowlists
+from threatlens.kb import KB_REGISTRY
 from threatlens.models import ApiKey, AuditLog, Source
 from threatlens.profile import ProfileError, load_pirs, load_profile
 from threatlens.settings import get_settings
+
+# Indicator feeds and knowledge sources (ATT&CK, NVD, EPSS, OSV).
+ALL_SOURCES = sorted({*REGISTRY, *KB_REGISTRY})
 
 
 def _validate_profile(args: argparse.Namespace) -> int:
@@ -102,20 +106,18 @@ FAILED = {"failed"}
 
 
 def _print_runs(runs: list[RunSummary]) -> None:
-    print(f"{'source':<15} {'status':<13} {'total':>7} {'new':>7} {'upd':>7} {'rej':>5} {'allow':>5}  error")
+    print(f"{'source':<15} {'status':<13} {'total':>7} {'new':>7} {'upd':>7} {'rej':>5} {'allow':>5}  note")
     for r in runs:
         print(
             f"{r.source:<15} {r.status:<13} {r.items_total:>7} {r.items_new:>7} {r.items_updated:>7} "
-            f"{r.items_rejected:>5} {r.items_allowlisted:>5}  {r.error or ''}"
+            f"{r.items_rejected:>5} {r.items_allowlisted:>5}  {r.error or r.note or ''}"
         )
 
 
 async def _collect(args: argparse.Namespace) -> int:
-    unknown = [n for n in args.sources if n not in REGISTRY]
+    unknown = [n for n in args.sources if n not in ALL_SOURCES]
     if unknown:
-        print(
-            f"unknown source(s): {', '.join(unknown)}; known: {', '.join(sorted(REGISTRY))}", file=sys.stderr
-        )
+        print(f"unknown source(s): {', '.join(unknown)}; known: {', '.join(ALL_SOURCES)}", file=sys.stderr)
         return 2
     if not args.sources and not args.due and not args.all:
         print("name one or more sources, or pass --due or --all", file=sys.stderr)
@@ -124,7 +126,7 @@ async def _collect(args: argparse.Namespace) -> int:
         if args.due:
             runs = await collect_due(c)
         else:
-            names = sorted(REGISTRY) if args.all else args.sources
+            names = ALL_SOURCES if args.all else args.sources
             runs = [await c.run(n, force=args.force) for n in names]
     if not runs:
         print("nothing due")
@@ -165,6 +167,29 @@ async def _allowlist_refresh(args: argparse.Namespace) -> int:
     for origin, result in out.items():
         print(f"{origin:<12} {result if isinstance(result, str) else f'{result} entries'}")
     return 1 if any(isinstance(v, str) and not v.startswith("empty") for v in out.values()) else 0
+
+
+async def _attack_load(args: argparse.Namespace) -> int:
+    """Load one specific ATT&CK release (e.g. an older one, to see a diff)."""
+    from threatlens.kb.attack import DowngradeError, load_release
+    from threatlens.kb.base import KbContext
+
+    url = (
+        "https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/"
+        f"{args.domain}/{args.domain}-{args.version}.json"
+    )
+    async with open_collector(get_settings()) as c:
+        src = await c.source_row("mitre_attack")
+        ctx = KbContext(c.sm, c.http, c.store, c.settings, c.now(), src.id, "mitre_attack", {}, c.sleep)
+        try:
+            res = await load_release(ctx, args.domain, args.version, url, force=args.force)
+        except DowngradeError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+    print(
+        f"loaded {res.note}: {res.items_total} objects, {res.items_new} added, {res.items_updated} modified"
+    )
+    return 0
 
 
 # ── API keys ────────────────────────────────────────────────────────────────
@@ -234,7 +259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     i.set_defaults(func=_run(_init_db))
 
     c = sub.add_parser("collect", help="run connectors now (the worker does this on a schedule)")
-    c.add_argument("sources", nargs="*", metavar="SOURCE", help=f"one of: {', '.join(sorted(REGISTRY))}")
+    c.add_argument("sources", nargs="*", metavar="SOURCE", help=f"one of: {', '.join(ALL_SOURCES)}")
     c.add_argument("--due", action="store_true", help="run only the sources whose next run time has passed")
     c.add_argument("--all", action="store_true", help="run every source")
     c.add_argument("--force", action="store_true", help="ignore the minimum gap and re-parse unchanged data")
@@ -244,6 +269,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     s.add_argument("action", nargs="?", choices=["list", "enable", "disable"], default="list")
     s.add_argument("name", nargs="?")
     s.set_defaults(func=_run(_sources))
+
+    ak = sub.add_parser("attack-load", help="load one specific ATT&CK release (the worker loads the newest)")
+    ak.add_argument(
+        "--domain", choices=["enterprise-attack", "mobile-attack", "ics-attack"], default="enterprise-attack"
+    )
+    ak.add_argument("--version", required=True, help="e.g. 19.1")
+    ak.add_argument("--force", action="store_true", help="allow loading a release older than the current one")
+    ak.set_defaults(func=_run(_attack_load))
 
     al = sub.add_parser(
         "allowlist-refresh", help="refresh Tranco, CDN ranges and org-profile allowlist entries"

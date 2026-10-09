@@ -10,6 +10,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -47,6 +48,17 @@ class Settings(BaseSettings):
     # recorded as "skipped", never as an error.
     abusech_auth_key: SecretStr | None = None  # ThreatFox (required), URLhaus (optional)
     otx_api_key: SecretStr | None = None  # AlienVault OTX (required)
+
+    # Knowledge base (Phase 2).
+    attack_domains: list[str] = Field(
+        default_factory=lambda: ["enterprise-attack", "mobile-attack", "ics-attack"]
+    )
+    nvd_api_key: SecretStr | None = None  # optional; raises NVD's rate limit tenfold
+    # relevant: KEV, the org's tech stack and every CVE the platform has seen.
+    # all: a full NVD mirror, kept current from the change feed.
+    nvd_scope: Literal["relevant", "all"] = "relevant"
+    nvd_max_requests: int = Field(default=60, ge=1, le=5000)  # per run
+    osv_max_per_run: int = Field(default=300, ge=0, le=20_000)
 
     # Allowlisting: the top-N Tranco domains never become active indicators.
     tranco_top: int = Field(default=10_000, ge=0, le=1_000_000)

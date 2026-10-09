@@ -7,7 +7,7 @@ Postgres-only, so the same models back the SQLite-based unit tests.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -15,7 +15,9 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -141,6 +143,8 @@ class Indicator(Base):
 
     id: Mapped[int] = mapped_column(BigID, primary_key=True)
     observable_id: Mapped[int] = mapped_column(ForeignKey("observables.id", ondelete="CASCADE"), unique=True)
+    # Deterministic STIX id (uuid5 of the canonical key); graph edges point at it.
+    stix_id: Mapped[str | None] = mapped_column(String(100), unique=True)
     pattern: Mapped[str | None] = mapped_column(Text)  # STIX 2.1 pattern; None for vulnerabilities
     valid_from: Mapped[datetime] = _ts(default=utcnow)
     valid_until: Mapped[datetime | None] = _ts()
@@ -226,7 +230,7 @@ class ConnectorRun(Base):
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"))
     started_at: Mapped[datetime] = _ts(default=utcnow)
     finished_at: Mapped[datetime | None] = _ts()
-    status: Mapped[str] = mapped_column(String(16))  # success|not_modified|unchanged|skipped|failed
+    status: Mapped[str] = mapped_column(String(16))  # success|partial|not_modified|unchanged|skipped|failed
     http_status: Mapped[int | None] = mapped_column(Integer)
     raw_document_id: Mapped[int | None] = mapped_column(ForeignKey("raw_documents.id", ondelete="SET NULL"))
     items_total: Mapped[int] = mapped_column(Integer, default=0)
@@ -235,6 +239,7 @@ class ConnectorRun(Base):
     items_rejected: Mapped[int] = mapped_column(Integer, default=0)
     items_allowlisted: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str | None] = mapped_column(Text)
+    note: Mapped[str | None] = mapped_column(Text)  # e.g. "loaded enterprise-attack 19.2"
 
     __table_args__ = (Index("ix_connector_runs_source_started", "source_id", "started_at"),)
 
@@ -270,3 +275,199 @@ class AuditLog(Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
 
     __table_args__ = (Index("ix_audit_log_at", "at"),)
+
+
+# ── knowledge base (Phase 2) ─────────────────────────────────────────────────
+
+
+class Entity(Base):
+    """A STIX domain object: ATT&CK techniques, tactics, groups (intrusion
+    sets), software (malware, tools), campaigns, mitigations, detection
+    objects, plus malware and actors named by feeds that ATT&CK lacks.
+    The original STIX object is kept in ``stix``."""
+
+    __tablename__ = "entities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    stix_id: Mapped[str] = mapped_column(String(100), unique=True)
+    type: Mapped[str] = mapped_column(String(40))
+    name: Mapped[str] = mapped_column(Text)
+    external_id: Mapped[str | None] = mapped_column(String(32))  # T1059.001, S0367, G0102, TA0002
+    description: Mapped[str] = mapped_column(Text, default="")
+    aliases: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    domains: Mapped[list[str]] = mapped_column(JSONType, default=list)  # enterprise-attack, ...
+    platforms: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    tactics: Mapped[list[str]] = mapped_column(JSONType, default=list)  # kill-chain phase shortnames
+    is_subtechnique: Mapped[bool] = mapped_column(Boolean, default=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    deprecated: Mapped[bool] = mapped_column(Boolean, default=False)
+    version: Mapped[str | None] = mapped_column(String(16))  # x_mitre_version
+    stix_modified: Mapped[datetime | None] = _ts()
+    origin: Mapped[str] = mapped_column(String(16))  # attack | feed
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("sources.id", ondelete="SET NULL"))
+    stix: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        Index("ix_entities_type_name", "type", "name"),
+        Index("ix_entities_external_id", "external_id"),
+    )
+
+
+class EntityAlias(Base):
+    """Normalized names (lower-case alphanumerics) for resolving the free-text
+    malware and actor names feeds use ("QakBot", "Qbot") to entities."""
+
+    __tablename__ = "entity_aliases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity_id: Mapped[int] = mapped_column(ForeignKey("entities.id", ondelete="CASCADE"))
+    alias_key: Mapped[str] = mapped_column(String(200))
+
+    __table_args__ = (
+        UniqueConstraint("alias_key", "entity_id"),
+        Index("ix_entity_aliases_entity", "entity_id"),
+    )
+
+
+class Relationship(Base):
+    """A directed, sourced edge between two graph nodes, each named by its
+    STIX id: an entity, a vulnerability or an indicator. Polymorphic ends
+    (no foreign keys) keep one table for every edge kind; ``origin`` says how
+    the edge was obtained and ``provenance`` holds the evidence."""
+
+    __tablename__ = "relationships"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    stix_id: Mapped[str] = mapped_column(String(100), unique=True)
+    src_ref: Mapped[str] = mapped_column(String(100))
+    rel_type: Mapped[str] = mapped_column(String(40))
+    dst_ref: Mapped[str] = mapped_column(String(100))
+    # attack: an ATT&CK relationship; attack-mention: a CVE named in ATT&CK text;
+    # feed: a field of a feed record; identity: same identifier (indicator <-> CVE)
+    origin: Mapped[str] = mapped_column(String(16))
+    scope: Mapped[str | None] = mapped_column(String(40))  # ATT&CK domain, or feed source name
+    description: Mapped[str] = mapped_column(Text, default="")
+    confidence: Mapped[int] = mapped_column(Integer, default=50)
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("sources.id", ondelete="SET NULL"))
+    provenance: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    first_seen: Mapped[datetime] = _ts(default=utcnow)
+    last_seen: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (
+        Index("ix_relationships_src", "src_ref", "rel_type"),
+        Index("ix_relationships_dst", "dst_ref", "rel_type"),
+        Index("ix_relationships_origin_scope", "origin", "scope"),
+    )
+
+
+class Vulnerability(Base):
+    """A CVE with what NVD, CISA KEV, EPSS and OSV say about it. A row can
+    exist before NVD has been asked (``nvd_modified`` is null): KEV entries,
+    feed indicators and ATT&CK text create such stubs, and NVD fills them."""
+
+    __tablename__ = "vulnerabilities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cve_id: Mapped[str] = mapped_column(String(32), unique=True)
+    stix_id: Mapped[str] = mapped_column(String(100), unique=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    published: Mapped[datetime | None] = _ts()
+    nvd_modified: Mapped[datetime | None] = _ts()
+    vuln_status: Mapped[str | None] = mapped_column(String(32))
+    # The best available CVSS (highest version, NVD's own "Primary" first);
+    # every version NVD reported is kept in ``cvss``.
+    cvss_version: Mapped[str | None] = mapped_column(String(4))
+    cvss_score: Mapped[float | None] = mapped_column(Float)
+    cvss_severity: Mapped[str | None] = mapped_column(String(10))
+    cvss_vector: Mapped[str | None] = mapped_column(Text)
+    cvss: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    cwes: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    cpes: Mapped[list[str]] = mapped_column(JSONType, default=list)  # vulnerable match criteria
+    references: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    exploit_refs: Mapped[list[str]] = mapped_column(JSONType, default=list)  # NVD "Exploit" tag
+    ssvc: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # CISA ADP decision points
+    kev: Mapped[bool] = mapped_column(Boolean, default=False)
+    kev_date_added: Mapped[date | None] = mapped_column(Date)
+    kev_due_date: Mapped[date | None] = mapped_column(Date)
+    kev_ransomware: Mapped[str | None] = mapped_column(String(16))  # Known | Unknown
+    kev_name: Mapped[str | None] = mapped_column(Text)
+    kev_required_action: Mapped[str | None] = mapped_column(Text)
+    epss: Mapped[float | None] = mapped_column(Float)
+    epss_percentile: Mapped[float | None] = mapped_column(Float)
+    epss_date: Mapped[date | None] = mapped_column(Date)
+    osv_ids: Mapped[list[str]] = mapped_column(JSONType, default=list)  # GHSA-..., PYSEC-...
+    packages: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    osv_checked_at: Mapped[datetime | None] = _ts()
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
+
+    products: Mapped[list[VulnerabilityProduct]] = relationship(
+        back_populates="vulnerability", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_vulnerabilities_kev", "kev", "kev_date_added"),
+        Index("ix_vulnerabilities_epss", "epss"),
+        Index("ix_vulnerabilities_cvss", "cvss_score"),
+        Index("ix_vulnerabilities_nvd_modified", "nvd_modified"),
+    )
+
+
+class VulnerabilityProduct(Base):
+    """(vendor, product) pairs from a CVE's vulnerable CPEs: the join key to
+    the org's tech stack (PIR-2) and, in Phase 3b, to ReconX's observed CPEs."""
+
+    __tablename__ = "vulnerability_products"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    vulnerability_id: Mapped[int] = mapped_column(ForeignKey("vulnerabilities.id", ondelete="CASCADE"))
+    part: Mapped[str] = mapped_column(String(1))  # a | o | h
+    vendor: Mapped[str] = mapped_column(String(200))
+    product: Mapped[str] = mapped_column(String(200))
+
+    vulnerability: Mapped[Vulnerability] = relationship(back_populates="products")
+
+    __table_args__ = (
+        UniqueConstraint("vulnerability_id", "part", "vendor", "product"),
+        Index("ix_vulnerability_products_vp", "vendor", "product"),
+    )
+
+
+class AttackRelease(Base):
+    """One ingested ATT&CK release of one domain, with what it changed."""
+
+    __tablename__ = "attack_releases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    domain: Mapped[str] = mapped_column(String(40))
+    version: Mapped[str] = mapped_column(String(16))
+    released: Mapped[datetime | None] = _ts()
+    url: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(String(64))
+    baseline: Mapped[bool] = mapped_column(Boolean, default=False)  # first load: nothing to diff
+    previous_version: Mapped[str | None] = mapped_column(String(16))
+    counts: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    ingested_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (UniqueConstraint("domain", "version"),)
+
+
+class AttackChange(Base):
+    """A meaningful change to one ATT&CK object between two releases."""
+
+    __tablename__ = "attack_changes"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    release_id: Mapped[int] = mapped_column(ForeignKey("attack_releases.id", ondelete="CASCADE"))
+    stix_id: Mapped[str] = mapped_column(String(100))
+    type: Mapped[str] = mapped_column(String(40))
+    external_id: Mapped[str | None] = mapped_column(String(32))
+    name: Mapped[str] = mapped_column(Text)
+    change: Mapped[str] = mapped_column(String(16))  # added|modified|revoked|deprecated|restored|removed
+    details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+
+    __table_args__ = (Index("ix_attack_changes_release", "release_id", "change"),)

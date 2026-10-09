@@ -1,0 +1,16 @@
+The files enterprise-attack-19.1.json, enterprise-attack-19.2.json and
+attack_index.json contain excerpts of MITRE ATT&CK.
+
+Copyright 2015-2026, The MITRE Corporation. MITRE ATT&CK and ATT&CK are
+registered trademarks of The MITRE Corporation.
+
+© 2026 The MITRE Corporation. This work is reproduced and distributed with the
+permission of The MITRE Corporation.
+
+Licence (from the ATT&CK Terms of Use,
+https://attack.mitre.org/resources/legal-and-branding/terms-of-use/):
+"The MITRE Corporation (MITRE) hereby grants you a non-exclusive, royalty-free
+license to use ATT&CK® for research, development, and commercial purposes.
+Any copy you make for such purposes is authorized provided that you reproduce
+MITRE's copyright designation and this license in any such copy."
+Read the full terms at the URL above.

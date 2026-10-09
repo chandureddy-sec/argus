@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Any
 
 from sqlalchemy import MetaData, text
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -43,3 +45,10 @@ async def ping(engine: AsyncEngine) -> None:
 async def session_scope(maker: async_sessionmaker[AsyncSession]) -> AsyncIterator[AsyncSession]:
     async with maker() as session:
         yield session
+
+
+def upsert_insert(session: AsyncSession, model: Any) -> Any:
+    """A dialect-specific INSERT that supports ``on_conflict_do_nothing`` /
+    ``on_conflict_do_update`` (PostgreSQL in production, SQLite in tests)."""
+    dialect = session.get_bind().dialect.name
+    return (postgresql.insert if dialect == "postgresql" else sqlite.insert)(model)

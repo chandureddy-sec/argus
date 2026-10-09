@@ -281,7 +281,7 @@ async def test_due_and_tlp(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
     clock = Clock()
     c = collector(sm, mock_http(feed_handler()), tmp_path, clock)
     await c.sync_sources()
-    assert set(await c.due()) == set(c.registry)  # never run → all due
+    assert set(await c.due()) == set(c.sources)  # never run → all due (feeds and knowledge sources)
     await c.run("tor_exits")
     assert "tor_exits" not in await c.due()
     clock.advance(hours=2)

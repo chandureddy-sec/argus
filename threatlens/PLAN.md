@@ -86,7 +86,7 @@ backoff + jitter, ETag/If-Modified-Since, raw-response archive.
 |---|---|---|
 | 0 | Foundation: layout, Compose, config, Alembic baseline, CI, pre-commit, logging, health, org profile + PIRs, threat model, ADR 0001 | code complete; Docker run pending |
 | 1 | Collection + processing core; hardened HTTP client; IOC extractor; allowlist; dedup; first 5–8 connectors (verified); API keys + RBAC | **complete** (8 connectors, ADR 0003); Docker run pending |
-| 2 | Knowledge base: ATT&CK, NVD/EPSS/KEV/OSV, relationship graph | planned |
+| 2 | Knowledge base: ATT&CK, NVD/EPSS/KEV/OSV, relationship graph | **complete** (ADR 0004); Docker run pending |
 | 3 | Enrichment engine (RDAP, DNS, ASN, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh); lookup + bulk enrich API | planned |
 | 3b | **ReconX link**: ReconX `--threatlens` sends assets, shows verdicts, monitor alert rule; ThreatLens imports ReconX scans as assets/observed CPEs | planned |
 | 4 | Scoring, trust, TLP 2.0, feedback, expiry | planned |

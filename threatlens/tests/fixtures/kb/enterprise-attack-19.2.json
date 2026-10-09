@@ -1,0 +1,2114 @@
+{
+ "type": "bundle",
+ "id": "bundle--6198013c-6f02-42a4-9713-38ea1301a1aa",
+ "objects": [
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--00d0b012-8a03-410e-95de-5826bf542de6",
+   "created": "2017-05-31T21:30:54.176Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": true,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1066",
+     "external_id": "T1066"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-14T22:53:15.802Z",
+   "name": "Indicator Removal from Tools",
+   "description": "If a malicious tool is detected and quarantined or otherwise curtailed, an adversary may be able to determine why the malicious tool was detected (the indicator), modify the tool by removing the indicator, and use the updated version that is no longer detected by the target's defensive systems or subsequent targets that may use similar systems.\n\nA good example of this is when malware is detected with a file signature and quarantined by anti-virus software. An adversary who can determine that the malware was quarantined because of its file signature may use [Software Packing](https://attack.mitre.org/techniques/T1045) or otherwise modify the file so it has a different signature, and then re-use the malware.",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "stealth"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Linux",
+    "macOS",
+    "Windows"
+   ],
+   "x_mitre_version": "1.1"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--01a5a209-b94c-450b-b7f9-946497d91055",
+   "created": "2017-05-31T21:30:44.329Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1047",
+     "external_id": "T1047"
+    },
+    {
+     "source_name": "FireEye WMI 2015",
+     "description": "Ballenthin, W., et al. (2015). Windows Management Instrumentation (WMI) Offense, Defense, and Forensics. Retrieved March 30, 2016.",
+     "url": "https://www.fireeye.com/content/dam/fireeye-www/global/en/current-threats/pdfs/wp-windows-management-instrumentation.pdf"
+    },
+    {
+     "source_name": "Mandiant WMI",
+     "description": "Mandiant. (n.d.). Retrieved February 13, 2024.",
+     "url": "https://www.mandiant.com/resources/reports"
+    },
+    {
+     "source_name": "WMI 6",
+     "description": "Microsoft. (2022, June 13). BlackCat. Retrieved February 13, 2024.",
+     "url": "https://www.microsoft.com/en-us/security/blog/2022/06/13/the-many-lives-of-blackcat-ransomware/"
+    },
+    {
+     "source_name": "WMI 1-3",
+     "description": "Microsoft. (2023, March 7). Retrieved February 13, 2024.",
+     "url": "https://learn.microsoft.com/en-us/windows/win32/wmisdk/wmi-start-page?redirectedfrom=MSDN"
+    },
+    {
+     "source_name": "WMI 7,8",
+     "description": "Microsoft. (2024, January 26). WMIC Deprecation. Retrieved February 13, 2024.",
+     "url": "https://techcommunity.microsoft.com/t5/windows-it-pro-blog/wmi-command-line-wmic-utility-deprecation-next-steps/ba-p/4039242"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.619Z",
+   "name": "Windows Management Instrumentation",
+   "description": "Adversaries may abuse Windows Management Instrumentation (WMI) to execute malicious commands and payloads. WMI is designed for programmers and is the infrastructure for management data and operations on Windows systems.(Citation: WMI 1-3) WMI is an administration feature that provides a uniform environment to access Windows system components.\n\nThe WMI service enables both local and remote access, though the latter is facilitated by [Remote Services](https://attack.mitre.org/techniques/T1021) such as [Distributed Component Object Model](https://attack.mitre.org/techniques/T1021/003) and [Windows Remote Management](https://attack.mitre.org/techniques/T1021/006).(Citation: WMI 1-3) Remote WMI over DCOM operates using port 135, whereas WMI over WinRM operates over port 5985 when using HTTP and 5986 for HTTPS.(Citation: WMI 1-3) (Citation: Mandiant WMI)\n\nAn adversary can use WMI to interact with local and remote systems and use it as a means to execute various behaviors, such as gathering information for [Discovery](https://attack.mitre.org/tactics/TA0007) as well as [Execution](https://attack.mitre.org/tactics/TA0002) of commands and payloads.(Citation: Mandiant WMI) For example, `wmic.exe` can be abused by an adversary to delete shadow copies with the command `wmic.exe Shadowcopy Delete` (i.e., [Inhibit System Recovery](https://attack.mitre.org/techniques/T1490)).(Citation: WMI 6)\n\n**Note:** `wmic.exe` is deprecated as of January of 2024, with the WMIC feature being “disabled by default” on Windows 11+. WMIC will be removed from subsequent Windows releases and replaced by [PowerShell](https://attack.mitre.org/techniques/T1059/001) as the primary WMI interface.(Citation: WMI 7,8) In addition to PowerShell and tools like `wbemtool.exe`, COM APIs can also be used to programmatically interact with WMI via C++, .NET, VBScript, etc.(Citation: WMI 7,8)",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "execution"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "@ionstorm",
+    "Olaf Hartong, Falcon Force",
+    "Tristan Madani"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Windows"
+   ],
+   "x_mitre_version": "1.6",
+   "x_mitre_remote_support": false
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--03d7999c-1f4c-42cc-8373-e7690d318104",
+   "created": "2017-05-31T21:30:35.733Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1033",
+     "external_id": "T1033"
+    },
+    {
+     "source_name": "show_ssh_users_cmd_cisco",
+     "description": "Cisco. (2023, March 7). Cisco IOS Security Command Reference: Commands S to Z . Retrieved July 13, 2022.",
+     "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/security/s1/sec-s1-cr-book/sec-cr-s5.html"
+    },
+    {
+     "source_name": "US-CERT TA18-106A Network Infrastructure Devices 2018",
+     "description": "US-CERT. (2018, April 20). Russian State-Sponsored Cyber Actors Targeting Network Infrastructure Devices. Retrieved October 19, 2020.",
+     "url": "https://us-cert.cisa.gov/ncas/alerts/TA18-106A"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.620Z",
+   "name": "System Owner/User Discovery",
+   "description": "Adversaries may attempt to identify the primary user, currently logged in user, set of users that commonly uses a system, or whether a user is actively using the system. They may do this, for example, by retrieving account usernames or by using [OS Credential Dumping](https://attack.mitre.org/techniques/T1003). The information may be collected in a number of different ways using other Discovery techniques, because user and username details are prevalent throughout a system and include running process ownership, file/directory ownership, session information, and system logs. Adversaries may use the information from [System Owner/User Discovery](https://attack.mitre.org/techniques/T1033) during automated discovery to shape follow-on behaviors, including whether or not the adversary fully infects the target and/or attempts specific actions.\n\nVarious utilities and commands may acquire this information, including <code>whoami</code>. In macOS and Linux, the currently logged in user can be identified with <code>w</code> and <code>who</code>. On macOS the <code>dscl . list /Users | grep -v '_'</code> command can also be used to enumerate user accounts. Environment variables, such as <code>%USERNAME%</code> and <code>$USER</code>, may also be used to access this information.\n\nOn network devices, [Network Device CLI](https://attack.mitre.org/techniques/T1059/008) commands such as `show users` and `show ssh` can be used to display users currently logged into the device.(Citation: show_ssh_users_cmd_cisco)(Citation: US-CERT TA18-106A Network Infrastructure Devices 2018)",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "discovery"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Austin Clark, @c2defense"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Linux",
+    "macOS",
+    "Network Devices",
+    "Windows"
+   ],
+   "x_mitre_version": "1.6"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--09c4c11e-4fa1-4f8c-8dad-3cf8e69ad119",
+   "created": "2020-02-11T18:38:22.617Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1110/001",
+     "external_id": "T1110.001"
+    },
+    {
+     "source_name": "Trend Micro Emotet 2020",
+     "description": "Cybercrime & Digital Threat Team. (2020, February 13). Emotet Now Spreads via Wi-Fi. Retrieved February 16, 2022.",
+     "url": "https://www.trendmicro.com/vinfo/us/security/news/cybercrime-and-digital-threats/emotet-now-spreads-via-wi-fi"
+    },
+    {
+     "source_name": "Cylance Cleaver",
+     "description": "Cylance. (2014, December). Operation Cleaver. Retrieved September 14, 2017.",
+     "url": "https://web.archive.org/web/20200302085133/https://www.cylance.com/content/dam/cylance/pages/operation-cleaver/Cylance_Operation_Cleaver_Report.pdf"
+    },
+    {
+     "source_name": "US-CERT TA18-068A 2018",
+     "description": "US-CERT. (2018, March 27). TA18-068A Brute Force Attacks Conducted by Cyber Actors. Retrieved October 2, 2019.",
+     "url": "https://www.us-cert.gov/ncas/alerts/TA18-086A"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.620Z",
+   "name": "Password Guessing",
+   "description": "Adversaries with no prior knowledge of legitimate credentials within the system or environment may guess passwords to attempt access to accounts. Without knowledge of the password for an account, an adversary may opt to systematically guess the password using a repetitive or iterative mechanism. An adversary may guess login credentials without prior knowledge of system or environment passwords during an operation by using a list of common passwords. Password guessing may or may not take into account the target's policies on password complexity or use policies that may lock accounts out after a number of failed attempts.\n\nGuessing passwords can be a risky option because it could cause numerous authentication failures and account lockouts, depending on the organization's login failure policies. (Citation: Cylance Cleaver)\n\nTypically, management services over commonly used ports are used when guessing passwords. Commonly targeted services include the following:\n\n* SSH (22/TCP)\n* Telnet (23/TCP)\n* FTP (21/TCP)\n* NetBIOS / SMB / Samba (139/TCP & 445/TCP)\n* LDAP (389/TCP)\n* Kerberos (88/TCP)\n* RDP / Terminal Services (3389/TCP)\n* HTTP/HTTP Management Services (80/TCP & 443/TCP)\n* MSSQL (1433/TCP)\n* Oracle (1521/TCP)\n* MySQL (3306/TCP)\n* VNC (5900/TCP)\n* SNMP (161/UDP and 162/TCP/UDP)\n\nIn addition to management services, adversaries may \"target single sign-on (SSO) and cloud-based applications utilizing federated authentication protocols,\" as well as externally facing email applications, such as Office 365.(Citation: US-CERT TA18-068A 2018). Further, adversaries may abuse network device interfaces (such as `wlanAPI`) to brute force accessible wifi-router(s) via wireless authentication protocols.(Citation: Trend Micro Emotet 2020)\n\nIn default environments, LDAP and Kerberos connection attempts are less likely to trigger events over SMB, which creates Windows \"logon failure\" event ID 4625.",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "credential-access"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Microsoft Threat Intelligence Center (MSTIC)",
+    "Mohamed Kmal"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": true,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Containers",
+    "ESXi",
+    "IaaS",
+    "Identity Provider",
+    "Linux",
+    "macOS",
+    "Network Devices",
+    "Office Suite",
+    "SaaS",
+    "Windows"
+   ],
+   "x_mitre_version": "1.7"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--24bfaeba-cb0d-4525-b3dc-507c77ecec41",
+   "created": "2020-03-16T15:45:17.032Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1573/001",
+     "external_id": "T1573.001"
+    },
+    {
+     "source_name": "University of Birmingham C2",
+     "description": "Gardiner, J.,  Cova, M., Nagaraja, S. (2014, February). Command & Control Understanding, Denying and Detecting. Retrieved April 20, 2016.",
+     "url": "https://arxiv.org/ftp/arxiv/papers/1408/1408.1136.pdf"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.623Z",
+   "name": "Symmetric Cryptography",
+   "description": "Adversaries may employ a known symmetric encryption algorithm to conceal command and control traffic rather than relying on any inherent protections provided by a communication protocol. Symmetric encryption algorithms use the same key for plaintext encryption and ciphertext decryption. Common symmetric encryption algorithms include AES, DES, 3DES, Blowfish, and RC4.",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "command-and-control"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": true,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "ESXi",
+    "Linux",
+    "macOS",
+    "Network Devices",
+    "Windows"
+   ],
+   "x_mitre_version": "1.2"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--435dfb86-2697-4867-85b5-2fef496c0517",
+   "created": "2020-02-04T12:47:23.631Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1552",
+     "external_id": "T1552"
+    },
+    {
+     "source_name": "Brining MimiKatz to Unix",
+     "description": "Tim Wadhwa-Brown. (2018, November). Where 2 worlds collide Bringing Mimikatz et al to UNIX. Retrieved October 13, 2021.",
+     "url": "https://labs.portcullis.co.uk/download/eu-18-Wadhwa-Brown-Where-2-worlds-collide-Bringing-Mimikatz-et-al-to-UNIX.pdf"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-10-24T17:48:42.785Z",
+   "name": "Unsecured Credentials",
+   "description": "Adversaries may search compromised systems to find and obtain insecurely stored credentials. These credentials can be stored and/or misplaced in many locations on a system, including plaintext files (e.g. [Shell History](https://attack.mitre.org/techniques/T1552/003)), operating system or application-specific repositories (e.g. [Credentials in Registry](https://attack.mitre.org/techniques/T1552/002)),  or other specialized files/artifacts (e.g. [Private Keys](https://attack.mitre.org/techniques/T1552/004)).(Citation: Brining MimiKatz to Unix)",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "credential-access"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_contributors": [
+    "Austin Clark, @c2defense"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Windows",
+    "SaaS",
+    "IaaS",
+    "Linux",
+    "macOS",
+    "Containers",
+    "Network Devices",
+    "Office Suite",
+    "Identity Provider"
+   ],
+   "x_mitre_version": "1.5"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--837f9164-50af-4ac0-8219-379d8a74cefc",
+   "created": "2020-02-04T12:52:13.006Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1552/001",
+     "external_id": "T1552.001"
+    },
+    {
+     "source_name": "CG 2014",
+     "description": "CG. (2014, May 20). Mimikatz Against Virtual Machine Memory Part 1. Retrieved November 12, 2014.",
+     "url": "http://carnal0wnage.attackresearch.com/2014/05/mimikatz-against-virtual-machine-memory.html"
+    },
+    {
+     "source_name": "Unit 42 Hildegard Malware",
+     "description": "Chen, J. et al. (2021, February 3). Hildegard: New TeamTNT Cryptojacking Malware Targeting Kubernetes. Retrieved April 5, 2021.",
+     "url": "https://unit42.paloaltonetworks.com/hildegard-malware-teamtnt/"
+    },
+    {
+     "source_name": "Unit 42 Unsecured Docker Daemons",
+     "description": "Chen, J.. (2020, January 29). Attacker's Tactics and Techniques in Unsecured Docker Daemons Revealed. Retrieved March 31, 2021.",
+     "url": "https://unit42.paloaltonetworks.com/attackers-tactics-and-techniques-in-unsecured-docker-daemons-revealed/"
+    },
+    {
+     "source_name": "Specter Ops - Cloud Credential Storage",
+     "description": "Maddalena, C.. (2018, September 12). Head in the Clouds. Retrieved October 4, 2019.",
+     "url": "https://posts.specterops.io/head-in-the-clouds-bd038bb69e48"
+    },
+    {
+     "source_name": "SRD GPP",
+     "description": "Security Research and Defense. (2014, May 13). MS14-025: An Update for Group Policy Preferences. Retrieved January 28, 2015.",
+     "url": "http://blogs.technet.com/b/srd/archive/2014/05/13/ms14-025-an-update-for-group-policy-preferences.aspx"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.672Z",
+   "name": "Credentials In Files",
+   "description": "Adversaries may search local file systems and remote file shares for files containing insecurely stored credentials. These can be files created by users to store their own credentials, shared credential stores for a group of individuals, configuration files containing passwords for a system or service, or source code/binary files containing embedded passwords.\n\nIt is possible to extract passwords from backups or saved virtual machines through [OS Credential Dumping](https://attack.mitre.org/techniques/T1003).(Citation: CG 2014) Passwords may also be obtained from Group Policy Preferences stored on the Windows Domain Controller.(Citation: SRD GPP)\n\nIn cloud and/or containerized environments, authenticated user and service account credentials are often stored in local configuration and credential files.(Citation: Unit 42 Hildegard Malware) They may also be found as parameters to deployment commands in container logs.(Citation: Unit 42 Unsecured Docker Daemons) In some cases, these files can be copied and reused on another machine or the contents can be read and then used to authenticate without needing to copy any files.(Citation: Specter Ops - Cloud Credential Storage)",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "credential-access"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Rory McCune, Aqua Security",
+    "Jay Chen, Palo Alto Networks",
+    "Yossi Weizman, Azure Defender Research Team",
+    "Vishwas Manral, McAfee",
+    "Microsoft Threat Intelligence Center (MSTIC)"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": true,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Containers",
+    "IaaS",
+    "Linux",
+    "macOS",
+    "Windows"
+   ],
+   "x_mitre_version": "1.3"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--9db0cf3a-a3c9-4012-8268-123b9db6fd82",
+   "created": "2018-04-18T17:59:24.739Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1210",
+     "external_id": "T1210"
+    },
+    {
+     "source_name": "Broadcom VMSA-2024-0019",
+     "description": "Broadcom. (2024, September 17). VMSA-2024-0019: Questions & Answers. Retrieved April 8, 2025.",
+     "url": "https://github.com/vmware/vcf-security-and-compliance-guidelines/blob/main/security-advisories/vmsa-2024-0019/README.md"
+    },
+    {
+     "source_name": "CIS Multiple SMB Vulnerabilities",
+     "description": "CIS. (2017, May 15). Multiple Vulnerabilities in Microsoft Windows SMB Server Could Allow for Remote Code Execution. Retrieved April 3, 2018.",
+     "url": "https://www.cisecurity.org/advisory/multiple-vulnerabilities-in-microsoft-windows-smb-server-could-allow-for-remote-code-execution/"
+    },
+    {
+     "source_name": "Ars Technica VMWare Code Execution Vulnerability 2021",
+     "description": "Dan Goodin . (2021, February 25). Code-execution flaw in VMware has a severity rating of 9.8 out of 10. Retrieved April 8, 2025.",
+     "url": "https://arstechnica.com/information-technology/2021/02/armed-with-exploits-hackers-on-the-prowl-for-a-critical-vmware-vulnerability/"
+    },
+    {
+     "source_name": "NVD CVE-2016-6662",
+     "description": "National Vulnerability Database. (2017, February 2). CVE-2016-6662 Detail. Retrieved April 3, 2018.",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2016-6662"
+    },
+    {
+     "source_name": "NVD CVE-2017-0176",
+     "description": "National Vulnerability Database. (2017, June 22). CVE-2017-0176 Detail. Retrieved April 3, 2018.",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2017-0176"
+    },
+    {
+     "source_name": "NVD CVE-2014-7169",
+     "description": "National Vulnerability Database. (2017, September 24). CVE-2014-7169 Detail. Retrieved April 3, 2018.",
+     "url": "https://nvd.nist.gov/vuln/detail/CVE-2014-7169"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-08-04T20:30:55.427Z",
+   "name": "Exploitation of Remote Services",
+   "description": "Adversaries may exploit remote services to gain unauthorized access to internal systems once inside of a network. Exploitation of a software vulnerability occurs when an adversary takes advantage of a programming error in a program, service, or within the operating system software or kernel itself to execute adversary-controlled code. A common goal for post-compromise exploitation of remote services is for lateral movement to enable access to a remote system.\n\nAn adversary may need to determine if the remote system is in a vulnerable state, which may be done through [Network Service Discovery](https://attack.mitre.org/techniques/T1046) or other Discovery methods looking for common, vulnerable software that may be deployed in the network, the lack of certain patches that may indicate vulnerabilities,  or security software that may be used to detect or contain remote exploitation. Servers are likely a high value target for lateral movement exploitation, but endpoint systems may also be at risk if they provide an advantage or access to additional resources.\n\nThere are several well-known vulnerabilities that exist in common services such as SMB(Citation: CIS Multiple SMB Vulnerabilities) and RDP(Citation: NVD CVE-2017-0176) as well as applications that may be used within internal networks such as MySQL(Citation: NVD CVE-2016-6662) and web server services.(Citation: NVD CVE-2014-7169)(Citation: Ars Technica VMWare Code Execution Vulnerability 2021) Additionally, there have been a number of vulnerabilities in VMware vCenter installations, which may enable threat actors to move laterally from the compromised vCenter server to virtual machines or even to ESXi hypervisors.(Citation: Broadcom VMSA-2024-0019)\n\nDepending on the permissions level of the vulnerable remote service an adversary may achieve [Exploitation for Privilege Escalation](https://attack.mitre.org/techniques/T1068) as a result of lateral movement exploitation as well.",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "lateral-movement"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "ExtraHop"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Linux",
+    "Windows",
+    "macOS",
+    "ESXi"
+   ],
+   "x_mitre_version": "1.2"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--a93494bb-4b80-4ea1-8695-3236a49916fd",
+   "created": "2017-05-31T21:31:22.767Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1110",
+     "external_id": "T1110"
+    },
+    {
+     "source_name": "TrendMicro Pawn Storm Dec 2020",
+     "description": "Hacquebord, F., Remorin, L. (2020, December 17). Pawn Storm’s Lack of Sophistication as a Strategy. Retrieved January 13, 2021.",
+     "url": "https://www.trendmicro.com/en_us/research/20/l/pawn-storm-lack-of-sophistication-as-a-strategy.html"
+    },
+    {
+     "source_name": "ReliaQuest Health Care Social Engineering Campaign 2024",
+     "description": "Hayden Evans. (2024, April 4). Health Care Social Engineering Campaign. Retrieved May 22, 2025.",
+     "url": "https://www.reliaquest.com/blog/health-care-social-engineering-campaign/"
+    },
+    {
+     "source_name": "Dragos Crashoverride 2018",
+     "description": "Joe Slowik. (2018, October 12). Anatomy of an Attack: Detecting and Defeating CRASHOVERRIDE. Retrieved December 18, 2020.",
+     "url": "https://www.dragos.com/wp-content/uploads/CRASHOVERRIDE2018.pdf"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.706Z",
+   "name": "Brute Force",
+   "description": "Adversaries may use brute force techniques to gain access to accounts when passwords are unknown or when password hashes are obtained.(Citation: TrendMicro Pawn Storm Dec 2020) Without knowledge of the password for an account or set of accounts, an adversary may systematically guess the password using a repetitive or iterative mechanism.(Citation: Dragos Crashoverride 2018) Brute forcing passwords can take place via interaction with a service that will check the validity of those credentials or offline against previously acquired credential data, such as password hashes.\n\nBrute forcing credentials may take place at various points during a breach. For example, adversaries may attempt to brute force access to [Valid Accounts](https://attack.mitre.org/techniques/T1078) within a victim environment leveraging knowledge gathered from other post-compromise behaviors such as [OS Credential Dumping](https://attack.mitre.org/techniques/T1003), [Account Discovery](https://attack.mitre.org/techniques/T1087), or [Password Policy Discovery](https://attack.mitre.org/techniques/T1201). Adversaries may also combine brute forcing activity with behaviors such as [External Remote Services](https://attack.mitre.org/techniques/T1133) as part of Initial Access. \n\nIf an adversary guesses the correct password but fails to login to a compromised account due to location-based conditional access policies, they may change their infrastructure until they match the victim’s location and therefore bypass those policies.(Citation: ReliaQuest Health Care Social Engineering Campaign 2024)",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "credential-access"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "David Fiser, @anu4is, Trend Micro",
+    "Alfredo Oliveira, Trend Micro",
+    "Magno Logan, @magnologan, Trend Micro",
+    "Yossi Weizman, Azure Defender Research Team",
+    "Ed Williams, Trustwave, SpiderLabs",
+    "Mohamed Kmal",
+    "ReliaQuest"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Containers",
+    "ESXi",
+    "IaaS",
+    "Identity Provider",
+    "Linux",
+    "macOS",
+    "Network Devices",
+    "Office Suite",
+    "SaaS",
+    "Windows"
+   ],
+   "x_mitre_version": "2.8"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--b0533c6e-8fea-4788-874f-b799cacc4b92",
+   "created": "2020-03-19T21:27:32.820Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1027/005",
+     "external_id": "T1027.005"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.707Z",
+   "name": "Indicator Removal from Tools",
+   "description": "Adversaries may remove indicators from tools if they believe their malicious tool was detected, quarantined, or otherwise curtailed. They can modify the tool by removing the indicator and using the updated version that is no longer detected by the target's defensive systems or subsequent targets that may use similar systems.\n\nA good example of this is when malware is detected with a file signature and quarantined by anti-virus software. An adversary who can determine that the malware was quarantined because of its file signature may modify the file to explicitly avoid that signature, and then re-use the malware.",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "stealth"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": true,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Linux",
+    "macOS",
+    "Windows"
+   ],
+   "x_mitre_version": "2.0"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--b8902400-e6c5-4ba2-95aa-2d35b442b118",
+   "created": "2020-03-16T15:33:01.739Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1573",
+     "external_id": "T1573"
+    },
+    {
+     "source_name": "SANS Decrypting SSL",
+     "description": "Butler, M. (2013, November). Finding Hidden Threats by Decrypting SSL. Retrieved April 5, 2016.",
+     "url": "http://www.sans.org/reading-room/whitepapers/analyst/finding-hidden-threats-decrypting-ssl-34840"
+    },
+    {
+     "source_name": "SEI SSL Inspection Risks",
+     "description": "Dormann, W. (2015, March 13). The Risks of SSL Inspection. Retrieved April 5, 2016.",
+     "url": "https://insights.sei.cmu.edu/cert/2015/03/the-risks-of-ssl-inspection.html"
+    },
+    {
+     "source_name": "University of Birmingham C2",
+     "description": "Gardiner, J.,  Cova, M., Nagaraja, S. (2014, February). Command & Control Understanding, Denying and Detecting. Retrieved April 20, 2016.",
+     "url": "https://arxiv.org/ftp/arxiv/papers/1408/1408.1136.pdf"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-10-24T17:49:17.042Z",
+   "name": "Encrypted Channel",
+   "description": "Adversaries may employ an encryption algorithm to conceal command and control traffic rather than relying on any inherent protections provided by a communication protocol. Despite the use of a secure algorithm, these implementations may be vulnerable to reverse engineering if secret keys are encoded and/or generated within malware samples/configuration files.",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "command-and-control"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "ESXi",
+    "Linux",
+    "macOS",
+    "Network Devices",
+    "Windows"
+   ],
+   "x_mitre_version": "1.2"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5",
+   "created": "2020-03-11T21:01:00.959Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1570",
+     "external_id": "T1570"
+    },
+    {
+     "source_name": "Dropbox Malware Sync",
+     "description": "David Talbot. (2013, August 21). Dropbox and Similar Services Can Sync Malware. Retrieved May 31, 2023.",
+     "url": "https://www.technologyreview.com/2013/08/21/83143/dropbox-and-similar-services-can-sync-malware/"
+    },
+    {
+     "source_name": "Unit42 LockerGoga 2019",
+     "description": "Harbison, M. (2019, March 26). Born This Way? Origins of LockerGoga. Retrieved April 16, 2019.",
+     "url": "https://unit42.paloaltonetworks.com/born-this-way-origins-of-lockergoga/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.713Z",
+   "name": "Lateral Tool Transfer",
+   "description": "Adversaries may transfer tools or other files between systems in a compromised environment. Once brought into the victim environment (i.e., [Ingress Tool Transfer](https://attack.mitre.org/techniques/T1105)) files may then be copied from one system to another to stage adversary tools or other files over the course of an operation.\n\nAdversaries may copy files between internal victim systems to support lateral movement using inherent file sharing protocols such as file sharing over [SMB/Windows Admin Shares](https://attack.mitre.org/techniques/T1021/002) to connected network shares or with authenticated connections via [Remote Desktop Protocol](https://attack.mitre.org/techniques/T1021/001).(Citation: Unit42 LockerGoga 2019)\n\nFiles can also be transferred using native or otherwise present tools on the victim system, such as scp, rsync, curl, sftp, and [ftp](https://attack.mitre.org/software/S0095). In some cases, adversaries may be able to leverage [Web Service](https://attack.mitre.org/techniques/T1102)s such as Dropbox or OneDrive to copy files from one machine to another via shared, automatically synced folders.(Citation: Dropbox Malware Sync)",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "lateral-movement"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Shailesh Tiwary (Indian Army)"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": false,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "ESXi",
+    "Linux",
+    "macOS",
+    "Windows"
+   ],
+   "x_mitre_version": "1.4"
+  },
+  {
+   "type": "attack-pattern",
+   "spec_version": "2.1",
+   "id": "attack-pattern--c2e147a9-d1a8-4074-811a-d8789202d916",
+   "created": "2020-02-05T14:28:16.719Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/techniques/T1027/003",
+     "external_id": "T1027.003"
+    },
+    {
+     "source_name": "McAfee Malicious Doc Targets Pyeongchang Olympics",
+     "description": "Saavedra-Morales, J., Sherstobitoff, R. (2018, January 6). Malicious Document Targets Pyeongchang Olympics. Retrieved April 10, 2018.",
+     "url": "https://securingtomorrow.mcafee.com/mcafee-labs/malicious-document-targets-pyeongchang-olympics/"
+    },
+    {
+     "source_name": "Wikipedia Duqu",
+     "description": "Wikipedia. (2017, December 29). Duqu. Retrieved April 10, 2018.",
+     "url": "https://en.wikipedia.org/wiki/Duqu"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.714Z",
+   "name": "Steganography",
+   "description": "Adversaries may use steganography techniques in order to prevent the detection of hidden information. Steganographic techniques can be used to hide data in digital media such as images, audio tracks, video clips, or text files.\n\n[Duqu](https://attack.mitre.org/software/S0038) was an early example of malware that used steganography. It encrypted the gathered information from a victim's system and hid it within an image before exfiltrating the image to a C2 server.(Citation: Wikipedia Duqu) \n\nBy the end of 2017, a threat group used <code>Invoke-PSImage</code> to hide [PowerShell](https://attack.mitre.org/techniques/T1059/001) commands in an image file (.png) and execute the code on a victim's system. In this particular case the [PowerShell](https://attack.mitre.org/techniques/T1059/001) code downloaded another obfuscated script to gather intelligence from the victim's machine and communicate it back to the adversary.(Citation: McAfee Malicious Doc Targets Pyeongchang Olympics)  ",
+   "kill_chain_phases": [
+    {
+     "kill_chain_name": "mitre-attack",
+     "phase_name": "stealth"
+    }
+   ],
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_is_subtechnique": true,
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_platforms": [
+    "Linux",
+    "macOS",
+    "Windows"
+   ],
+   "x_mitre_version": "2.0"
+  },
+  {
+   "type": "campaign",
+   "spec_version": "2.1",
+   "id": "campaign--0257b35b-93ef-4a70-80dd-ad5258e6045b",
+   "created": "2023-03-17T13:37:42.596Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/campaigns/C0022",
+     "external_id": "C0022"
+    },
+    {
+     "source_name": "Operation Interception",
+     "description": "(Citation: ESET Lazarus Jun 2020)"
+    },
+    {
+     "source_name": "Operation North Star",
+     "description": "(Citation: McAfee Lazarus Jul 2020)(Citation: McAfee Lazarus Nov 2020)"
+    },
+    {
+     "source_name": "McAfee Lazarus Nov 2020",
+     "description": "Beek, C. (2020, November 5). Operation North Star: Behind The Scenes. Retrieved December 20, 2021.",
+     "url": "https://www.mcafee.com/blogs/other-blogs/mcafee-labs/operation-north-star-behind-the-scenes/"
+    },
+    {
+     "source_name": "ESET Lazarus Jun 2020",
+     "description": "Breitenbacher, D and Osis, K. (2020, June 17). OPERATION IN(TER)CEPTION: Targeted Attacks Against European Aerospace and Military Companies. Retrieved December 20, 2021.",
+     "url": "https://www.welivesecurity.com/wp-content/uploads/2020/06/ESET_Operation_Interception.pdf"
+    },
+    {
+     "source_name": "McAfee Lazarus Jul 2020",
+     "description": "Cashman, M. (2020, July 29). Operation North Star Campaign. Retrieved December 20, 2021.",
+     "url": "https://www.mcafee.com/blogs/other-blogs/mcafee-labs/operation-north-star-a-job-offer-thats-too-good-to-be-true/?hilite=%27Operation%27%2C%27North%27%2C%27Star%27"
+    },
+    {
+     "source_name": "ClearSky Lazarus Aug 2020",
+     "description": "ClearSky Research Team. (2020, August 13). Operation 'Dream Job' Widespread North Korean Espionage Campaign. Retrieved December 20, 2021.",
+     "url": "https://www.clearskysec.com/wp-content/uploads/2020/08/Dream-Job-Campaign.pdf"
+    },
+    {
+     "source_name": "The Hacker News Lazarus Aug 2022",
+     "description": "Lakshmanan, R. (2022, August 17). North Korea Hackers Spotted Targeting Job Seekers with macOS Malware. Retrieved April 10, 2023.",
+     "url": "https://thehackernews.com/2022/08/north-korea-hackers-spotted-targeting.html"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T21:14:21.859Z",
+   "name": "Operation Dream Job",
+   "description": "[Operation Dream Job](https://attack.mitre.org/campaigns/C0022) was a cyber espionage operation likely conducted by [Lazarus Group](https://attack.mitre.org/groups/G0032) that targeted the defense, aerospace, government, and other sectors in the United States, Israel, Australia, Russia, and India. In at least one case, the cyber actors tried to monetize their network access to conduct a business email compromise (BEC) operation. In 2020, security researchers noted overlapping TTPs, to include fake job lures and code similarities, between [Operation Dream Job](https://attack.mitre.org/campaigns/C0022), Operation North Star, and Operation Interception; by 2022 security researchers described [Operation Dream Job](https://attack.mitre.org/campaigns/C0022) as an umbrella term covering both Operation Interception and Operation North Star.(Citation: ClearSky Lazarus Aug 2020)(Citation: McAfee Lazarus Jul 2020)(Citation: ESET Lazarus Jun 2020)(Citation: The Hacker News Lazarus Aug 2022)",
+   "aliases": [
+    "Operation Dream Job",
+    "Operation North Star",
+    "Operation Interception"
+   ],
+   "first_seen": "2019-09-01T04:00:00.000Z",
+   "last_seen": "2020-08-01T04:00:00.000Z",
+   "x_mitre_first_seen_citation": "(Citation: ESET Lazarus Jun 2020)",
+   "x_mitre_last_seen_citation": "(Citation: ClearSky Lazarus Aug 2020)",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_version": "1.2",
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ]
+  },
+  {
+   "modified": "2024-10-17T18:54:36.723Z",
+   "name": "Network Intrusion Prevention",
+   "description": "Use intrusion detection signatures to block traffic at network boundaries.",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "type": "course-of-action",
+   "spec_version": "2.1",
+   "id": "course-of-action--12241367-a8b7-49b4-b86e-2236901ba50c",
+   "created": "2019-06-10T20:46:02.263Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/mitigations/M1031",
+     "external_id": "M1031"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+  },
+  {
+   "type": "identity",
+   "spec_version": "2.1",
+   "id": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "created": "2017-06-01T00:00:00.000Z",
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T16:33:30.227Z",
+   "name": "The MITRE Corporation",
+   "identity_class": "organization",
+   "x_mitre_attack_spec_version": "3.2.0"
+  },
+  {
+   "type": "intrusion-set",
+   "spec_version": "2.1",
+   "id": "intrusion-set--20f26558-e05d-46cf-8847-c2b5a83ee779",
+   "created": "2026-07-16T15:13:31.109Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/groups/G1056",
+     "external_id": "G1056"
+    },
+    {
+     "source_name": "UNC6780",
+     "description": "(Citation: Google AI Threat Tracker MAY 2026)"
+    },
+    {
+     "source_name": "PCPCat",
+     "description": "(Citation: Palo Alto TeamPCP MAR 2026)"
+    },
+    {
+     "source_name": "ShellForce",
+     "description": "(Citation: Palo Alto TeamPCP MAR 2026)"
+    },
+    {
+     "source_name": "DeadCatx3",
+     "description": "(Citation: Palo Alto TeamPCP MAR 2026)"
+    },
+    {
+     "source_name": "Aqua Security Trivy Compromise MAR 2026",
+     "description": "Aqua Security . (2026, March 21). Trivy ecosystem supply chain temporarily compromised. Retrieved July 1, 2026.",
+     "url": "https://github.com/aquasecurity/trivy/security/advisories/GHSA-69fq-xp46-6x23"
+    },
+    {
+     "source_name": "Aqua Security Blog Trivy Compromise APR 2026",
+     "description": "Aqua Team. (2026, April 1). Update: Ongoing Investigation and Continued Remediation. Retrieved July 1, 2026.",
+     "url": "https://www.aquasec.com/blog/trivy-supply-chain-attack-what-you-need-to-know"
+    },
+    {
+     "source_name": "Google AI Threat Tracker MAY 2026",
+     "description": "Google Threat Intelligence Group. (2026, May 11). GTIG AI Threat Tracker: Adversaries Leverage AI for Vulnerability Exploitation, Augmented Operations, and Initial Access. Retrieved July 7, 2026.",
+     "url": "https://cloud.google.com/blog/topics/threat-intelligence/ai-vulnerability-exploitation-initial-access"
+    },
+    {
+     "source_name": "Wiz Trivy Compromise MAR 2026",
+     "description": "McCarthy, R. (2026, March 20). Trivy Compromised: Everything You Need to Know about the Latest Supply Chain Attack. Retrieved July 1, 2026.",
+     "url": "https://www.wiz.io/blog/trivy-compromised-teampcp-supply-chain-attack"
+    },
+    {
+     "source_name": "Trend Micro TeamPCP MAY 2026",
+     "description": "Santos, J. and Navato, J.R. (2026, May 13). Analyzing TeamPCP’s Supply Chain Attacks: Checkmarx KICS and elementary-data in CI/CD Credential Theft. Retrieved July 16, 2026.",
+     "url": "https://www.trendmicro.com/en_us/research/26/e/analyzing-teampcp-supply-chain-attacks.html"
+    },
+    {
+     "source_name": "Palo Alto TeamPCP MAR 2026",
+     "description": "Unit 42. (2026, March 31). Weaponizing the Protectors: TeamPCP’s Multi-Stage Supply Chain Attack on Security Infrastructure. Retrieved July 1, 2026.",
+     "url": "https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/"
+    },
+    {
+     "source_name": "Wiz TeamPCP Profile MAY 2026",
+     "description": "Wiz. (2026, May 20). TeamPCP. Retrieved July 16, 2026.",
+     "url": "https://threats.wiz.io/all-actors/teampcp"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T18:47:42.686Z",
+   "name": "TeamPCP",
+   "description": "[TeamPCP](https://attack.mitre.org/groups/G1056) is a financially-motivated, cloud-native threat group that has been active since at least September 2025. Initially focused on ransomware and cryptocurrency theft, [TeamPCP](https://attack.mitre.org/groups/G1056) shifted in early 2026 to systematic, worm-driven credential theft and software supply chain attacks targeting Continuous Integration and Continuous Delivery (CI/CD) workflows. [TeamPCP](https://attack.mitre.org/groups/G1056) has monetized access through extortion and through partnerships with ransomware actors including Vect and CipherForce.(Citation: Wiz TeamPCP Profile MAY 2026)(Citation: Wiz Trivy Compromise MAR 2026)(Citation: Aqua Security Trivy Compromise MAR 2026)(Citation: Aqua Security Blog Trivy Compromise APR 2026)(Citation: Palo Alto TeamPCP MAR 2026)(Citation: Trend Micro TeamPCP MAY 2026)",
+   "aliases": [
+    "TeamPCP",
+    "PCPCat",
+    "ShellForce",
+    "DeadCatx3",
+    "SHADOW-WATER-058",
+    "UNC6780"
+   ],
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Kamei Risa, NEC Corporation",
+    "Sareena Karapoola, NEC Corporation India",
+    "Dhanvarshini Gopalsamy, NEC Corporation India",
+    "Rajkumar Barot",
+    "Jose Moya Villalba"
+   ]
+  },
+  {
+   "type": "intrusion-set",
+   "spec_version": "2.1",
+   "id": "intrusion-set--c93fccb1-e8e8-42cf-ae33-2ad1d183913a",
+   "created": "2017-05-31T21:32:03.807Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/groups/G0032",
+     "external_id": "G0032"
+    },
+    {
+     "source_name": "Labyrinth Chollima",
+     "description": "(Citation: CrowdStrike Labyrinth Chollima Feb 2022)"
+    },
+    {
+     "source_name": "Diamond Sleet",
+     "description": "(Citation: Microsoft Threat Actor Naming July 2023)"
+    },
+    {
+     "source_name": "ZINC",
+     "description": "(Citation: Microsoft ZINC disruption Dec 2017)"
+    },
+    {
+     "source_name": "Lazarus Group",
+     "description": "(Citation: Novetta Blockbuster)"
+    },
+    {
+     "source_name": "NICKEL ACADEMY",
+     "description": "(Citation: Secureworks NICKEL ACADEMY Dec 2017)"
+    },
+    {
+     "source_name": "Guardians of Peace",
+     "description": "(Citation: US-CERT HIDDEN COBRA June 2017)"
+    },
+    {
+     "source_name": "CrowdStrike Labyrinth Chollima Feb 2022",
+     "description": "CrowdStrike. (2022, February 1). CrowdStrike Adversary Labyrinth Chollima. Retrieved February 1, 2022.",
+     "url": "https://web.archive.org/web/20210723190317/https://adversary.crowdstrike.com/en-US/adversary/labyrinth-chollima/"
+    },
+    {
+     "source_name": "Mandiant DPRK Groups 2023",
+     "description": "Michael Barnhart, Austin Larsen, Jeff Johnson, Taylor Long, Michelle Cantos, Adrian Hernandez. (2023, October 10). Assessed Cyber Structure and Alignments of North Korea in 2023. Retrieved August 25, 2025.",
+     "url": "https://cloud.google.com/blog/topics/threat-intelligence/north-korea-cyber-structure-alignment-2023"
+    },
+    {
+     "source_name": "Mandiant DPRK Laz Org Breakdown 2022",
+     "description": "Michael Barnhart, Michelle Cantos, Jeffery Johnson, Elias fox, Gary Freas, Dan Scott. (2022, March 23). Not So Lazarus: Mapping DPRK Cyber Threat Groups to Government Organizations. Retrieved September 9, 2025.",
+     "url": "https://cloud.google.com/blog/topics/threat-intelligence/mapping-dprk-groups-to-government/"
+    },
+    {
+     "source_name": "Microsoft Threat Actor Naming July 2023",
+     "description": "Microsoft . (2023, July 12). How Microsoft names threat actors. Retrieved November 17, 2023.",
+     "url": "https://learn.microsoft.com/en-us/microsoft-365/security/intelligence/microsoft-threat-actor-naming?view=o365-worldwide"
+    },
+    {
+     "source_name": "Novetta Blockbuster",
+     "description": "Novetta Threat Research Group. (2016, February 24). Operation Blockbuster: Unraveling the Long Thread of the Sony Attack. Retrieved February 25, 2016.",
+     "url": "https://web.archive.org/web/20160226161828/https://www.operationblockbuster.com/wp-content/uploads/2016/02/Operation-Blockbuster-Report.pdf"
+    },
+    {
+     "source_name": "Secureworks NICKEL ACADEMY Dec 2017",
+     "description": "Secureworks. (2017, December 15). Media Alert - Secureworks Discovers North Korean Cyber Threat Group, Lazarus, Spearphishing Financial Executives of Cryptocurrency Companies. Retrieved December 27, 2017.",
+     "url": "https://www.secureworks.com/about/press/media-alert-secureworks-discovers-north-korean-cyber-threat-group-lazarus-spearphishing"
+    },
+    {
+     "source_name": "Microsoft ZINC disruption Dec 2017",
+     "description": "Smith, B. (2017, December 19). Microsoft and Facebook disrupt ZINC malware attack to protect customers and the internet from ongoing cyberthreats. Retrieved December 20, 2017.",
+     "url": "https://blogs.microsoft.com/on-the-issues/2017/12/19/microsoft-facebook-disrupt-zinc-malware-attack-protect-customers-internet-ongoing-cyberthreats/"
+    },
+    {
+     "source_name": "HIDDEN COBRA",
+     "description": "The U.S. Government refers to malicious cyber activity by the North Korean government as HIDDEN COBRA.(Citation: US-CERT HIDDEN COBRA June 2017)(Citation: US-CERT HOPLIGHT Apr 2019)"
+    },
+    {
+     "source_name": "Treasury North Korean Cyber Groups September 2019",
+     "description": "US Treasury . (2019, September 13). Treasury Sanctions North Korean State-Sponsored Malicious Cyber Groups. Retrieved September 29, 2021.",
+     "url": "https://home.treasury.gov/news/press-releases/sm774"
+    },
+    {
+     "source_name": "US-CERT HIDDEN COBRA June 2017",
+     "description": "US-CERT. (2017, June 13). Alert (TA17-164A) HIDDEN COBRA – North Korea’s DDoS Botnet Infrastructure. Retrieved July 13, 2017.",
+     "url": "https://www.us-cert.gov/ncas/alerts/TA17-164A"
+    },
+    {
+     "source_name": "US-CERT HOPLIGHT Apr 2019",
+     "description": "US-CERT. (2019, April 10). MAR-10135536-8 – North Korean Trojan: HOPLIGHT. Retrieved April 19, 2019.",
+     "url": "https://www.us-cert.gov/ncas/analysis-reports/AR19-100A"
+    },
+    {
+     "source_name": "JPCert Blog Laz Subgroups 2025",
+     "description": "佐々木勇人 Hayato Sasaki. (2025, March 25). Tempted to Classifying APT Actors: Practical Challenges of Attribution in the Case of Lazarus’s Subgroup. Retrieved August 25, 2025.",
+     "url": "https://blogs.jpcert.or.jp/en/2025/03/classifying-lazaruss-subgroup.html"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T20:48:46.106Z",
+   "name": "Lazarus Group",
+   "description": "[Lazarus Group](https://attack.mitre.org/groups/G0032) is a North Korean state-sponsored cyber threat group attributed to the Reconnaissance General Bureau (RGB). (Citation: US-CERT HIDDEN COBRA June 2017) (Citation: Treasury North Korean Cyber Groups September 2019) [Lazarus Group](https://attack.mitre.org/groups/G0032) has been active since at least 2009 and is reportedly responsible for the November 2014 destructive wiper attack on Sony Pictures Entertainment, identified by Novetta as part of Operation Blockbuster. Malware used by [Lazarus Group](https://attack.mitre.org/groups/G0032) correlates to other reported campaigns, including Operation Flame, Operation 1Mission, Operation Troy, DarkSeoul, and Ten Days of Rain.(Citation: Novetta Blockbuster)\n\nNorth Korea’s cyber operations have shown a consistent pattern of adaptation, forming and reorganizing units as national priorities shift. These units frequently share personnel, infrastructure, malware, and tradecraft, making it difficult to attribute specific operations with high confidence. Public reporting often uses “Lazarus Group” as an umbrella term for multiple North Korean cyber operators conducting espionage, destructive attacks, and financially motivated campaigns.(Citation: Mandiant DPRK Laz Org Breakdown 2022)(Citation: Mandiant DPRK Groups 2023)(Citation: JPCert Blog Laz Subgroups 2025)\n\n",
+   "aliases": [
+    "Lazarus Group",
+    "Labyrinth Chollima",
+    "HIDDEN COBRA",
+    "Guardians of Peace",
+    "ZINC",
+    "NICKEL ACADEMY",
+    "Diamond Sleet"
+   ],
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack",
+    "ics-attack"
+   ],
+   "x_mitre_version": "5.0",
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Kyaw Pyiyt Htet, @KyawPyiytHtet",
+    "Dragos Threat Intelligence",
+    "MyungUk Han, ASEC",
+    "Jun Hirata, NEC Corporation",
+    "Manikantan Srinivasan, NEC Corporation India",
+    "Pooja Natarajan, NEC Corporation India"
+   ]
+  },
+  {
+   "type": "intrusion-set",
+   "spec_version": "2.1",
+   "id": "intrusion-set--dd2d9ca6-505b-4860-a604-233685b802c7",
+   "created": "2020-05-12T18:15:29.396Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/groups/G0102",
+     "external_id": "G0102"
+    },
+    {
+     "source_name": "Grim Spider",
+     "description": "(Citation: CrowdStrike Ryuk January 2019)(Citation: CrowdStrike Grim Spider May 2019)"
+    },
+    {
+     "source_name": "UNC1878",
+     "description": "(Citation: FireEye KEGTAP SINGLEMALT October 2020)"
+    },
+    {
+     "source_name": "TEMP.MixMaster",
+     "description": "(Citation: FireEye Ryuk and Trickbot January 2019)"
+    },
+    {
+     "source_name": "ITG23",
+     "description": "(Citation: IBM X-Force ITG23 Oct 2021)"
+    },
+    {
+     "source_name": "FIN12",
+     "description": "(Citation: Mandiant FIN12 Oct 2021)"
+    },
+    {
+     "source_name": "Periwinkle Tempest",
+     "description": "(Citation: Microsoft Threat Actor Naming July 2023)"
+    },
+    {
+     "source_name": "DEV-0193",
+     "description": "(Citation: Microsoft Threat Actor Naming July 2023)"
+    },
+    {
+     "source_name": "Pistachio Tempest",
+     "description": "(Citation: Microsoft_PistachioTempest_Jan2024)"
+    },
+    {
+     "source_name": "DEV-0237",
+     "description": "(Citation: Microsoft_PistachioTempest_Jan2024)"
+    },
+    {
+     "source_name": "GOLD BLACKBURN",
+     "description": "(Citation: Secureworks Gold Blackburn Mar 2022)"
+    },
+    {
+     "source_name": "DHS/CISA Ransomware Targeting Healthcare October 2020",
+     "description": "DHS/CISA. (2020, October 28). Ransomware Activity Targeting the Healthcare and Public Health Sector. Retrieved October 28, 2020.",
+     "url": "https://us-cert.cisa.gov/ncas/alerts/aa20-302a"
+    },
+    {
+     "source_name": "FireEye Ryuk and Trickbot January 2019",
+     "description": "Goody, K., et al (2019, January 11). A Nasty Trick: From Credential Theft Malware to Business Disruption. Retrieved May 12, 2020.",
+     "url": "https://www.fireeye.com/blog/threat-research/2019/01/a-nasty-trick-from-credential-theft-malware-to-business-disruption.html"
+    },
+    {
+     "source_name": "CrowdStrike Ryuk January 2019",
+     "description": "Hanel, A. (2019, January 10). Big Game Hunting with Ryuk: Another Lucrative Targeted Ransomware. Retrieved May 12, 2020.",
+     "url": "https://www.crowdstrike.com/blog/big-game-hunting-with-ryuk-another-lucrative-targeted-ransomware/"
+    },
+    {
+     "source_name": "CrowdStrike Grim Spider May 2019",
+     "description": "John, E. and Carvey, H. (2019, May 30). Unraveling the Spiderweb: Timelining ATT&CK Artifacts Used by GRIM SPIDER. Retrieved May 12, 2020.",
+     "url": "https://www.crowdstrike.com/blog/timelining-grim-spiders-big-game-hunting-tactics/"
+    },
+    {
+     "source_name": "FireEye KEGTAP SINGLEMALT October 2020",
+     "description": "Kimberly Goody, Jeremy Kennelly, Joshua Shilko, Steve Elovitz, Douglas Bienstock. (2020, October 28). Unhappy Hour Special: KEGTAP and SINGLEMALT With a Ransomware Chaser. Retrieved October 28, 2020.",
+     "url": "https://www.fireeye.com/blog/threat-research/2020/10/kegtap-and-singlemalt-with-a-ransomware-chaser.html"
+    },
+    {
+     "source_name": "Microsoft Threat Actor Naming July 2023",
+     "description": "Microsoft . (2023, July 12). How Microsoft names threat actors. Retrieved November 17, 2023.",
+     "url": "https://learn.microsoft.com/en-us/microsoft-365/security/intelligence/microsoft-threat-actor-naming?view=o365-worldwide"
+    },
+    {
+     "source_name": "Microsoft_PistachioTempest_Jan2024",
+     "description": "Microsoft. (2024, January 25). Financially Motivated Threat Actor Pistachio Tempest. Retrieved December 15, 2025.",
+     "url": "https://www.microsoft.com/en-us/security/security-insider/threat-landscape/pistachio-tempest"
+    },
+    {
+     "source_name": "CrowdStrike Wizard Spider October 2020",
+     "description": "Podlosky, A., Hanel, A. et al. (2020, October 16). WIZARD SPIDER Update: Resilient, Reactive and Resolute. Retrieved June 15, 2021.",
+     "url": "https://www.crowdstrike.com/blog/wizard-spider-adversary-update/"
+    },
+    {
+     "source_name": "Secureworks Gold Blackburn Mar 2022",
+     "description": "Secureworks Counter Threat Unit. (2022, March 1). Gold Blackburn Threat Profile. Retrieved June 15, 2023.",
+     "url": "https://www.secureworks.com/research/threat-profiles/gold-blackburn"
+    },
+    {
+     "source_name": "Mandiant FIN12 Oct 2021",
+     "description": "Shilko, J., et al. (2021, October 7). FIN12: The Prolific Ransomware Intrusion Threat Actor That Has Aggressively Pursued Healthcare Targets. Retrieved June 15, 2023.",
+     "url": "https://web.archive.org/web/20220313061955/https://www.mandiant.com/sites/default/files/2021-10/fin12-group-profile.pdf"
+    },
+    {
+     "source_name": "IBM X-Force ITG23 Oct 2021",
+     "description": "Villadsen, O., et al. (2021, October 13). Trickbot Rising - Gang Doubles Down on Infection Efforts to Amass Network Footholds. Retrieved June 15, 2023.",
+     "url": "https://securityintelligence.com/posts/trickbot-gang-doubles-down-enterprise-infection/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T20:48:49.730Z",
+   "name": "Wizard Spider",
+   "description": "[Wizard Spider](https://attack.mitre.org/groups/G0102) is a Russia-based financially motivated threat group originally known for the creation and deployment of [TrickBot](https://attack.mitre.org/software/S0266) since at least 2016. [Wizard Spider](https://attack.mitre.org/groups/G0102) possesses a diverse arsenal of tools and has conducted ransomware campaigns against a variety of organizations, ranging from major corporations to hospitals.(Citation: CrowdStrike Ryuk January 2019)(Citation: DHS/CISA Ransomware Targeting Healthcare October 2020)(Citation: CrowdStrike Wizard Spider October 2020)",
+   "aliases": [
+    "Wizard Spider",
+    "UNC1878",
+    "TEMP.MixMaster",
+    "Grim Spider",
+    "FIN12",
+    "GOLD BLACKBURN",
+    "ITG23",
+    "Periwinkle Tempest",
+    "DEV-0193",
+    "Pistachio Tempest",
+    "DEV-0237"
+   ],
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack",
+    "ics-attack"
+   ],
+   "x_mitre_version": "4.1",
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_contributors": [
+    "Edward Millington",
+    "Oleksiy Gayda"
+   ]
+  },
+  {
+   "modified": "2024-11-25T16:00:51.198Z",
+   "name": "Emotet",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) is a modular malware variant which is primarily used as a downloader for other malware variants such as [TrickBot](https://attack.mitre.org/software/S0266) and [IcedID](https://attack.mitre.org/software/S0483). Emotet first emerged in June 2014, initially targeting the financial sector, and has expanded to multiple verticals over time.(Citation: Trend Micro Banking Malware Jan 2019)",
+   "is_family": true,
+   "x_mitre_platforms": [
+    "Windows"
+   ],
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.7",
+   "x_mitre_contributors": [
+    "Omkar Gudhate"
+   ],
+   "x_mitre_aliases": [
+    "Emotet",
+    "Geodo"
+   ],
+   "type": "malware",
+   "spec_version": "2.1",
+   "id": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "created": "2019-03-25T18:35:14.353Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/software/S0367",
+     "external_id": "S0367"
+    },
+    {
+     "source_name": "Emotet",
+     "description": "(Citation: Trend Micro Banking Malware Jan 2019)(Citation: Kaspersky Emotet Jan 2019)(Citation: CIS Emotet Apr 2017)(Citation: Malwarebytes Emotet Dec 2017)(Citation: Symantec Emotet Jul 2018)(Citation: US-CERT Emotet Jul 2018)(Citation: ESET Emotet Nov 2018)(Citation: Secureworks Emotet Nov 2018)(Citation: Talos Emotet Jan 2019)(Citation: Trend Micro Emotet Jan 2019)(Citation: CIS Emotet Dec 2018)(Citation: Picus Emotet Dec 2018)(Citation: Red Canary Emotet Feb 2019) "
+    },
+    {
+     "source_name": "Geodo",
+     "description": "(Citation: Trend Micro Emotet Jan 2019)"
+    },
+    {
+     "source_name": "Talos Emotet Jan 2019",
+     "description": "Brumaghin, E.. (2019, January 15). Emotet re-emerges after the holidays. Retrieved March 25, 2019.",
+     "url": "https://blog.talosintelligence.com/2019/01/return-of-emotet.html"
+    },
+    {
+     "source_name": "CIS Emotet Apr 2017",
+     "description": "CIS. (2017, April 28). Emotet Changes TTPs and Arrives in United States. Retrieved January 17, 2019.",
+     "url": "https://www.cisecurity.org/blog/emotet-changes-ttp-and-arrives-in-united-states/"
+    },
+    {
+     "source_name": "CIS Emotet Dec 2018",
+     "description": "CIS. (2018, December 12). MS-ISAC Security Primer- Emotet. Retrieved March 25, 2019.",
+     "url": "https://www.cisecurity.org/white-papers/ms-isac-security-primer-emotet/"
+    },
+    {
+     "source_name": "Red Canary Emotet Feb 2019",
+     "description": "Donohue, B.. (2019, February 13). https://redcanary.com/blog/stopping-emotet-before-it-moves-laterally/. Retrieved March 25, 2019.",
+     "url": "https://redcanary.com/blog/stopping-emotet-before-it-moves-laterally/"
+    },
+    {
+     "source_name": "ESET Emotet Nov 2018",
+     "description": "ESET . (2018, November 9). Emotet launches major new spam campaign. Retrieved March 25, 2019.",
+     "url": "https://www.welivesecurity.com/2018/11/09/emotet-launches-major-new-spam-campaign/"
+    },
+    {
+     "source_name": "Secureworks Emotet Nov 2018",
+     "description": "Mclellan, M.. (2018, November 19). Lazy Passwords Become Rocket Fuel for Emotet SMB Spreader. Retrieved March 25, 2019.",
+     "url": "https://www.secureworks.com/blog/lazy-passwords-become-rocket-fuel-for-emotet-smb-spreader"
+    },
+    {
+     "source_name": "Picus Emotet Dec 2018",
+     "description": "Özarslan, S. (2018, December 21). The Christmas Card you never wanted - A new wave of Emotet is back to wreak havoc. Retrieved March 25, 2019.",
+     "url": "https://www.picussecurity.com/blog/the-christmas-card-you-never-wanted-a-new-wave-of-emotet-is-back-to-wreak-havoc.html"
+    },
+    {
+     "source_name": "Trend Micro Banking Malware Jan 2019",
+     "description": "Salvio, J.. (2014, June 27). New Banking Malware Uses Network Sniffing for Data Theft. Retrieved March 25, 2019.",
+     "url": "https://blog.trendmicro.com/trendlabs-security-intelligence/new-banking-malware-uses-network-sniffing-for-data-theft/"
+    },
+    {
+     "source_name": "Kaspersky Emotet Jan 2019",
+     "description": "Shulmin, A. . (2015, April 9). The Banking Trojan Emotet: Detailed Analysis. Retrieved March 25, 2019.",
+     "url": "https://securelist.com/the-banking-trojan-emotet-detailed-analysis/69560/"
+    },
+    {
+     "source_name": "Malwarebytes Emotet Dec 2017",
+     "description": "Smith, A.. (2017, December 22). Protect your network from Emotet Trojan with Malwarebytes Endpoint Security. Retrieved January 17, 2019.",
+     "url": "https://support.malwarebytes.com/docs/DOC-2295"
+    },
+    {
+     "source_name": "Symantec Emotet Jul 2018",
+     "description": "Symantec. (2018, July 18). The Evolution of Emotet: From Banking Trojan to Threat Distributor. Retrieved March 25, 2019.",
+     "url": "https://www.symantec.com/blogs/threat-intelligence/evolution-emotet-trojan-distributor"
+    },
+    {
+     "source_name": "Trend Micro Emotet Jan 2019",
+     "description": "Trend Micro. (2019, January 16). Exploring Emotet's Activities . Retrieved March 25, 2019.",
+     "url": "https://documents.trendmicro.com/assets/white_papers/ExploringEmotetsActivities_Final.pdf"
+    },
+    {
+     "source_name": "US-CERT Emotet Jul 2018",
+     "description": "US-CERT. (2018, July 20). Alert (TA18-201A) Emotet Malware. Retrieved March 25, 2019.",
+     "url": "https://www.us-cert.gov/ncas/alerts/TA18-201A"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5"
+  },
+  {
+   "definition": {
+    "statement": "Copyright 2015-2026, The MITRE Corporation. MITRE ATT&CK and ATT&CK are registered trademarks of The MITRE Corporation."
+   },
+   "id": "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168",
+   "type": "marking-definition",
+   "spec_version": "2.1",
+   "created": "2017-06-01T00:00:00.000Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "definition_type": "statement"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--02438776-1130-4715-83b0-9bd6781bf8c0",
+   "created": "2026-07-17T17:44:00.365Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "Aikido TeamPCP Telnyx MAR 2026",
+     "description": "Eriksen, C. (2026, March 27). Popular telnyx package compromised on PyPI by TeamPCP. Retrieved July 16, 2026.",
+     "url": "https://www.aikido.dev/blog/telnyx-pypi-compromised-teampcp-canisterworm"
+    },
+    {
+     "source_name": "Palo Alto TeamPCP MAR 2026",
+     "description": "Unit 42. (2026, March 31). Weaponizing the Protectors: TeamPCP’s Multi-Stage Supply Chain Attack on Security Infrastructure. Retrieved July 1, 2026.",
+     "url": "https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T18:47:43.295Z",
+   "description": "[TeamPCP](https://attack.mitre.org/groups/G1056) has hidden malicious payloads in the frame data of WAV audio files.(Citation: Aikido TeamPCP Telnyx MAR 2026)(Citation: Palo Alto TeamPCP MAR 2026)",
+   "relationship_type": "uses",
+   "source_ref": "intrusion-set--20f26558-e05d-46cf-8847-c2b5a83ee779",
+   "target_ref": "attack-pattern--c2e147a9-d1a8-4074-811a-d8789202d916",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--05e02170-dc4f-4112-a54c-fde4d05632d7",
+   "created": "2023-09-29T19:50:06.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:05.911Z",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) has enumerated all users connected to network shares.",
+   "relationship_type": "uses",
+   "source_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "target_ref": "attack-pattern--03d7999c-1f4c-42cc-8373-e7690d318104",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--0694d72f-cf4b-4355-b485-ccbd8d3a22b2",
+   "created": "2023-09-29T20:32:35.967Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "Binary Defense Emotes Wi-Fi Spreader",
+     "description": "Binary Defense. (n.d.). Emotet Evolves With new Wi-Fi Spreader. Retrieved September 8, 2023.",
+     "url": "https://www.binarydefense.com/resources/blog/emotet-evolves-with-new-wi-fi-spreader/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:05.912Z",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) has copied itself to remote systems using the `service.exe` filename.(Citation: Binary Defense Emotes Wi-Fi Spreader)",
+   "relationship_type": "uses",
+   "source_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "target_ref": "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--095a259d-79c7-42b0-b65a-e423f110d187",
+   "created": "2019-03-26T19:23:02.007Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "Trend Micro Emotet Jan 2019",
+     "description": "Trend Micro. (2019, January 16). Exploring Emotet's Activities . Retrieved March 25, 2019.",
+     "url": "https://documents.trendmicro.com/assets/white_papers/ExploringEmotetsActivities_Final.pdf"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:05.916Z",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) is known to use RSA keys for encrypting C2 traffic. (Citation: Trend Micro Emotet Jan 2019)",
+   "relationship_type": "uses",
+   "source_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "target_ref": "attack-pattern--24bfaeba-cb0d-4525-b3dc-507c77ecec41",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--09c80e35-2839-4b5b-aad8-8f81db8da551",
+   "created": "2019-03-25T19:31:02.191Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "US-CERT Emotet Jul 2018",
+     "description": "US-CERT. (2018, July 20). Alert (TA18-201A) Emotet Malware. Retrieved March 25, 2019.",
+     "url": "https://www.us-cert.gov/ncas/alerts/TA18-201A"
+    },
+    {
+     "source_name": "CIS Emotet Dec 2018",
+     "description": "CIS. (2018, December 12). MS-ISAC Security Primer- Emotet. Retrieved March 25, 2019.",
+     "url": "https://www.cisecurity.org/white-papers/ms-isac-security-primer-emotet/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:05.917Z",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) has been observed leveraging a module that retrieves passwords stored on a system for the current logged-on user. (Citation: US-CERT Emotet Jul 2018)(Citation: CIS Emotet Dec 2018)",
+   "relationship_type": "uses",
+   "source_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "target_ref": "attack-pattern--837f9164-50af-4ac0-8219-379d8a74cefc",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--0c76bb94-1a6e-4ec6-9faa-2b444d80002c",
+   "created": "2019-03-25T18:35:14.682Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "Binary Defense Emotes Wi-Fi Spreader",
+     "description": "Binary Defense. (n.d.). Emotet Evolves With new Wi-Fi Spreader. Retrieved September 8, 2023.",
+     "url": "https://www.binarydefense.com/resources/blog/emotet-evolves-with-new-wi-fi-spreader/"
+    },
+    {
+     "source_name": "CIS Emotet Dec 2018",
+     "description": "CIS. (2018, December 12). MS-ISAC Security Primer- Emotet. Retrieved March 25, 2019.",
+     "url": "https://www.cisecurity.org/white-papers/ms-isac-security-primer-emotet/"
+    },
+    {
+     "source_name": "Secureworks Emotet Nov 2018",
+     "description": "Mclellan, M.. (2018, November 19). Lazy Passwords Become Rocket Fuel for Emotet SMB Spreader. Retrieved March 25, 2019.",
+     "url": "https://www.secureworks.com/blog/lazy-passwords-become-rocket-fuel-for-emotet-smb-spreader"
+    },
+    {
+     "source_name": "Malwarebytes Emotet Dec 2017",
+     "description": "Smith, A.. (2017, December 22). Protect your network from Emotet Trojan with Malwarebytes Endpoint Security. Retrieved January 17, 2019.",
+     "url": "https://support.malwarebytes.com/docs/DOC-2295"
+    },
+    {
+     "source_name": "Symantec Emotet Jul 2018",
+     "description": "Symantec. (2018, July 18). The Evolution of Emotet: From Banking Trojan to Threat Distributor. Retrieved March 25, 2019.",
+     "url": "https://www.symantec.com/blogs/threat-intelligence/evolution-emotet-trojan-distributor"
+    },
+    {
+     "source_name": "US-CERT Emotet Jul 2018",
+     "description": "US-CERT. (2018, July 20). Alert (TA18-201A) Emotet Malware. Retrieved March 25, 2019.",
+     "url": "https://www.us-cert.gov/ncas/alerts/TA18-201A"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:05.920Z",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) has been observed using a hard coded list of passwords to brute force user accounts. (Citation: Malwarebytes Emotet Dec 2017)(Citation: Symantec Emotet Jul 2018)(Citation: US-CERT Emotet Jul 2018)(Citation: Secureworks Emotet Nov 2018)(Citation: CIS Emotet Dec 2018)(Citation: Binary Defense Emotes Wi-Fi Spreader)",
+   "relationship_type": "uses",
+   "source_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "target_ref": "attack-pattern--09c4c11e-4fa1-4f8c-8dad-3cf8e69ad119",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--11f31998-c76f-4433-8e9c-c0ef0b7574d5",
+   "created": "2019-06-10T18:55:43.635Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "Carbon Black Emotet Apr 2019",
+     "description": "Lee, S.. (2019, April 24). Emotet Using WMI to Launch PowerShell Encoded Code. Retrieved May 24, 2019.",
+     "url": "https://www.carbonblack.com/2019/04/24/cb-tau-threat-intelligence-notification-emotet-utilizing-wmi-to-launch-powershell-encoded-code/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:05.928Z",
+   "description": "[Emotet](https://attack.mitre.org/software/S0367) has used WMI to execute powershell.exe.(Citation: Carbon Black Emotet Apr 2019)",
+   "relationship_type": "uses",
+   "source_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "target_ref": "attack-pattern--01a5a209-b94c-450b-b7f9-946497d91055",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--14f3eebf-40c3-48d5-ad62-356d57ccf2dc",
+   "created": "2020-11-10T16:49:12.074Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "FireEye KEGTAP SINGLEMALT October 2020",
+     "description": "Kimberly Goody, Jeremy Kennelly, Joshua Shilko, Steve Elovitz, Douglas Bienstock. (2020, October 28). Unhappy Hour Special: KEGTAP and SINGLEMALT With a Ransomware Chaser. Retrieved October 28, 2020.",
+     "url": "https://www.fireeye.com/blog/threat-research/2020/10/kegtap-and-singlemalt-with-a-ransomware-chaser.html"
+    },
+    {
+     "source_name": "DFIR Ryuk's Return October 2020",
+     "description": "The DFIR Report. (2020, October 8). Ryuk’s Return. Retrieved October 9, 2020.",
+     "url": "https://thedfirreport.com/2020/10/08/ryuks-return/"
+    },
+    {
+     "source_name": "DFIR Ryuk in 5 Hours October 2020",
+     "description": "The DFIR Report. (2020, October 18). Ryuk in 5 Hours. Retrieved October 19, 2020.",
+     "url": "https://thedfirreport.com/2020/10/18/ryuk-in-5-hours/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-08-04T20:30:55.765Z",
+   "description": "[Wizard Spider](https://attack.mitre.org/groups/G0102) has exploited or attempted to exploit Zerologon (CVE-2020-1472) and EternalBlue (MS17-010) vulnerabilities.(Citation: FireEye KEGTAP SINGLEMALT October 2020)(Citation: DFIR Ryuk's Return October 2020)(Citation: DFIR Ryuk in 5 Hours October 2020)",
+   "relationship_type": "uses",
+   "source_ref": "intrusion-set--dd2d9ca6-505b-4860-a604-233685b802c7",
+   "target_ref": "attack-pattern--9db0cf3a-a3c9-4012-8268-123b9db6fd82",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--4b66e057-adbc-498d-99ee-156e0d17bd53",
+   "created": "2023-03-17T13:51:05.665Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "McAfee Lazarus Nov 2020",
+     "description": "Beek, C. (2020, November 5). Operation North Star: Behind The Scenes. Retrieved December 20, 2021.",
+     "url": "https://www.mcafee.com/blogs/other-blogs/mcafee-labs/operation-north-star-behind-the-scenes/"
+    },
+    {
+     "source_name": "ESET Lazarus Jun 2020",
+     "description": "Breitenbacher, D and Osis, K. (2020, June 17). OPERATION IN(TER)CEPTION: Targeted Attacks Against European Aerospace and Military Companies. Retrieved December 20, 2021.",
+     "url": "https://www.welivesecurity.com/wp-content/uploads/2020/06/ESET_Operation_Interception.pdf"
+    },
+    {
+     "source_name": "McAfee Lazarus Jul 2020",
+     "description": "Cashman, M. (2020, July 29). Operation North Star Campaign. Retrieved December 20, 2021.",
+     "url": "https://www.mcafee.com/blogs/other-blogs/mcafee-labs/operation-north-star-a-job-offer-thats-too-good-to-be-true/?hilite=%27Operation%27%2C%27North%27%2C%27Star%27"
+    },
+    {
+     "source_name": "ClearSky Lazarus Aug 2020",
+     "description": "ClearSky Research Team. (2020, August 13). Operation 'Dream Job' Widespread North Korean Espionage Campaign. Retrieved December 20, 2021.",
+     "url": "https://www.clearskysec.com/wp-content/uploads/2020/08/Dream-Job-Campaign.pdf"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T21:14:22.562Z",
+   "description": "(Citation: ClearSky Lazarus Aug 2020)(Citation: McAfee Lazarus Jul 2020)(Citation: McAfee Lazarus Nov 2020)(Citation: ESET Lazarus Jun 2020)",
+   "relationship_type": "attributed-to",
+   "source_ref": "campaign--0257b35b-93ef-4a70-80dd-ad5258e6045b",
+   "target_ref": "intrusion-set--c93fccb1-e8e8-42cf-ae33-2ad1d183913a",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--64fa019e-5eb1-404c-9488-d4083ccc8b65",
+   "created": "2020-03-16T15:45:18.137Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:06.062Z",
+   "description": "Network intrusion detection and prevention systems that use network signatures to identify traffic for specific adversary malware can be used to mitigate activity at the network level.",
+   "relationship_type": "mitigates",
+   "source_ref": "course-of-action--12241367-a8b7-49b4-b86e-2236901ba50c",
+   "target_ref": "attack-pattern--24bfaeba-cb0d-4525-b3dc-507c77ecec41",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--8263754e-20a6-49ac-9ffb-3f0e9113b228",
+   "created": "2020-05-12T18:25:44.532Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "CrowdStrike Grim Spider May 2019",
+     "description": "John, E. and Carvey, H. (2019, May 30). Unraveling the Spiderweb: Timelining ATT&CK Artifacts Used by GRIM SPIDER. Retrieved May 12, 2020.",
+     "url": "https://www.crowdstrike.com/blog/timelining-grim-spiders-big-game-hunting-tactics/"
+    },
+    {
+     "source_name": "Sophos New Ryuk Attack October 2020",
+     "description": "Sean Gallagher, Peter Mackenzie, Elida Leite, Syed Shahram, Bill Kearney, Anand Aijan, Sivagnanam Gn, Suraj Mundalik. (2020, October 14). They’re back: inside a new Ryuk ransomware attack. Retrieved October 14, 2020.",
+     "url": "https://news.sophos.com/en-us/2020/10/14/inside-a-new-ryuk-ransomware-attack/"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-07-31T20:48:50.343Z",
+   "description": "(Citation: CrowdStrike Grim Spider May 2019)(Citation: Sophos New Ryuk Attack October 2020)",
+   "relationship_type": "uses",
+   "source_ref": "intrusion-set--dd2d9ca6-505b-4860-a604-233685b802c7",
+   "target_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--9529dc44-9a72-49b7-bfea-713356b0f55a",
+   "created": "2020-02-11T18:38:22.699Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:06.128Z",
+   "relationship_type": "subtechnique-of",
+   "source_ref": "attack-pattern--09c4c11e-4fa1-4f8c-8dad-3cf8e69ad119",
+   "target_ref": "attack-pattern--a93494bb-4b80-4ea1-8695-3236a49916fd",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--982441e5-d8f3-4b12-a765-4b503ce5db3b",
+   "created": "2020-02-04T12:52:13.385Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:06.132Z",
+   "relationship_type": "subtechnique-of",
+   "source_ref": "attack-pattern--837f9164-50af-4ac0-8219-379d8a74cefc",
+   "target_ref": "attack-pattern--435dfb86-2697-4867-85b5-2fef496c0517",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--bccb7ac3-c374-445b-aad2-14991a8641e5",
+   "created": "2020-03-16T15:45:18.139Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:06.183Z",
+   "relationship_type": "subtechnique-of",
+   "source_ref": "attack-pattern--24bfaeba-cb0d-4525-b3dc-507c77ecec41",
+   "target_ref": "attack-pattern--b8902400-e6c5-4ba2-95aa-2d35b442b118",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "relationship",
+   "spec_version": "2.1",
+   "id": "relationship--cb4015bf-e7a4-4b26-8816-1f7a996adf4f",
+   "created": "2020-03-20T15:22:53.973Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-04-29T14:23:06.203Z",
+   "relationship_type": "revoked-by",
+   "source_ref": "attack-pattern--00d0b012-8a03-410e-95de-5826bf542de6",
+   "target_ref": "attack-pattern--b0533c6e-8fea-4788-874f-b799cacc4b92",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_attack_spec_version": "3.3.0"
+  },
+  {
+   "type": "x-mitre-collection",
+   "id": "x-mitre-collection--1f5f1533-f617-4ca8-9ab4-6a02367fa019",
+   "x_mitre_attack_spec_version": "3.3.0",
+   "name": "Enterprise ATT&CK",
+   "x_mitre_version": "19.2",
+   "description": "ATT&CK for Enterprise provides a knowledge base of real-world adversary behavior targeting traditional enterprise networks. ATT&CK for Enterprise covers the following platforms: Windows, macOS, Linux, PRE, Office 365, Google Workspace, IaaS, Network, and Containers.",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "created": "2018-01-17T12:56:55.080Z",
+   "modified": "2026-08-05T21:33:58.496Z",
+   "x_mitre_contents": [
+    {
+     "object_ref": "attack-pattern--00d0b012-8a03-410e-95de-5826bf542de6",
+     "object_modified": "2026-04-14T22:53:15.802Z"
+    },
+    {
+     "object_ref": "attack-pattern--01a5a209-b94c-450b-b7f9-946497d91055",
+     "object_modified": "2026-05-12T15:12:00.619Z"
+    },
+    {
+     "object_ref": "attack-pattern--03d7999c-1f4c-42cc-8373-e7690d318104",
+     "object_modified": "2026-05-12T15:12:00.620Z"
+    },
+    {
+     "object_ref": "attack-pattern--09c4c11e-4fa1-4f8c-8dad-3cf8e69ad119",
+     "object_modified": "2026-05-12T15:12:00.620Z"
+    },
+    {
+     "object_ref": "attack-pattern--24bfaeba-cb0d-4525-b3dc-507c77ecec41",
+     "object_modified": "2026-05-12T15:12:00.623Z"
+    },
+    {
+     "object_ref": "attack-pattern--435dfb86-2697-4867-85b5-2fef496c0517",
+     "object_modified": "2025-10-24T17:48:42.785Z"
+    },
+    {
+     "object_ref": "attack-pattern--837f9164-50af-4ac0-8219-379d8a74cefc",
+     "object_modified": "2026-05-12T15:12:00.672Z"
+    },
+    {
+     "object_ref": "attack-pattern--9db0cf3a-a3c9-4012-8268-123b9db6fd82",
+     "object_modified": "2026-08-04T20:30:55.427Z"
+    },
+    {
+     "object_ref": "attack-pattern--a93494bb-4b80-4ea1-8695-3236a49916fd",
+     "object_modified": "2026-05-12T15:12:00.706Z"
+    },
+    {
+     "object_ref": "attack-pattern--b0533c6e-8fea-4788-874f-b799cacc4b92",
+     "object_modified": "2026-05-12T15:12:00.707Z"
+    },
+    {
+     "object_ref": "attack-pattern--b8902400-e6c5-4ba2-95aa-2d35b442b118",
+     "object_modified": "2025-10-24T17:49:17.042Z"
+    },
+    {
+     "object_ref": "attack-pattern--bf90d72c-c00b-45e3-b3aa-68560560d4c5",
+     "object_modified": "2026-05-12T15:12:00.713Z"
+    },
+    {
+     "object_ref": "attack-pattern--c2e147a9-d1a8-4074-811a-d8789202d916",
+     "object_modified": "2026-05-12T15:12:00.714Z"
+    },
+    {
+     "object_ref": "campaign--0257b35b-93ef-4a70-80dd-ad5258e6045b",
+     "object_modified": "2026-07-31T21:14:21.859Z"
+    },
+    {
+     "object_ref": "course-of-action--12241367-a8b7-49b4-b86e-2236901ba50c",
+     "object_modified": "2024-10-17T18:54:36.723Z"
+    },
+    {
+     "object_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+     "object_modified": "2026-05-12T16:33:30.227Z"
+    },
+    {
+     "object_ref": "intrusion-set--20f26558-e05d-46cf-8847-c2b5a83ee779",
+     "object_modified": "2026-07-31T18:47:42.686Z"
+    },
+    {
+     "object_ref": "intrusion-set--c93fccb1-e8e8-42cf-ae33-2ad1d183913a",
+     "object_modified": "2026-07-31T20:48:46.106Z"
+    },
+    {
+     "object_ref": "intrusion-set--dd2d9ca6-505b-4860-a604-233685b802c7",
+     "object_modified": "2026-07-31T20:48:49.730Z"
+    },
+    {
+     "object_ref": "malware--32066e94-3112-48ca-b9eb-ba2b59d2f023",
+     "object_modified": "2024-11-25T16:00:51.198Z"
+    },
+    {
+     "object_ref": "relationship--02438776-1130-4715-83b0-9bd6781bf8c0",
+     "object_modified": "2026-07-31T18:47:43.295Z"
+    },
+    {
+     "object_ref": "relationship--05e02170-dc4f-4112-a54c-fde4d05632d7",
+     "object_modified": "2026-04-29T14:23:05.911Z"
+    },
+    {
+     "object_ref": "relationship--0694d72f-cf4b-4355-b485-ccbd8d3a22b2",
+     "object_modified": "2026-04-29T14:23:05.912Z"
+    },
+    {
+     "object_ref": "relationship--095a259d-79c7-42b0-b65a-e423f110d187",
+     "object_modified": "2026-04-29T14:23:05.916Z"
+    },
+    {
+     "object_ref": "relationship--09c80e35-2839-4b5b-aad8-8f81db8da551",
+     "object_modified": "2026-04-29T14:23:05.917Z"
+    },
+    {
+     "object_ref": "relationship--0c76bb94-1a6e-4ec6-9faa-2b444d80002c",
+     "object_modified": "2026-04-29T14:23:05.920Z"
+    },
+    {
+     "object_ref": "relationship--11f31998-c76f-4433-8e9c-c0ef0b7574d5",
+     "object_modified": "2026-04-29T14:23:05.928Z"
+    },
+    {
+     "object_ref": "relationship--14f3eebf-40c3-48d5-ad62-356d57ccf2dc",
+     "object_modified": "2026-08-04T20:30:55.765Z"
+    },
+    {
+     "object_ref": "relationship--4b66e057-adbc-498d-99ee-156e0d17bd53",
+     "object_modified": "2026-07-31T21:14:22.562Z"
+    },
+    {
+     "object_ref": "relationship--64fa019e-5eb1-404c-9488-d4083ccc8b65",
+     "object_modified": "2026-04-29T14:23:06.062Z"
+    },
+    {
+     "object_ref": "relationship--8263754e-20a6-49ac-9ffb-3f0e9113b228",
+     "object_modified": "2026-07-31T20:48:50.343Z"
+    },
+    {
+     "object_ref": "relationship--9529dc44-9a72-49b7-bfea-713356b0f55a",
+     "object_modified": "2026-04-29T14:23:06.128Z"
+    },
+    {
+     "object_ref": "relationship--982441e5-d8f3-4b12-a765-4b503ce5db3b",
+     "object_modified": "2026-04-29T14:23:06.132Z"
+    },
+    {
+     "object_ref": "relationship--bccb7ac3-c374-445b-aad2-14991a8641e5",
+     "object_modified": "2026-04-29T14:23:06.183Z"
+    },
+    {
+     "object_ref": "relationship--cb4015bf-e7a4-4b26-8816-1f7a996adf4f",
+     "object_modified": "2026-04-29T14:23:06.203Z"
+    },
+    {
+     "object_ref": "x-mitre-tactic--2558fd61-8c75-4730-94c4-11926db2a263",
+     "object_modified": "2025-04-25T14:45:32.408Z"
+    },
+    {
+     "object_ref": "x-mitre-tactic--4ca45d45-df4d-4613-8980-bac22d278fa5",
+     "object_modified": "2025-04-25T14:45:32.769Z"
+    },
+    {
+     "object_ref": "x-mitre-tactic--7141578b-e50b-4dcc-bfa4-08a8dd689e9e",
+     "object_modified": "2025-08-11T19:25:08.016Z"
+    },
+    {
+     "object_ref": "x-mitre-tactic--78b23412-0651-46d7-a540-170a1ce8bd5a",
+     "object_modified": "2026-05-12T15:12:00.780Z"
+    },
+    {
+     "object_ref": "x-mitre-tactic--c17c5845-175e-4421-9713-829d0573dbc9",
+     "object_modified": "2025-04-25T14:45:35.302Z"
+    },
+    {
+     "object_ref": "x-mitre-tactic--f72804c5-f15a-449e-a5da-2eecd181f813",
+     "object_modified": "2025-04-25T14:45:36.561Z"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "spec_version": "2.1"
+  },
+  {
+   "type": "x-mitre-tactic",
+   "spec_version": "2.1",
+   "id": "x-mitre-tactic--2558fd61-8c75-4730-94c4-11926db2a263",
+   "created": "2018-10-17T00:14:20.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/tactics/TA0006",
+     "external_id": "TA0006"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-04-25T14:45:32.408Z",
+   "name": "Credential Access",
+   "description": "The adversary is trying to steal account names and passwords.\n\nCredential Access consists of techniques for stealing credentials like account names and passwords. Techniques used to get credentials include keylogging or credential dumping. Using legitimate credentials can give adversaries access to systems, make them harder to detect, and provide the opportunity to create more accounts to help achieve their goals.",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_shortname": "credential-access"
+  },
+  {
+   "type": "x-mitre-tactic",
+   "spec_version": "2.1",
+   "id": "x-mitre-tactic--4ca45d45-df4d-4613-8980-bac22d278fa5",
+   "created": "2018-10-17T00:14:20.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/tactics/TA0002",
+     "external_id": "TA0002"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-04-25T14:45:32.769Z",
+   "name": "Execution",
+   "description": "The adversary is trying to run malicious code.\n\nExecution consists of techniques that result in adversary-controlled code running on a local or remote system. Techniques that run malicious code are often paired with techniques from all other tactics to achieve broader goals, like exploring a network or stealing data. For example, an adversary might use a remote access tool to run a PowerShell script that does Remote System Discovery. ",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_shortname": "execution"
+  },
+  {
+   "type": "x-mitre-tactic",
+   "spec_version": "2.1",
+   "id": "x-mitre-tactic--7141578b-e50b-4dcc-bfa4-08a8dd689e9e",
+   "created": "2018-10-17T00:14:20.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/tactics/TA0008",
+     "external_id": "TA0008"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-08-11T19:25:08.016Z",
+   "name": "Lateral Movement",
+   "description": "The adversary is trying to move through your environment.\n\nLateral Movement consists of techniques that adversaries use to enter and control remote systems on a network. Following through on their primary objective often requires exploring the network to find their target, then pivoting through multiple systems and accounts to gain access to it. Adversaries might install their own remote access tools to accomplish Lateral Movement or use legitimate credentials with native network and operating system tools, which may be stealthier. ",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.1",
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_shortname": "lateral-movement"
+  },
+  {
+   "type": "x-mitre-tactic",
+   "spec_version": "2.1",
+   "id": "x-mitre-tactic--78b23412-0651-46d7-a540-170a1ce8bd5a",
+   "created": "2018-10-17T00:14:20.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "revoked": false,
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/tactics/TA0005",
+     "external_id": "TA0005"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2026-05-12T15:12:00.780Z",
+   "name": "Stealth",
+   "description": "The adversary is trying to hide and conceal their actions, appearing as normal behavior.\n\nStealth consists of techniques that reduce the likelihood of detection by blending in with legitimate activity or minimizing observable signals. These techniques are characterized by concealment behaviors, such as avoiding, obfuscating, or mimicking normal operations, without modifying security controls or compromising collection and monitoring feeds. The goal is to remain indistinguishable from benign activity while leaving defensive systems intact.",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "x_mitre_attack_spec_version": "3.3.0",
+   "x_mitre_shortname": "stealth"
+  },
+  {
+   "type": "x-mitre-tactic",
+   "spec_version": "2.1",
+   "id": "x-mitre-tactic--c17c5845-175e-4421-9713-829d0573dbc9",
+   "created": "2018-10-17T00:14:20.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/tactics/TA0007",
+     "external_id": "TA0007"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-04-25T14:45:35.302Z",
+   "name": "Discovery",
+   "description": "The adversary is trying to figure out your environment.\n\nDiscovery consists of techniques an adversary may use to gain knowledge about the system and internal network. These techniques help adversaries observe the environment and orient themselves before deciding how to act. They also allow adversaries to explore what they can control and what’s around their entry point in order to discover how it could benefit their current objective. Native operating system tools are often used toward this post-compromise information-gathering objective. ",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_shortname": "discovery"
+  },
+  {
+   "type": "x-mitre-tactic",
+   "spec_version": "2.1",
+   "id": "x-mitre-tactic--f72804c5-f15a-449e-a5da-2eecd181f813",
+   "created": "2018-10-17T00:14:20.652Z",
+   "created_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "external_references": [
+    {
+     "source_name": "mitre-attack",
+     "url": "https://attack.mitre.org/tactics/TA0011",
+     "external_id": "TA0011"
+    }
+   ],
+   "object_marking_refs": [
+    "marking-definition--fa42a846-8d90-4e51-bc29-71d5b4802168"
+   ],
+   "modified": "2025-04-25T14:45:36.561Z",
+   "name": "Command and Control",
+   "description": "The adversary is trying to communicate with compromised systems to control them.\n\nCommand and Control consists of techniques that adversaries may use to communicate with systems under their control within a victim network. Adversaries commonly attempt to mimic normal, expected traffic to avoid detection. There are many ways an adversary can establish command and control with various levels of stealth depending on the victim’s network structure and defenses.",
+   "x_mitre_modified_by_ref": "identity--c78cb6e5-0c4b-4611-8297-d1b8b55e40b5",
+   "x_mitre_deprecated": false,
+   "x_mitre_domains": [
+    "enterprise-attack"
+   ],
+   "x_mitre_version": "1.0",
+   "x_mitre_attack_spec_version": "3.2.0",
+   "x_mitre_shortname": "command-and-control"
+  }
+ ]
+}

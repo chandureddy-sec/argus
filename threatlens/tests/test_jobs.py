@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import func, select
 
 import threatlens.models
+from tests.kb_helpers import KbUpstream, combined
 from tests.test_collect import Clock, collector, feed_handler
 from threatlens import cli, worker
 from threatlens.allowlist import Entry
@@ -143,7 +144,7 @@ async def test_collect_due_runs_only_due_sources(sm: Any, mock_http: MakeHttp, t
     again = {r.source for r in await collect_due(c)}
     assert "tor_exits" in again
     assert "spamhaus_drop" not in again  # once a day at most
-    clock.advance(hours=12)
+    clock.advance(hours=13)  # 24 h interval plus up to 5 % jitter
     assert "spamhaus_drop" in {r.source for r in await collect_due(c)}
 
 
@@ -195,10 +196,14 @@ async def test_worker_startup_builds_collector(
     try:
         assert isinstance(ctx["collector"], Collector)
         async with ctx["collector"].sm() as s:
-            assert await s.scalar(select(func.count()).select_from(Source)) == 8
+            assert await s.scalar(select(func.count()).select_from(Source)) == 12  # 8 feeds + 4 knowledge
         assert worker.HEARTBEAT_KEY in r.store
     finally:
         await worker.shutdown(ctx)
+
+
+async def _no_sleep(_: float) -> None:
+    return None
 
 
 # ── CLI ─────────────────────────────────────────────────────────────────────
@@ -222,7 +227,9 @@ def cli_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
 
 def use_http(monkeypatch: pytest.MonkeyPatch, handler: Callable[[httpx.Request], httpx.Response]) -> None:
     def opener(settings: Settings) -> Any:
-        return open_collector(settings, http=SafeHttp(transport=httpx.MockTransport(handler), retries=0))
+        return open_collector(
+            settings, http=SafeHttp(transport=httpx.MockTransport(handler), retries=0), sleep=_no_sleep
+        )
 
     monkeypatch.setattr(cli, "open_collector", opener)
 
@@ -248,7 +255,7 @@ def test_cli_keys(cli_db: Settings, capsys: pytest.CaptureFixture[str]) -> None:
 def test_cli_collect_and_sources(
     cli_db: Settings, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    use_http(monkeypatch, feed_handler())
+    use_http(monkeypatch, combined(feed_handler(), KbUpstream()))
     assert cli.main(["collect", "cisa_kev", "feodo"]) == 0
     out = capsys.readouterr().out
     assert "cisa_kev" in out

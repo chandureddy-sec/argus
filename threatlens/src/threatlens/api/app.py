@@ -15,6 +15,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens import __version__
+from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
 from threatlens.auth import MemoryRateLimiter, RateLimiter, RedisRateLimiter
 from threatlens.db import make_engine, make_sessionmaker, ping
@@ -114,6 +115,7 @@ def create_app(
         openapi_url="/openapi.json" if dev else None,
     )
     app.include_router(v1_router)
+    app.include_router(kb_router)
 
     @app.middleware("http")
     async def request_context(
