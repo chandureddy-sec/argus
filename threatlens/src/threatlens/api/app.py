@@ -46,12 +46,6 @@ SECURITY_HEADERS = {
     "Cross-Origin-Resource-Policy": "same-origin",
     "Cache-Control": "no-store",
 }
-# Swagger UI needs scripts and styles from its CDN; relax CSP only on /docs.
-_DOCS_CSP = (
-    "default-src 'none'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
-    "style-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: https://fastapi.tiangolo.com; "
-    "connect-src 'self'; frame-ancestors 'none'"
-)
 
 
 Enqueue = Callable[[str, bool], Awaitable[bool]]
@@ -123,7 +117,8 @@ def create_app(
         title="ThreatLens",
         version=__version__,
         lifespan=lifespan,
-        docs_url="/docs" if dev else None,
+        # No Swagger page: people use /ui; the machine-readable schema stays in dev.
+        docs_url=None,
         redoc_url=None,
         openapi_url="/openapi.json" if dev else None,
     )
@@ -153,8 +148,6 @@ def create_app(
         response.headers["X-Request-ID"] = rid
         for k, v in SECURITY_HEADERS.items():
             response.headers.setdefault(k, v)
-        if request.url.path == "/docs":
-            response.headers["Content-Security-Policy"] = _DOCS_CSP
         log.info(
             "http.request",
             method=request.method,

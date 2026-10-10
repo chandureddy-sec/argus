@@ -84,7 +84,7 @@ function Show-Ready {
     try {
         $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/readyz' -TimeoutSec 5
         $checks = ($r.checks.PSObject.Properties | ForEach-Object { "$($_.Name)=$(if ($_.Value.ok) {'ok'} else {'FAIL'})" }) -join ', '
-        Write-Host "API: $($r.status) ($checks)  http://127.0.0.1:8000/docs" -ForegroundColor Green
+        Write-Host "API: $($r.status) ($checks)  http://127.0.0.1:8000/ui" -ForegroundColor Green
     } catch {
         Write-Host 'API: not answering on http://127.0.0.1:8000 yet' -ForegroundColor Yellow
     }
@@ -110,7 +110,7 @@ switch ($Command) {
         Invoke-Compose $docker (@('--progress', 'quiet', 'up', '-d', '--wait', '--wait-timeout', '300') + $build)
         Invoke-Compose $docker @('ps', '--format', 'table {{.Service}}\t{{.Status}}')
         Show-Ready
-        Write-Host "Next: .\tl key me admin   (prints an API key)   .\tl sources   .\tl logs"
+        Write-Host "Next: .\tl key me analyst   (prints an API key to sign in with)   .\tl sources   .\tl logs"
     }
     'down' {
         $docker = Find-Docker

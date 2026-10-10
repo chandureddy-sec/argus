@@ -91,9 +91,11 @@ def test_request_id(healthy: TestClient, sent: str, echoed: bool) -> None:
         assert len(rid) == 32
 
 
-def test_docs_only_outside_prod() -> None:
+def test_no_swagger_page_and_schema_only_outside_prod() -> None:
     with client({}) as c:
         assert c.get("/openapi.json").status_code == 200
+        assert c.get("/docs").status_code == 404
+        assert c.get("/redoc").status_code == 404
     with client({}, env=Environment.PROD) as c:
         assert c.get("/openapi.json").status_code == 404
         assert c.get("/docs").status_code == 404

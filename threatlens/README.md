@@ -10,19 +10,19 @@ assets (see [ADR 0002](docs/adr/0002-monorepo-and-reconx-link.md)).
 
 ## Quickstart (Windows)
 
-From the `threatlens` folder, in PowerShell (`.	l …`) or Command Prompt (`tl …`):
+From the `threatlens` folder, in PowerShell (`.\tl …`) or Command Prompt (`tl …`):
 
 ```powershell
-.	l up              # starts Docker Desktop if needed, creates .env, starts the stack
-.	l key me admin    # prints an API key (shown once)
-.	l sources         # source health; any threatlens CLI command works: .	l collect nvd
-.	l status          # containers and readiness
-.	l logs            # follow worker + API logs
-.	l down            # stop (data is kept)
+.\tl up              # starts Docker Desktop if needed, creates .env, starts the stack
+.\tl key me admin    # prints an API key (shown once)
+.\tl sources         # source health; any threatlens CLI command works: .\tl collect nvd
+.\tl status          # containers and readiness
+.\tl logs            # follow worker + API logs
+.\tl down            # stop (data is kept)
 ```
 
-`tl` finds Docker even in a terminal opened before Docker was installed. API docs:
-http://127.0.0.1:8000/docs. After changing code, `.	l up --build`.
+`tl` finds Docker even in a terminal opened before Docker was installed. Analyst UI:
+http://127.0.0.1:8000/ui. After changing code, `.\tl up --build`.
 
 ## Quickstart (any OS)
 
@@ -75,7 +75,7 @@ curl -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/assets/products        
 
 The worker collects every enabled source on its own schedule. Sources that
 need a free key (ThreatFox, OTX) show `skipped` until `TL_ABUSECH_AUTH_KEY` /
-`TL_OTX_API_KEY` are set in `.env`. API docs: http://127.0.0.1:8000/docs (dev only).
+`TL_OTX_API_KEY` are set in `.env`. Analyst UI: http://127.0.0.1:8000/ui.
 
 ### Without Docker (SQLite trial)
 

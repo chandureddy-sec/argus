@@ -89,7 +89,7 @@ Found and fixed during verification:
 | `domain-name/crawhyderabad.in` | RDAP: 860 days old; crt.sh `error` (service down, 502/404 all day): reported, rest returned |
 | `?active=true&enrichers=dns` | A 72.61.230.175, Cloudflare NS; `enrich.active` audit row written |
 | `POST /enrich` with an EDR alert text + `10.1.2.3` | 4 observables extracted and deduplicated, private IP rejected with reason, worst first, budget spent 3 |
-| `.	l enrich-backlog --limit 40` | 40 IP indicators enriched in the container; dashboard map 5 → 46 located IPs |
+| `.\tl enrich-backlog --limit 40` | 40 IP indicators enriched in the container; dashboard map 5 → 46 located IPs |
 | Integration tests on Postgres/Redis | 8/8 incl. `alembic check` (0004 matches the models), Redis quota store, enrichment pipeline on Postgres |
 
 ## Phase 3b log
