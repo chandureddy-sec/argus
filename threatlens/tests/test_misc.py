@@ -17,12 +17,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_settings_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TL_ENV", "prod")
-    monkeypatch.setenv("TL_DATABASE_URL", "postgresql+asyncpg://u:secret@h/db")
+    monkeypatch.setenv("TL_DATABASE_URL", "postgresql+asyncpg://u:pw-hunter2@h/db")
     get_settings.cache_clear()
     try:
         s = get_settings()
         assert s.env == "prod"
-        assert "secret" not in repr(s)  # SecretStr keeps DSNs out of reprs and logs
+        assert "pw-hunter2" not in repr(s)  # SecretStr keeps DSNs out of reprs and logs
         assert s.database_url.get_secret_value().endswith("@h/db")
     finally:
         get_settings.cache_clear()

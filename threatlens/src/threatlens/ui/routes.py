@@ -25,6 +25,7 @@ from threatlens.api import kb as kb_api
 from threatlens.api import v1 as v1_api
 from threatlens.auth import Principal, authenticate
 from threatlens.connectors.base import clip
+from threatlens.ioc.extract import defang_text
 from threatlens.ioc.types import IOCType
 from threatlens.kb import graph
 from threatlens.kb.nvd import stack_cpes
@@ -70,7 +71,9 @@ def safe_url(url: str | None) -> str | None:
     return url if url and urlparse(url).scheme in ("http", "https") else None
 
 
-templates.env.filters.update(plain=plain, ago=ago, safe_url=safe_url, quote=lambda s: quote(str(s), safe=""))
+templates.env.filters.update(
+    plain=plain, ago=ago, safe_url=safe_url, defang_text=defang_text, quote=lambda s: quote(str(s), safe="")
+)
 
 
 def _sm(request: Request) -> async_sessionmaker[AsyncSession]:

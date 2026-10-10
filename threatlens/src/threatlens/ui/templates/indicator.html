@@ -17,7 +17,7 @@
     <div class="fact"><b>{{ ind.last_seen | ago }}</b><span>last seen</span></div>
   </div>
   {% if ind.labels %}<div class="tags">{% for l in ind.labels %}<span class="tag">{{ l }}</span>{% endfor %}</div>{% endif %}
-  {% if ind.pattern %}<p class="note">STIX pattern: <code>{{ ind.pattern }}</code></p>{% endif %}
+  {% if ind.pattern %}<p class="note">STIX pattern: <code>{{ ind.pattern | defang_text }}</code></p>{% endif %}
 </section>
 
 <section class="grid-side">
@@ -28,7 +28,7 @@
       <tr><td><b>{{ sg.source }}</b><small>confidence {{ sg.confidence }}</small></td>
         <td>{{ sg.first_seen.strftime("%Y-%m-%d") }}<small>last {{ sg.last_seen | ago }}</small></td>
         <td class="num">{{ sg.times_reported }}</td>
-        <td><dl class="kv">{% for k, v in sg.context.items() if v not in (none, "", [], {}) %}<dt>{{ k }}</dt><dd>{{ v | string | truncate(160, True) }}</dd>{% endfor %}</dl></td></tr>
+        <td><dl class="kv">{% for k, v in sg.context.items() if v not in (none, "", [], {}) %}<dt>{{ k }}</dt><dd>{{ v | string | defang_text | truncate(160, True) }}</dd>{% endfor %}</dl></td></tr>
     {% endfor %}
     </tbody></table>
   </article>

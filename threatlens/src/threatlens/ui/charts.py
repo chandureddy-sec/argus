@@ -23,7 +23,7 @@ Point = tuple[float, float]
 def _svg(markup: str) -> Markup:
     """Mark built SVG/HTML as safe. Every value interpolated into it is a
     number formatted here or text passed through ``escape()``."""
-    return Markup(markup)  # noqa: S704 - see docstring
+    return Markup(markup)  # noqa: S704  # nosec B704 - see docstring
 
 
 def _nice_max(v: float) -> float:

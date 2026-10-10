@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
-from threatlens.ioc.defang import refang
+from threatlens.ioc.defang import defang, refang
 from threatlens.ioc.normalize import Result, normalize
 from threatlens.ioc.types import IOCType, Observable, Rejected
 
@@ -62,7 +62,7 @@ _PATTERNS: list[tuple[IOCType, re.Pattern[str]]] = [
 _TRAILING = ".,;:!?)]}'\""
 
 
-def _candidates(text: str) -> Iterator[tuple[IOCType, str]]:
+def _spans(text: str) -> Iterator[tuple[int, IOCType, str]]:
     masked = list(text)
     for ioc_type, pattern in _PATTERNS:
         for m in pattern.finditer("".join(masked)):
@@ -75,7 +75,27 @@ def _candidates(text: str) -> Iterator[tuple[IOCType, str]]:
                 continue
             start = m.start()
             masked[start : start + len(value)] = " " * len(value)
-            yield ioc_type, value
+            yield start, ioc_type, value
+
+
+def _candidates(text: str) -> Iterator[tuple[IOCType, str]]:
+    for _, ioc_type, value in _spans(text):
+        yield ioc_type, value
+
+
+def defang_text(text: str) -> str:
+    """Defang every URL, email, IP and domain in free text for display.
+
+    Unlike ``extract`` the text is not refanged first and nothing is
+    validated: anything that looks live is made inert, and text that is
+    already defanged is left as it is."""
+    out: list[str] = []
+    pos = 0
+    for start, ioc_type, value in sorted(_spans(text), key=lambda s: s[0]):
+        out += [text[pos:start], defang(value, ioc_type)]
+        pos = start + len(value)
+    out.append(text[pos:])
+    return "".join(out)
 
 
 def extract(text: str, *, include_rejected: bool = False) -> list[Result]:

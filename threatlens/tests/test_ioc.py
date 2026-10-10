@@ -5,7 +5,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from threatlens.ioc.defang import defang, refang
-from threatlens.ioc.extract import extract
+from threatlens.ioc.extract import defang_text, extract
 from threatlens.ioc.normalize import guess, normalize, registrable_domain
 from threatlens.ioc.types import IOCType, Observable, Rejected
 
@@ -204,3 +204,21 @@ def test_extract_never_crashes(text: str) -> None:
 )
 def test_extract_never_crashes_on_ioc_like_noise(parts: list[str]) -> None:
     extract("".join(parts), include_rejected=True)
+
+
+@pytest.mark.parametrize(
+    ("text", "shown"),
+    [
+        ("[ipv4-addr:value = '162.243.103.246']", "[ipv4-addr:value = '162[.]243[.]103[.]246']"),
+        (
+            "[url:value = 'https://evil.example.com/a.exe']",
+            "[url:value = 'hxxps[://]evil[.]example[.]com/a.exe']",
+        ),
+        ("from bob@evil.com via 2001:db8::1", "from bob[@]evil[.]com via 2001[:]db8[:][:]1"),
+        ("drops a.exe, CVE-2024-1234, d41d8cd98f00b204e9800998ecf8427e", None),  # inert: unchanged
+        ("already evil[.]com and hxxp[://]x[.]org", None),
+        ("", None),
+    ],
+)
+def test_defang_text_for_display(text: str, shown: str | None) -> None:
+    assert defang_text(text) == (text if shown is None else shown)
