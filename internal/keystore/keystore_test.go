@@ -140,3 +140,26 @@ func TestVerify(t *testing.T) {
 		t.Errorf("empty = %+v", r)
 	}
 }
+
+func TestThreatLensKeyLinkFollowsServer(t *testing.T) {
+	link := func() string {
+		sts, err := Open(filepath.Join(t.TempDir(), "keys.json")).Statuses()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, st := range sts {
+			if st.Name == "threatlens" {
+				return st.GetURL
+			}
+		}
+		return ""
+	}
+	t.Setenv("RECONX_THREATLENS_URL", "")
+	if got := link(); got != "http://127.0.0.1:8000/ui/login" {
+		t.Fatalf("default link = %q, want the sign-in page (it explains how to create a key)", got)
+	}
+	t.Setenv("RECONX_THREATLENS_URL", "https://tl.example.org/")
+	if got := link(); got != "https://tl.example.org/ui/login" {
+		t.Fatalf("configured link = %q", got)
+	}
+}

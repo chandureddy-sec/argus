@@ -49,9 +49,25 @@ var Supported = []Key{
 	},
 	{
 		Name: "threatlens", Env: "RECONX_THREATLENS_API_KEY", Service: "ThreatLens (threat intel server)",
-		Effect: "Needed for --threatlens: an analyst key from the ThreatLens server (create one with: tl key reconx analyst). Set the server with --threatlens=<url> or RECONX_THREATLENS_URL.",
-		GetURL: "http://127.0.0.1:8000/docs",
+		Effect: "Needed for --threatlens: an analyst key from the ThreatLens server. Keys are made on that server with: tl key reconx analyst. Set the server with --threatlens=<url> or RECONX_THREATLENS_URL.",
+		GetURL: "http://127.0.0.1:8000" + threatlensKeyPage,
 	},
+}
+
+// The ThreatLens sign-in page explains how to create a key (keys are made
+// with the server's CLI, not on a web page). The link follows
+// RECONX_THREATLENS_URL when it is set.
+const threatlensKeyPage = "/ui/login"
+
+// getURL is where to create the key, following the configured server for
+// ThreatLens.
+func (k Key) getURL() string {
+	if k.Name == "threatlens" {
+		if u := strings.TrimRight(strings.TrimSpace(os.Getenv("RECONX_THREATLENS_URL")), "/"); u != "" {
+			return u + threatlensKeyPage
+		}
+	}
+	return k.GetURL
 }
 
 // Lookup returns the key definition for a name (case-insensitive) or env var.
@@ -194,6 +210,7 @@ func (s *Store) Statuses() ([]Status, error) {
 	out := make([]Status, 0, len(Supported))
 	for _, k := range Supported {
 		st := Status{Key: k, Source: "unset"}
+		st.GetURL = k.getURL()
 		env := strings.TrimSpace(os.Getenv(k.Env))
 		stored := m[k.Name]
 		switch {
