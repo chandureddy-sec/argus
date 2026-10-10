@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from threatlens.allowlist import Allowlist
+from threatlens.assets import asset_for
 from threatlens.connectors.base import clip
 from threatlens.enrich.base import REGISTRY, Enricher, EnrichError, Evidence, EvidenceKind, Outcome
 from threatlens.enrich.quota import QuotaStore
@@ -450,6 +451,7 @@ class EnrichmentService:
         async with self.sm() as s:
             known, related, observable_id = await self._known(s, obs)
             cached = await self._cached(s, obs)
+            own = await asset_for(s, obs.key)
         verdict_al = (await self.allowlist()).check(obs)
         eff_tlp = stricter_tlp(tlp, known["tlp"] if known else None)
         names = self.applicable(obs.type, only)
@@ -471,7 +473,26 @@ class EnrichmentService:
             suppressed = "; ".join(verdict_al.reasons) or "allowlisted"
         elif known is not None and known["status"] == "false_positive":
             suppressed = known["allowlist_reason"] or "marked not malicious"
+        if own is not None:
+            evidence.append(
+                Evidence(
+                    "assets",
+                    "info",
+                    0,
+                    f"Own asset: {own['kind']} of {own['target']} (imported from {own['origin']}, "
+                    f"last seen {own['last_seen'].date()})",
+                )
+            )
         a = assess(evidence, suppressed_by=suppressed)
+        if own is not None and a.action == "block":
+            # Blocking our own host or IP cuts off our own service; a feed
+            # listing it means compromise, abuse or a shared address (ADR 0006).
+            a.action = "investigate"
+            a.action_text = (
+                "This is one of your own assets: check it for compromise or abuse "
+                "(or a shared IP) instead of blocking it."
+            )
+            a.breakdown.append({"step": "own asset: block becomes investigate", "value": None})
         partial = any(
             r["status"] in ("error", "stale")
             or (r["status"] == "skipped" and r["skipped_reason"] != "active_not_requested")
@@ -492,6 +513,7 @@ class EnrichmentService:
             "recommended_action_text": a.action_text,
             "tlp": eff_tlp,
             "known": known,
+            "asset": own,
             "allowlist": {
                 "effect": verdict_al.effect,
                 "reasons": list(verdict_al.reasons),

@@ -20,7 +20,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from threatlens import __version__
+from threatlens import __version__, assets
+from threatlens.api import assets as assets_api
 from threatlens.api import kb as kb_api
 from threatlens.api import v1 as v1_api
 from threatlens.auth import Principal, authenticate
@@ -29,7 +30,6 @@ from threatlens.ioc.extract import defang_text
 from threatlens.ioc.types import IOCType
 from threatlens.ioc.types import Observable as IocObservable
 from threatlens.kb import graph
-from threatlens.kb.nvd import stack_cpes
 from threatlens.models import (
     Enrichment,
     Entity,
@@ -191,15 +191,16 @@ async def logout(request: Request) -> Response:
 # ── pages ────────────────────────────────────────────────────────────────────
 
 
-def _stack(request: Request) -> list[tuple[str, str]]:
-    return [(v, p) for _, v, p in stack_cpes(_settings(request))]
+async def _stack(request: Request, s: AsyncSession) -> list[tuple[str, str]]:
+    """(vendor, product) of the profile's tech stack plus what ReconX observed."""
+    return [(v, p) for _, v, p in await assets.org_stack(s, _settings(request))]
 
 
 @router.get("", response_class=HTMLResponse)
 async def overview(request: Request) -> HTMLResponse:
     me = await who(request)
     async with _sm(request)() as s:
-        d = await data.overview(s, datetime.now(UTC), _stack(request))
+        d = await data.overview(s, datetime.now(UTC), await _stack(request, s))
     return page(request, "overview.html", {"me": me, "d": d})
 
 
@@ -324,7 +325,7 @@ async def vulnerabilities(
     stmt = select(Vulnerability)
     async with _sm(request)() as s:
         if stack:
-            stmt = stmt.where(Vulnerability.id.in_(await data.stack_cve_ids(s, _stack(request))))
+            stmt = stmt.where(Vulnerability.id.in_(await data.stack_cve_ids(s, await _stack(request, s))))
         if kev is not None:
             stmt = stmt.where(Vulnerability.kev.is_(kev))
         if q and len(q) >= 2:
@@ -376,7 +377,7 @@ async def vulnerability(request: Request, cve: str) -> HTMLResponse:
     async with _sm(request)() as s:
         related, _ = await graph.neighbors(s, v.stix_id, limit=50)
         vid = await s.scalar(select(Vulnerability.id).where(Vulnerability.cve_id == v.cve_id))
-        in_stack = vid in await data.stack_cve_ids(s, _stack(request))
+        in_stack = vid in await data.stack_cve_ids(s, await _stack(request, s))
     return page(request, "vulnerability.html", {"me": me, "v": v, "related": related, "in_stack": in_stack})
 
 
@@ -439,3 +440,16 @@ async def sources(request: Request) -> HTMLResponse:
     async with _sm(request)() as s:
         runs = await data.last_runs(s)
     return page(request, "sources.html", {"me": me, "rows": rows, "runs": runs})
+
+
+@router.get("/assets", response_class=HTMLResponse)
+async def assets_page(request: Request) -> HTMLResponse:
+    me = await who(request)
+    page_ = await assets_api.list_assets(me, request, limit=200)
+    prods = await assets_api.products(me, request)
+    imports = await assets_api.imports(me, request, limit=10)
+    async with _sm(request)() as s:
+        c = await assets.counts(s)
+    return page(
+        request, "assets.html", {"me": me, "page": page_, "products": prods, "imports": imports, "c": c}
+    )

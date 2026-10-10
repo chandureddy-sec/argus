@@ -215,6 +215,37 @@ async def _enrich_backlog(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _import_reconx(args: argparse.Namespace) -> int:
+    """Import ReconX scan reports (JSON) as own assets and observed tech stack."""
+    import hashlib
+    import json as _json
+
+    from threatlens.assets import ImportFormatError, import_reconx
+
+    engine = make_engine(get_settings().database_url.get_secret_value())
+    failed = 0
+    try:
+        sm = make_sessionmaker(engine)
+        for path in args.files:
+            body = await asyncio.to_thread(Path(path).read_bytes)
+            try:
+                r = await import_reconx(sm, _json.loads(body), hashlib.sha256(body).hexdigest(), "cli")
+            except (ValueError, ImportFormatError) as e:
+                print(f"{path}: not imported: {e}", file=sys.stderr)
+                failed += 1
+                continue
+            if r.duplicate:
+                print(f"{path}: already imported (import #{r.import_id})")
+                continue
+            print(
+                f"{path}: {r.target}: {r.hosts} hosts, {r.ips} IPs, {r.products} products; "
+                f"{r.new_assets} new, {r.updated_assets} updated, {len(r.rejected)} not imported"
+            )
+    finally:
+        await engine.dispose()
+    return 1 if failed else 0
+
+
 async def _allowlist_refresh(args: argparse.Namespace) -> int:
     async with open_collector(get_settings()) as c:
         out = await refresh_allowlists(c)
@@ -343,6 +374,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     k.add_argument("--role", choices=list(ROLE_RANK), default="viewer")
     k.add_argument("--expires-days", type=int)
     k.set_defaults(func=_run(_keys))
+
+    ir = sub.add_parser("import-reconx", help="import ReconX scan reports (JSON) as own assets")
+    ir.add_argument("files", nargs="+", help="reports/recon_<target>_<time>.json from ReconX")
+    ir.set_defaults(func=_run(_import_reconx))
 
     lk = sub.add_parser("lookup", help="enrich one value and print the verdict and evidence")
     lk.add_argument("value", help="IP, domain, URL, hash or email (defanged input is fine)")

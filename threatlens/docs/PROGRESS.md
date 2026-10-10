@@ -6,7 +6,7 @@
 | 1 Collection core | **complete** (Docker verified) | 8 connectors, hardened HTTP client, IOC extraction, allowlist, idempotent pipeline, API keys/RBAC/rate limits, v1 API, worker scheduling, CLI. Live collection checked on SQLite (below). |
 | 2 Knowledge base | **complete** (Docker verified) | ATT&CK (3 domains, versioned, diffed), NVD/EPSS/KEV/OSV vulnerability records, relationship graph with provenance, path API. Live checks on SQLite and in the Docker stack (below). |
 | 3 Enrichment | **complete** (Docker verified 2026-10-10) | 9 enrichers (RDAP, DNS-over-HTTPS, RIPEstat ASN/geo, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh), DB-backed TTL cache with provenance, shared quota book, passive-first + TLP policy, lookup / bulk / catalogue API, background ASN/geo enrichment, UI panel, CLI `lookup`. ADR 0005. |
-| 3b ReconX link | in progress | see PLAN.md |
+| 3b ReconX link | **complete** (live-verified 2026-10-10) | ReconX `scan --threatlens` → verdicts in JSON/HTML/MD reports, dashboard tab, `threat_intel_flagged` monitor rule; `--threatlens-assets` / `import-reconx` → own assets + observed tech stack (migration 0005), feed-listed assets first, own-asset lookups say investigate, PIR-2/NVD include observed applications. ADR 0006. |
 | 4–9 | not started | see PLAN.md |
 
 ## Phase 0 log
@@ -91,3 +91,17 @@ Found and fixed during verification:
 | `POST /enrich` with an EDR alert text + `10.1.2.3` | 4 observables extracted and deduplicated, private IP rejected with reason, worst first, budget spent 3 |
 | `.	l enrich-backlog --limit 40` | 40 IP indicators enriched in the container; dashboard map 5 → 46 located IPs |
 | Integration tests on Postgres/Redis | 8/8 incl. `alembic check` (0004 matches the models), Redis quota store, enrichment pipeline on Postgres |
+
+## Phase 3b log
+- 2026-10-10: ReconX: `internal/threatlens` client (batches of 100, TLP, budget, clear errors), `ScanReport.threat_intel`, scan flags `--threatlens[=url]`, `--threatlens-tlp`, `--threatlens-budget`, `--threatlens-assets`, key-store entry + key test, HTML/Markdown sections, dashboard tab and scan option, `RunScanPipeline` option, monitor runs include ThreatLens when configured, rule `threat_intel_flagged`. Contract fixture recorded from the live API.
+- ThreatLens: migration 0005 (`asset_imports`, `assets`, `asset_products`), `assets.py` importer and read side, `/api/v1/assets` (import, list, products, imports), CLI `import-reconx`, Assets UI page, own-asset context in lookups, observed stack in PIR-2 and NVD scope.
+- Found during the live check: ReconX's IP list includes name-server/mail/CDN addresses (16 of 17 IPs in a real scan); the importer now keeps only addresses the scanned hosts resolve to, minus CDN edges, and reports why each other one was left out. Country names were being cut to 8 characters.
+
+### Live check (2026-10-10, ThreatLens Docker stack + reconx.exe)
+| Check | Result |
+|---|---|
+| `reconx scan crawhyderabad.in --threatlens` | 19 hosts/IPs checked in one batch: 19 unknown (clean), each with evidence (RDAP, RIPEstat, GreyNoise) and its skip reasons (`abuseipdb: no_api_key`, `virustotal: tlp` at GREEN); 27 metered calls; report JSON/HTML/MD carry the section; scan 62 s |
+| `reconx scan example.com --threatlens --threatlens-assets --threatlens-tlp TLP:AMBER` | verdict + import (1 new asset); test rows removed afterwards |
+| `threatlens import-reconx` of the real crawhyderabad.in report (throwaway SQLite) | 2 hosts + their server IP imported; 16 name-server/CDN IPs left out with reasons |
+| ReconX dashboard `/api/config` with ThreatLens env | `threatlens: true`, URL shown; tab and scan option served |
+| Go | `go vet ./...` clean, 32 packages pass (client against the recorded contract, batching, partial failures, monitor rule, reports) |

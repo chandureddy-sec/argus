@@ -137,7 +137,7 @@ class Nvd(KnowledgeSource):
         pager = _Pager(ctx, self.api_key)
         cp = dict(ctx.checkpoint)
         res = KbResult(checkpoint=cp)
-        stack = stack_cpes(ctx.settings)
+        stack = await self._stack(ctx)
         try:
             if not cp.get("baseline_done"):  # the KEV catalogue, once
                 await self._ingest_all(ctx, pager, {"hasKev": ""}, res)
@@ -159,6 +159,20 @@ class Nvd(KnowledgeSource):
             res.status = "partial"
             res.note = f"{e}; continuing next run"
         return res
+
+    @staticmethod
+    async def _stack(ctx: KbContext) -> list[tuple[str, str, str]]:
+        """The profile's tech stack plus applications observed on own assets
+        (ReconX imports, ADR 0006). Observed OS/hardware CPEs are matched but
+        not mirrored: a kernel CPE alone pulls thousands of CVEs."""
+        from threatlens.assets import observed_stack  # assets imports this module
+
+        out = {(v, p): (prefix, v, p) for prefix, v, p in stack_cpes(ctx.settings)}
+        async with ctx.sm() as s:
+            for prefix, v, p in await observed_stack(s):
+                if prefix.startswith("cpe:2.3:a:"):
+                    out.setdefault((v, p), (prefix, v, p))
+        return list(out.values())
 
     async def _ingest_all(self, ctx: KbContext, pager: _Pager, params: dict[str, str], res: KbResult) -> None:
         async for records in pager.pages(params):

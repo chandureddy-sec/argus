@@ -97,12 +97,20 @@ edge kind, at the cost of possible dangling refs, which queries drop.
 Enrichers are also `sources` rows (`kind = enricher`, `interval_minutes = 0`), for licence flags,
 enable/disable and provenance; the collector never schedules them.
 
+## Own assets (Phase 3b)
+
+| Table | One row per | Key columns | Notes |
+|---|---|---|---|
+| `asset_imports` | imported ReconX scan | `sha256` (unique: idempotent imports), `source`, `target`, `scanned_at`, `imported_by`, `counts` | The audit trail of what was declared "ours" and by whom. |
+| `assets` | own host or IP | `canonical_key` (unique; same key as `observables`, so assets join indicators directly), `kind` ∈ domain/host/ip, `target`, `origin`, `details` (ASN, provider, ports, role…), `first_seen`, `last_seen`, `last_import_id` | Only the scanned target, resolving hosts and the IPs they resolve to (minus CDN edges): ADR 0006. Watched, never allowlisted. |
+| `asset_products` | (asset, CPE) | `cpe` (normalized 2.3), `part`, `vendor`, `product`, `version`, `source` | The observed tech stack; `(vendor, product)` indexed to join `vulnerability_products`. |
+
 ## Access and audit
 
 | Table | Key columns | Notes |
 |---|---|---|
 | `api_keys` | `name` (unique), `prefix` (first 10 chars, for identification), `key_hash` (SHA-256, unique), `role`, `expires_at`, `revoked_at`, `last_used_at` | The plaintext key is shown once and never stored. `last_used_at` is updated at most every 5 minutes. |
-| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call). |
+| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call), `assets.import`. |
 
 ## Indexes worth knowing
 * `observables (type, last_seen)`: the indicator list and type filter.

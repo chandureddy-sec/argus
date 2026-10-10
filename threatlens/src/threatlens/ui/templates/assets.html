@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Assets{% endblock %}
+{% block heading %}Own assets{% endblock %}
+{% block subheading %}<p class="sub">Hosts and IPs imported from ReconX scans of your own targets, and the software observed on them</p>{% endblock %}
+{% block content %}
+<section class="panel kpis kpis-4">
+  <div class="kpi"><span class="kpi-value tone-{{ 'orange' if c.flagged else 'cyan' }}">{{ c.flagged }}</span><span class="kpi-label">Listed by feeds</span><span class="kpi-sub">own assets an active indicator matches</span></div>
+  <div class="kpi"><span class="kpi-value tone-cyan">{{ c.domains + c.hosts }}</span><span class="kpi-label">Domains and hosts</span><span class="kpi-sub">resolving at import time</span></div>
+  <div class="kpi"><span class="kpi-value tone-cyan">{{ c.ips }}</span><span class="kpi-label">IPs</span><span class="kpi-sub">public addresses only</span></div>
+  <div class="kpi"><span class="kpi-value tone-yellow">{{ c.products }}</span><span class="kpi-label">Observed products</span><span class="kpi-sub">CPEs seen by Shodan</span></div>
+</section>
+
+{% if not page.items %}
+<section class="panel"><p class="empty">No assets yet. Import a ReconX scan of one of your own domains:
+  <code>reconx scan example.com --threatlens --threatlens-assets</code>, or <code>.\tl import-reconx reports/recon_….json</code>.</p></section>
+{% else %}
+<section class="panel">
+  <header class="panel-head"><h2>Assets</h2><span class="hint">listed by a feed first: that usually means compromise, abuse or a shared IP; investigate, don't block your own host</span></header>
+  <table class="data">
+    <thead><tr><th>Asset</th><th>Feed status</th><th>Network</th><th>Software</th><th>Last seen</th></tr></thead>
+    <tbody>
+    {% for a in page.items %}
+      <tr>
+        <td><b class="mono">{{ a.value }}</b><small>{{ a.kind }} of {{ a.target }}{% if a.details.role %} · {{ a.details.role }}{% endif %}</small></td>
+        <td>{% if a.indicator %}<a href="/ui/indicators/{{ a.indicator.indicator_id }}">{% if a.indicator.status in ("active", "new") %}<span class="pill red">listed</span>{% else %}<span class="pill gray">{{ a.indicator.status }}</span>{% endif %}</a><small>{{ a.indicator.sources | join(", ") }} · confidence {{ a.indicator.confidence }}</small>{% else %}<span class="muted">not listed</span>{% endif %}</td>
+        <td>{{ a.details.asn or "" }}<small>{{ a.details.as_name or a.details.organization or "" }}{% if a.details.country %} · {{ a.details.country }}{% endif %}{% if a.details.ports %} · ports {{ a.details.ports | join(", ") | truncate(60, True) }}{% endif %}</small></td>
+        <td>{% for p in a.products[:4] %}<span class="tag">{{ p.split(":")[4] }} {{ p.split(":")[5] if p.split(":")[5] != "*" else "" }}</span> {% endfor %}{% if a.products | length > 4 %}<small>+{{ a.products | length - 4 }}</small>{% endif %}</td>
+        <td>{{ a.last_seen | ago }}<small>first {{ a.first_seen.strftime("%Y-%m-%d") }}</small></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if page.total > page.items | length %}<p class="note">Showing {{ page.items | length }} of {{ page.total }}. Use <code>GET /api/v1/assets</code> for the rest.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if products %}
+<section class="panel">
+  <header class="panel-head"><h2>Observed tech stack</h2><span class="hint">from Shodan InternetDB via ReconX; added to the profile's stack for PIR-2 and the NVD scope</span></header>
+  <table class="data">
+    <thead><tr><th>Product</th><th>Versions seen</th><th class="num">Assets</th><th class="num">Known CVEs</th><th class="num">In KEV</th></tr></thead>
+    <tbody>
+    {% for p in products %}
+      <tr><td><b>{{ p.vendor.replace("_", " ") }} {{ p.product.replace("_", " ") }}</b></td>
+        <td>{{ p.versions | join(", ") | truncate(80, True) or "—" }}</td>
+        <td class="num">{{ p.assets }}</td>
+        <td class="num"><a href="/ui/vulnerabilities?stack=true&amp;q={{ p.product | quote }}">{{ p.cves }}</a></td>
+        <td class="num">{% if p.kev_cves %}<span class="pill red">{{ p.kev_cves }}</span>{% else %}0{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+{% if imports %}
+<section class="panel">
+  <header class="panel-head"><h2>Imports</h2></header>
+  <table class="data"><thead><tr><th>Scan</th><th>Imported</th><th>Counts</th></tr></thead><tbody>
+  {% for i in imports %}<tr><td><b>{{ i.target }}</b><small>{{ i.source }} scan {{ i.scanned_at.strftime("%Y-%m-%d %H:%M") if i.scanned_at else "" }}</small></td><td>{{ i.imported_at | ago }}<small>by {{ i.imported_by }}</small></td>
+    <td><small>{{ i.counts.hosts }} hosts · {{ i.counts.ips }} IPs · {{ i.counts.products }} products · {{ i.counts.new }} new · {{ i.counts.rejected }} rejected</small></td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endif %}
+{% endblock %}

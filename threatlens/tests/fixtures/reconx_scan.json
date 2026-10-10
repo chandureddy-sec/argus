@@ -1,0 +1,165 @@
+{
+ "target": {
+  "original": "example.com",
+  "value": "example.com",
+  "type": "domain"
+ },
+ "timestamp": "2026-10-10T12:00:00Z",
+ "passive_intel": {
+  "version": 3,
+  "hosts": [
+   {
+    "hostname": "example.com",
+    "dns_status": "resolves",
+    "ips": [
+     "93.184.216.34"
+    ],
+    "asn": "AS15133",
+    "organization": "Edgecast",
+    "country": "US",
+    "role": "Likely website",
+    "lifecycle": "active",
+    "sources": [
+     "dns"
+    ]
+   },
+   {
+    "hostname": "www.example.com",
+    "dns_status": "resolves",
+    "ips": [
+     "93.184.216.34",
+     "192.0.32.10"
+    ],
+    "asn": "AS15133",
+    "organization": "Edgecast",
+    "country": "US",
+    "cdn": "Likely Edgecast",
+    "role": "Likely website",
+    "lifecycle": "active",
+    "sources": [
+     "crtsh",
+     "urlscan"
+    ]
+   },
+   {
+    "hostname": "c2-lookalike.example.com",
+    "dns_status": "resolves",
+    "ips": [
+     "162.243.103.246"
+    ],
+    "asn": "AS14061",
+    "organization": "DigitalOcean",
+    "country": "US",
+    "role": "Unknown",
+    "lifecycle": "new",
+    "sources": [
+     "crtsh"
+    ]
+   },
+   {
+    "hostname": "old.example.com",
+    "dns_status": "nxdomain",
+    "lifecycle": "historical",
+    "sources": [
+     "wayback"
+    ]
+   },
+   {
+    "hostname": "intranet.example.com",
+    "dns_status": "resolves",
+    "ips": [
+     "10.0.0.5"
+    ],
+    "lifecycle": "active",
+    "sources": [
+     "crtsh"
+    ]
+   }
+  ],
+  "ips": [
+   {
+    "ip": "93.184.216.34",
+    "version": "IPv4",
+    "hostnames": [
+     "example.com",
+     "www.example.com"
+    ],
+    "asn": "AS15133",
+    "as_name": "EDGECAST",
+    "country": "US",
+    "provider": "Example Hosting",
+    "provider_kind": "hosting",
+    "hosting": true,
+    "exposure": {
+     "ports": [
+      80,
+      443
+     ],
+     "cpes": [
+      "cpe:/a:apache:http_server:2.4.49",
+      "cpe:/a:nginx:nginx:1.18.0",
+      "cpe:/o:linux:linux_kernel",
+      "not-a-cpe"
+     ],
+     "tags": [
+      "cdn"
+     ]
+    }
+   },
+   {
+    "ip": "162.243.103.246",
+    "version": "IPv4",
+    "hostnames": [
+     "c2-lookalike.example.com"
+    ],
+    "asn": "AS14061",
+    "as_name": "DIGITALOCEAN-ASN",
+    "country": "US",
+    "provider": "DigitalOcean",
+    "provider_kind": "cloud",
+    "hosting": true,
+    "exposure": {
+     "ports": [
+      8080
+     ],
+     "cpes": [
+      "cpe:2.3:a:nginx:nginx:1.18.0:*:*:*:*:*:*:*"
+     ]
+    }
+   },
+   {
+    "ip": "10.0.0.5",
+    "version": "IPv4"
+   },
+   {
+    "ip": "199.43.135.53",
+    "version": "IPv4",
+    "hostnames": [
+     "a.iana-servers.net"
+    ],
+    "asn": "AS396549",
+    "as_name": "ICANN",
+    "country": "United States",
+    "provider": "ICANN",
+    "provider_kind": "hosting"
+   },
+   {
+    "ip": "192.0.32.10",
+    "version": "IPv4",
+    "hostnames": [
+     "www.example.com"
+    ],
+    "asn": "AS40528",
+    "as_name": "ICANN-LAX",
+    "country": "United States",
+    "provider": "Example CDN",
+    "provider_kind": "cdn",
+    "exposure": {
+     "cpes": [
+      "cpe:/a:cdnvendor:edge_server"
+     ]
+    }
+   }
+  ]
+ }
+}

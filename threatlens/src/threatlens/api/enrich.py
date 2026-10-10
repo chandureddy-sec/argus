@@ -93,6 +93,15 @@ class RelatedOut(BaseModel):
     via: str | None
 
 
+class OwnAsset(BaseModel):
+    kind: str
+    target: str
+    origin: str
+    first_seen: datetime
+    last_seen: datetime
+    details: dict[str, Any]
+
+
 class AllowlistHit(BaseModel):
     effect: Literal["suppress", "flag"] | None
     reasons: list[str]
@@ -109,6 +118,7 @@ class LookupOut(BaseModel):
     recommended_action_text: str
     tlp: str
     known: KnownOut | None
+    asset: OwnAsset | None = Field(default=None, description="set when the value is one of your own assets")
     allowlist: AllowlistHit
     evidence: list[EvidenceOut]
     related: list[RelatedOut]

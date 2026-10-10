@@ -16,6 +16,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens import __version__
+from threatlens.api.assets import router as assets_router
 from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
@@ -129,6 +130,7 @@ def create_app(
     app.include_router(v1_router)
     app.include_router(kb_router)
     app.include_router(enrich_router)
+    app.include_router(assets_router)
     app.include_router(ui_router)
     app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
     app.state.settings = settings

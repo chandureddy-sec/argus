@@ -512,3 +512,72 @@ class Enrichment(Base):
         CheckConstraint("status IN ('ok','not_found')", name="status"),
         CheckConstraint("mode IN ('passive','active')", name="mode"),
     )
+
+
+# ── own assets (Phase 3b: imported from ReconX) ──────────────────────────────
+
+
+class AssetImport(Base):
+    """One imported ReconX scan (deduplicated by the file's SHA-256)."""
+
+    __tablename__ = "asset_imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(32))  # reconx
+    target: Mapped[str] = mapped_column(Text)
+    scanned_at: Mapped[datetime | None] = _ts()
+    sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    imported_at: Mapped[datetime] = _ts(default=utcnow)
+    imported_by: Mapped[str] = mapped_column(String(100))
+    counts: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+
+
+class Asset(Base):
+    """A host or IP the organization runs, as observed by ReconX. Assets are
+    *watched*, never allowlisted: a feed listing one of them is the strongest
+    signal there is (compromise or abuse), not noise (ADR 0006)."""
+
+    __tablename__ = "assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # domain | host | ip
+    value: Mapped[str] = mapped_column(Text)
+    canonical_key: Mapped[str] = mapped_column(Text, unique=True)  # same key as observables
+    target: Mapped[str] = mapped_column(Text)  # the scanned apex domain or IP
+    origin: Mapped[str] = mapped_column(String(32), default="reconx")
+    details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    first_seen: Mapped[datetime] = _ts(default=utcnow)
+    last_seen: Mapped[datetime] = _ts(default=utcnow)
+    last_import_id: Mapped[int | None] = mapped_column(ForeignKey("asset_imports.id", ondelete="SET NULL"))
+
+    products: Mapped[list[AssetProduct]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_assets_target", "target"),
+        CheckConstraint("kind IN ('domain','host','ip')", name="kind"),
+    )
+
+
+class AssetProduct(Base):
+    """Software observed on an asset (CPE), e.g. from Shodan InternetDB via
+    ReconX. Feeds PIR-2 ("vulnerabilities in our stack") with what is deployed."""
+
+    __tablename__ = "asset_products"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"))
+    cpe: Mapped[str] = mapped_column(Text)  # normalized CPE 2.3 string
+    part: Mapped[str] = mapped_column(String(1))
+    vendor: Mapped[str] = mapped_column(String(200))
+    product: Mapped[str] = mapped_column(String(200))
+    version: Mapped[str | None] = mapped_column(String(100))
+    source: Mapped[str] = mapped_column(String(64))
+    first_seen: Mapped[datetime] = _ts(default=utcnow)
+    last_seen: Mapped[datetime] = _ts(default=utcnow)
+
+    asset: Mapped[Asset] = relationship(back_populates="products")
+
+    __table_args__ = (
+        UniqueConstraint("asset_id", "cpe"),
+        Index("ix_asset_products_vendor_product", "vendor", "product"),
+    )

@@ -47,3 +47,9 @@ Recorded 2026-10-10 from the live, keyless endpoints, unless marked SYNTHETIC.
 | `virustotal_ip.json`, `virustotal_file.json`, `virustotal_404.json` | **SYNTHETIC** values in the documented object attributes (file = EICAR test file) | needs a key |
 | `malwarebazaar_hit.json`, `malwarebazaar_miss.json` | **SYNTHETIC** values in the documented `get_info` fields (EICAR hashes) | needs an abuse.ch key |
 | `crtsh.json` | **SYNTHETIC** rows (example.com) in crt.sh's JSON format | crt.sh returned 502 all day on 2026-10-10 |
+
+## ReconX link (Phase 3b)
+
+| File | Origin | Why |
+|---|---|---|
+| `reconx_scan.json` | **SYNTHETIC** ReconX `ScanReport` (Go JSON field names) for example.com: IANA's 93.184.216.34, the Feodo C2 IP from `feodo.json` (an own asset that a feed lists), a private IP, a dead host, a name-server IP no host resolves to, a shared CDN edge, CPE 2.2 and 2.3 strings and one malformed CPE | exercises every import path without a real organization's data |

@@ -240,3 +240,4 @@ dl.kv dd { margin: 0; word-break: break-word; }
 
 /* enrichment panel */
 form.inline { display: inline; margin-left: auto; }
+.kpis.kpis-4 { grid-template-columns: repeat(4, 1fr); }

@@ -64,6 +64,15 @@ Enrichers without their key (AbuseIPDB, VirusTotal, MalwareBazaar) report `skipp
 RDAP, RIPEstat, GreyNoise (25/week), urlscan, crt.sh and DNS need none. URL values go in the path
 (defanged is fine); send a `?` in the URL as `%3F`. Policy (passive-first, TLP, quotas): ADR 0005.
 
+Own assets from ReconX (scans of your own domains only; ADR 0006):
+
+```bash
+reconx scan example.com --threatlens --threatlens-assets     # from the repository root
+docker compose exec worker threatlens import-reconx /path/recon_example.com_….json   # or import a saved report
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/assets?flagged=true"     # own assets a feed lists
+curl -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/assets/products            # observed tech stack + CVEs
+```
+
 The worker collects every enabled source on its own schedule. Sources that
 need a free key (ThreatFox, OTX) show `skipped` until `TL_ABUSECH_AUTH_KEY` /
 `TL_OTX_API_KEY` are set in `.env`. API docs: http://127.0.0.1:8000/docs (dev only).

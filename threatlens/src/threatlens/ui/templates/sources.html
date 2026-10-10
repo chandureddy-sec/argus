@@ -13,7 +13,7 @@
         <td><span class="pill {{ 'green' if s.reliability == 'A' else 'yellow' if s.reliability == 'B' else 'gray' }}">{{ s.reliability }}</span><small>{{ s.reliability_note | truncate(70, True) }}</small></td>
         <td>{% if r %}<span class="pill {{ 'green' if r.status in ('success', 'not_modified', 'unchanged') else 'yellow' if r.status in ('partial', 'skipped') else 'red' }}">{{ r.status.replace("_", " ") }}</span><small>{{ r.started_at | ago }}{% if r.note %} · {{ r.note | truncate(60, True) }}{% endif %}{% if r.error %} · {{ r.error | truncate(80, True) }}{% endif %}</small>{% else %}<span class="muted">never</span>{% endif %}</td>
         <td class="num">{% if r %}{{ "{:,}".format(r.items_total) }}<small>{{ "{:,}".format(r.items_new) }} new</small>{% endif %}</td>
-        <td class="num">{{ (s.interval_minutes // 60) ~ " h" if s.interval_minutes >= 60 else s.interval_minutes ~ " min" }}</td>
+        <td class="num">{% if s.kind == "enricher" %}on demand{% else %}{{ (s.interval_minutes // 60) ~ " h" if s.interval_minutes >= 60 else s.interval_minutes ~ " min" }}{% endif %}</td>
         <td class="muted">{{ s.next_run_at.strftime("%H:%M, %d %b") if s.next_run_at else "—" }}</td>
         <td><a href="{{ s.license_url | safe_url or '#' }}" rel="noopener noreferrer" target="_blank">{{ s.license | truncate(60, True) }}</a>
           <small>{{ "commercial use OK" if s.commercial_use else "non-commercial" }} · {{ "may redistribute" if s.redistribution else "no redistribution" }}</small></td>
