@@ -27,6 +27,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from threatlens import tlp as tlp_rules
 from threatlens.allowlist import Allowlist, Entry, Verdict
 from threatlens.connectors import REGISTRY
 from threatlens.connectors.base import Connector, Item, MissingKeyError, SchemaDriftError
@@ -51,13 +52,13 @@ from threatlens.models import Observable as ObservableRow
 from threatlens.net.guard import BlockedAddressError
 from threatlens.net.http import FetchError, SafeHttp
 from threatlens.rawstore import RawStore
+from threatlens.scoring.store import rescore, rescore_vulns
 from threatlens.settings import Settings
 
 log = get_logger("threatlens.collect")
 BATCH = 500
 _rng = SystemRandom()
 
-TLP_ORDER = ["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED"]
 ALLOWLIST_LABELS = {
     "popular-domain",
     "popular-domain-host",
@@ -78,8 +79,8 @@ def aware(dt: datetime | None) -> datetime | None:
 
 
 def stricter_tlp(a: str, b: str) -> str:
-    rank = {t: i for i, t in enumerate(TLP_ORDER)}
-    return a if rank.get(a, 2) >= rank.get(b, 2) else b
+    """The more restricted marking; unknown markings count as RED (tlp.py)."""
+    return tlp_rules.stricter(a, b)
 
 
 def stix_pattern(obs: Observable) -> str | None:
@@ -179,6 +180,7 @@ class Collector:
                     "homepage": i.homepage,
                     "reliability": i.reliability,
                     "reliability_note": i.reliability_note,
+                    "credibility": i.credibility,
                     "license": i.license,
                     "license_url": i.license_url,
                     "commercial_use": i.commercial_use,
@@ -305,16 +307,19 @@ class Collector:
                     m.verdict = allow.check(m.obs)
                     if m.verdict.suppressed:
                         summary.items_allowlisted += 1
+                touched: list[int] = []
                 for i in range(0, len(merged), BATCH):
-                    new, upd = await self._ingest(s, src.id, raw_id, merged[i : i + BATCH], now)
+                    new, upd, ids = await self._ingest(s, src.id, raw_id, merged[i : i + BATCH], now)
                     summary.items_new += new
                     summary.items_updated += upd
+                    touched += ids
             await self._mark_doc(raw_id, "parsed", None, len(items))
             summary.status = "success"
             await self._finish(
                 src.id, summary, now, info.interval, health="ok", checkpoint=new_checkpoint, raw_id=raw_id
             )
             await self._after_run(name, now)
+            await self._rescore(name, touched, now)
         except (FetchError, BlockedAddressError, httpx.HTTPError, SchemaDriftError, OSError, ValueError) as e:
             summary.status = "failed"
             summary.error = f"{type(e).__name__}: {e}"[:1000]
@@ -348,7 +353,7 @@ class Collector:
                 continue
             conf = it.confidence if it.confidence is not None else default_conf
             conf = max(0, min(100, conf))
-            tlp = it.tlp or default_tlp
+            tlp = tlp_rules.normalize(it.tlp or default_tlp)
             m = out.get(r.key)
             if m is None:
                 out[r.key] = Merged(
@@ -365,7 +370,7 @@ class Collector:
 
     async def _ingest(
         self, s: AsyncSession, source_id: int, raw_id: int | None, batch: Sequence[Merged], now: datetime
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, list[int]]:
         keys = [m.obs.key for m in batch]
         pre = set(
             (
@@ -496,23 +501,42 @@ class Collector:
                 .values(sg_rows)
                 .on_conflict_do_nothing(index_elements=["indicator_id", "source_id"])
             )
-        return new, len(batch) - new
+        return new, len(batch) - new, [i.id for i in inds.values()]
 
     @staticmethod
     def _apply_verdict(ind: Indicator, verdict: Verdict) -> bool:
         """Apply an allowlist verdict to an indicator. Only statuses the
-        allowlist itself set (allowlist_reason not null) are reversed, so an
-        analyst's decision is never overwritten. Returns True if changed."""
+        allowlist itself set (allowlist_reason not null) are reversed, and an
+        analyst's TP/FP verdict is never overridden (only the labels follow
+        the allowlist). Returns True if changed."""
         before = (ind.status, ind.allowlist_reason, tuple(ind.labels or []))
         labels = [x for x in (ind.labels or []) if x not in ALLOWLIST_LABELS]
         ind.labels = list(dict.fromkeys([*labels, *verdict.labels]))
-        if verdict.suppressed and ind.status in ("active", "new"):
+        if ind.analyst_verdict is not None:
+            pass
+        elif verdict.suppressed and ind.status in ("active", "new", "expired"):
             ind.status, ind.allowlist_reason = "false_positive", "; ".join(verdict.reasons)
         elif verdict.suppressed and ind.allowlist_reason is not None:
             ind.allowlist_reason = "; ".join(verdict.reasons)
         elif not verdict.suppressed and ind.status == "false_positive" and ind.allowlist_reason is not None:
             ind.status, ind.allowlist_reason = "active", None
         return before != (ind.status, ind.allowlist_reason, tuple(ind.labels))
+
+    async def _rescore(self, name: str, ids: Sequence[int], now: datetime) -> None:
+        """Score what this run touched. A failure is logged, never a failed run."""
+        if not ids:
+            return
+        try:
+            await rescore(self.sm, self.settings, ids=ids, now=now)
+        except (SQLAlchemyError, ValueError, OSError) as e:
+            log.warning("collect.rescore_failed", source=name, error=f"{type(e).__name__}: {e}"[:300])
+
+    async def _rescore_vulns(self, name: str) -> None:
+        """New NVD/EPSS/OSV facts change patch priorities. Failures are logged only."""
+        try:
+            await rescore_vulns(self.sm, self.settings)
+        except (SQLAlchemyError, ValueError, OSError) as e:
+            log.warning("collect.patch_priority_failed", source=name, error=f"{type(e).__name__}: {e}"[:300])
 
     async def _mark_doc(self, raw_id: int | None, status: str, error: str | None, items: int) -> None:
         if raw_id is None:
@@ -602,6 +626,7 @@ class Collector:
         try:
             if name == "cisa_kev":
                 await apply_kev(self.sm)
+                await rescore_vulns(self.sm, self.settings)
             await link_source(self.sm, name, since)
         except (SQLAlchemyError, ValueError, KeyError) as e:
             log.warning("collect.link_failed", source=name, error=f"{type(e).__name__}: {e}"[:300])
@@ -648,6 +673,8 @@ class Collector:
             await self._finish(
                 src.id, summary, now, info.interval, health="ok", checkpoint=res.checkpoint, raw_id=res.raw_id
             )
+            if res.items_new or res.items_updated:
+                await self._rescore_vulns(name)
         except (FetchError, BlockedAddressError, httpx.HTTPError, SchemaDriftError, OSError, ValueError) as e:
             summary.status = "failed"
             summary.error = f"{type(e).__name__}: {e}"[:1000]
@@ -685,7 +712,7 @@ class Collector:
         return len(entries)
 
     async def reapply_allowlist(self) -> int:
-        return await reapply_allowlist(self.sm)
+        return await reapply_allowlist(self.sm, self.settings)
 
 
 async def load_allowlist(s: AsyncSession) -> Allowlist:
@@ -693,10 +720,12 @@ async def load_allowlist(s: AsyncSession) -> Allowlist:
     return Allowlist(Entry(r.kind, r.value, r.effect, r.reason, r.origin) for r in rows)  # type: ignore[arg-type]
 
 
-async def reapply_allowlist(sm: async_sessionmaker[AsyncSession]) -> int:
+async def reapply_allowlist(sm: async_sessionmaker[AsyncSession], settings: Settings | None = None) -> int:
     """Re-evaluate every indicator against the current allowlist; returns how
-    many changed status or labels. Runs after any allowlist change."""
+    many changed status or labels. Runs after any allowlist change; with
+    settings, the changed indicators are re-scored too."""
     changed = 0
+    ids: list[int] = []
     last_id = 0
     async with sm() as s, s.begin():
         allow = await load_allowlist(s)
@@ -716,5 +745,8 @@ async def reapply_allowlist(sm: async_sessionmaker[AsyncSession]) -> int:
                 verdict = allow.check(Observable(IOCType(obs.type), obs.value))
                 if Collector._apply_verdict(ind, verdict):
                     changed += 1
+                    ids.append(ind.id)
             last_id = rows[-1][0].id
+    if settings is not None and ids:
+        await rescore(sm, settings, ids=ids)
     return changed

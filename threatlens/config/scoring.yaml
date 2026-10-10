@@ -1,0 +1,98 @@
+# ThreatLens scoring model (ADR 0008). Every indicator score stores the
+# version of this file it was computed with ("<version>/<content hash>"),
+# so editing it without bumping `version` is still traceable.
+#
+#   priority = clamp(0, 100,
+#       base            strongest report: confidence x reliability x credibility x feedback x decay
+#     + corroboration   per further independent upstream (min_signal or stronger)
+#     + relevance       PIR / own-asset matches (only when base >= min_signal)
+#     - fp_penalty)     benign evidence, shared CDN, popular domain, dead domain
+#
+# An allowlist suppression or an analyst "false positive" makes it 0 (benign).
+version: "1.0"
+
+# Admiralty source reliability (A-F) -> weight.
+reliability_weights: { A: 1.00, B: 0.85, C: 0.70, D: 0.50, E: 0.30, F: 0.20 }
+
+# Admiralty information credibility (1-6) -> multiplier on the weight.
+# 6 = "cannot be judged": no adjustment.
+credibility_modifiers: { 1: 1.00, 2: 1.00, 3: 0.90, 4: 0.75, 5: 0.50, 6: 1.00 }
+
+# Half-life in days per observable type: how fast a report loses weight once
+# a source stops repeating it (decay = 0.5 ** (age_days / half_life)).
+half_life_days:
+  ipv4-addr: 10
+  ipv6-addr: 10
+  ipv4-net: 30
+  ipv6-net: 30
+  url: 7
+  domain-name: 30
+  email-addr: 30
+  md5: 180
+  sha1: 180
+  sha256: 180
+  file-name: 90
+  windows-registry-key: 180
+  default: 30
+
+corroboration:
+  per_source: 8     # +8 per additional independent upstream...
+  cap: 24           # ...at most +24
+  min_signal: 15    # a report must still be worth this much to count (also gates relevance)
+
+relevance:
+  cap: 20
+  own_asset: 20       # the value is one of our imported assets (ReconX)
+  impersonation: 15   # a domain/URL/email that contains our brand or domain name (PIR-3)
+  technique: 10       # linked to malware/tools, or a report, using a technique a PIR watches (PIR-1)
+  sector: 5           # the report names a sector a PIR watches
+  geography: 5        # the report names a country a PIR watches
+
+penalties:
+  benign_fraction: 0.5   # minus this fraction of the strongest benign finding (not decayed)
+  shared_cdn: 15         # on a shared CDN edge range: blocking it hurts many sites
+  popular_domain: 10     # on a Tranco top domain (URLs/emails there are flagged, not hidden)
+  dead_domain: 15        # RDAP says the domain is no longer registered
+
+# Reports that are only "suspicious" (newly registered domain, low abuse score)
+# never reach "malicious" on their own.
+suspicious_cap: 59
+
+verdict:
+  malicious: 60   # priority >= 60 -> malicious -> block
+  suspicious: 30  # priority >= 30 -> suspicious -> investigate
+  benign_penalty: 25  # below 30 with at least this much benign evidence -> benign
+
+expiry:
+  below: 10   # an active indicator whose priority decays below this expires
+
+# Analyst true/false-positive feedback adjusts each source's weight. A source
+# starts at prior_precision with pseudo_count imaginary verdicts, so a few
+# verdicts move it a little and many move it a lot:
+#   precision = (tp + pseudo_count * prior_precision) / (tp + fp + pseudo_count)
+#   factor    = clamp(min_factor, max_factor, precision / prior_precision)
+feedback:
+  prior_precision: 0.9
+  pseudo_count: 20
+  min_factor: 0.5
+  max_factor: 1.1
+  analyst_confidence: 90   # an analyst "true positive" counts as a grade-A report of this confidence
+
+# Vulnerabilities: separate model -> patch priority P1-P4 (KEV is a floor).
+patch_priority:
+  points:
+    kev: 40
+    kev_ransomware: 10
+    exploitation_active: 30   # CISA ADP SSVC "active", when not in KEV
+    public_exploit: 15        # SSVC "poc" or NVD references tagged Exploit
+    epss_95: 25               # EPSS percentile >= 0.95
+    epss_80: 15
+    epss_50: 5
+    cvss_critical: 20         # CVSS >= 9.0
+    cvss_high: 10             # >= 7.0
+    cvss_medium: 5            # >= 4.0
+    in_stack: 25              # affects a product in our stack (profile or ReconX-observed)
+    exposed: 15               # that product was observed on an internet-facing asset (ReconX)
+  tiers: { P1: 80, P2: 55, P3: 30 }   # below P3 -> P4
+  kev_floor: P2          # any KEV entry is at least P2...
+  kev_in_stack_floor: P1  # ...and P1 when it affects our stack

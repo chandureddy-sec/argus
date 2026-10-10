@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from threatlens import __version__
+from threatlens import tlp as tlp_rules
 from threatlens.auth import ROLE_RANK, create_key, revoke_key
 from threatlens.collect import RunSummary
 from threatlens.connectors import REGISTRY
@@ -26,12 +27,12 @@ from threatlens.ioc.defang import defang
 from threatlens.ioc.extract import defang_text, extract
 from threatlens.ioc.normalize import guess, normalize
 from threatlens.ioc.types import IOCType, Observable, Rejected
-from threatlens.jobs import collect_due, open_collector, refresh_allowlists
+from threatlens.jobs import collect_due, daily_scoring, open_collector, refresh_allowlists
 from threatlens.kb import KB_REGISTRY
 from threatlens.models import TLP_LEVELS, ApiKey, AuditLog, Source, User
 from threatlens.profile import ProfileError, load_pirs, load_profile
 from threatlens.settings import get_settings
-from threatlens.users import UserError, create_user, set_disabled, set_password, set_role
+from threatlens.users import UserError, create_user, set_clearance, set_disabled, set_password, set_role
 
 # Indicator feeds and knowledge sources (ATT&CK, NVD, EPSS, OSV).
 ALL_SOURCES = sorted({*REGISTRY, *KB_REGISTRY})
@@ -192,7 +193,9 @@ async def _lookup(args: argparse.Namespace) -> int:
         print(f"rejected: {r.reason}", file=sys.stderr)
         return 2
     async with _enrichment() as svc:
-        res = await svc.lookup(r, actor="cli", active=args.active, refresh=args.refresh, tlp=args.tlp)
+        res = await svc.lookup(
+            r, actor="cli", active=args.active, refresh=args.refresh, tlp=args.tlp, clearance=tlp_rules.RED
+        )
     if args.json:
         print(json.dumps(res, default=str, indent=2))
         return 0
@@ -286,7 +289,9 @@ async def _keys(args: argparse.Namespace) -> int:
     async with _session() as s, s.begin():
         if args.action == "create":
             try:
-                _, key = await create_key(s, args.name, args.role, expires_days=args.expires_days)
+                _, key = await create_key(
+                    s, args.name, args.role, expires_days=args.expires_days, clearance=args.clearance
+                )
             except ValueError as e:
                 print(str(e), file=sys.stderr)
                 return 2
@@ -300,15 +305,31 @@ async def _keys(args: argparse.Namespace) -> int:
             print(f"revoked {args.name}")
             return 0
         rows = (await s.scalars(select(ApiKey).order_by(ApiKey.name))).all()
-    print(f"{'name':<20} {'role':<8} {'prefix':<11} {'created':<17} {'last used':<17} state")
+    head = ("name", 20), ("role", 8), ("clearance", 17), ("prefix", 11), ("created", 17), ("last used", 17)
+    print(" ".join(f"{h:<{w}}" for h, w in head) + " state")
     for k in rows:
         state = (
             "revoked" if k.revoked_at else (f"expires {_when(k.expires_at)}" if k.expires_at else "active")
         )
         print(
-            f"{k.name:<20} {k.role:<8} {k.prefix:<11} {_when(k.created_at):<17} "
-            f"{_when(k.last_used_at):<17} {state}"
+            f"{k.name:<20} {k.role:<8} {tlp_rules.clearance_for(k.role, k.tlp_clearance):<17} {k.prefix:<11} "
+            f"{_when(k.created_at):<17} {_when(k.last_used_at):<17} {state}"
         )
+    return 0
+
+
+# ── scoring ─────────────────────────────────────────────────────────────────
+
+
+async def _rescore(args: argparse.Namespace) -> int:
+    settings = get_settings()
+    engine = make_engine(settings.database_url.get_secret_value())
+    try:
+        out = await daily_scoring(make_sessionmaker(engine), settings)
+    finally:
+        await engine.dispose()
+    for k, v in out.items():
+        print(f"{k:<24} {v}")
     return 0
 
 
@@ -332,28 +353,40 @@ async def _users(args: argparse.Namespace) -> int:
     if args.action == "role" and not args.role:
         print("users role needs --role viewer|analyst|admin", file=sys.stderr)
         return 2
+    if args.action == "clearance" and not (args.clearance or args.role_default):
+        print("users clearance needs --clearance TLP:... or --role-default", file=sys.stderr)
+        return 2
     try:
         password = _read_password(args.password_stdin) if args.action in ("create", "passwd") else ""
         async with _session() as s, s.begin():
             if args.action == "create":
-                row = await create_user(s, args.name, password, args.role or "viewer")
-                print(f"created {row.name} ({row.role}); sign in at /ui/login")
+                row = await create_user(
+                    s, args.name, password, args.role or "viewer", clearance=args.clearance
+                )
+                shown = tlp_rules.clearance_for(row.role, row.tlp_clearance)
+                print(f"created {row.name} ({row.role}, reads up to {shown}); sign in at /ui/login")
             elif args.action == "passwd":
                 row = await set_password(s, args.name, password)
                 print(f"password changed for {row.name}; their other sessions are signed out")
             elif args.action == "role":
                 row = await set_role(s, args.name, args.role)
                 print(f"{row.name} is now {row.role}")
+            elif args.action == "clearance":
+                row = await set_clearance(s, args.name, None if args.role_default else args.clearance)
+                print(f"{row.name} reads up to {tlp_rules.clearance_for(row.role, row.tlp_clearance)}")
             elif args.action in ("disable", "enable"):
                 row = await set_disabled(s, args.name, args.action == "disable")
                 print(f"{row.name} {args.action}d")
             else:
                 rows = (await s.scalars(select(User).order_by(User.login))).all()
-                print(f"{'name':<24} {'role':<8} {'created':<17} {'last sign-in':<17} state")
+                print(
+                    f"{'name':<24} {'role':<8} {'clearance':<17} {'created':<17} {'last sign-in':<17} state"
+                )
                 for u in rows:
                     print(
-                        f"{u.name:<24} {u.role:<8} {_when(u.created_at):<17} "
-                        f"{_when(u.last_login_at):<17} {'disabled' if u.disabled_at else 'active'}"
+                        f"{u.name:<24} {u.role:<8} {tlp_rules.clearance_for(u.role, u.tlp_clearance):<17} "
+                        f"{_when(u.created_at):<17} {_when(u.last_login_at):<17} "
+                        f"{'disabled' if u.disabled_at else 'active'}"
                     )
     except UserError as e:
         print(str(e), file=sys.stderr)
@@ -424,13 +457,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     k.add_argument("name", nargs="?")
     k.add_argument("--role", choices=list(ROLE_RANK), default="viewer")
     k.add_argument("--expires-days", type=int)
+    k.add_argument(
+        "--clearance",
+        choices=list(tlp_rules.LEVELS),
+        help="most restricted TLP the key may read (default: role's)",
+    )
     k.set_defaults(func=_run(_keys))
 
     us = sub.add_parser("users", help="manage analyst UI accounts (username + password)")
-    us.add_argument("action", choices=["create", "passwd", "role", "disable", "enable", "list"])
+    us.add_argument("action", choices=["create", "passwd", "role", "clearance", "disable", "enable", "list"])
     us.add_argument("name", nargs="?", help='username; quote it if it has spaces: "chandu reddy"')
     us.add_argument("--role", choices=list(ROLE_RANK), help="create: default viewer; role: required")
     us.add_argument("--password-stdin", action="store_true", help="read the password from stdin")
+    us.add_argument(
+        "--clearance", choices=list(tlp_rules.LEVELS), help="most restricted TLP the account may read"
+    )
+    us.add_argument("--role-default", action="store_true", help="clearance: go back to the role's default")
     us.set_defaults(func=_run(_users))
 
     ir = sub.add_parser("import-reconx", help="import ReconX scan reports (JSON) as own assets")
@@ -445,6 +487,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     lk.add_argument("--tlp", choices=list(TLP_LEVELS), help="TLP of the value (default: stored, else CLEAR)")
     lk.add_argument("--json", action="store_true", help="print the full result as JSON")
     lk.set_defaults(func=_run(_lookup))
+
+    rs = sub.add_parser(
+        "rescore", help="run the daily scoring job now: source weights, patch priorities, scores, expiry"
+    )
+    rs.set_defaults(func=_run(_rescore))
 
     eb = sub.add_parser("enrich-backlog", help="enrich new active IP indicators now (ASN, location)")
     eb.add_argument("--limit", type=int, default=100)

@@ -12,7 +12,7 @@ from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import load_only
@@ -108,6 +108,8 @@ class VulnOut(BaseModel):
     epss: float | None
     epss_percentile: float | None
     nvd_fetched: bool
+    patch_priority: str | None = Field(default=None, description="P1-P4 (ADR 0008); KEV is at least P2")
+    patch_score: float | None = None
 
 
 class VulnDetail(VulnOut):
@@ -129,6 +131,7 @@ class VulnDetail(VulnOut):
     packages: list[dict[str, Any]]
     exploit_signals: list[dict[str, Any]]
     sources: dict[str, Any]
+    patch_breakdown: dict[str, Any] | None = Field(default=None, description="every point and floor")
 
 
 class Page[T](BaseModel):
@@ -193,11 +196,13 @@ def _vuln_out(v: Vulnerability) -> dict[str, Any]:
         "epss": v.epss,
         "epss_percentile": v.epss_percentile,
         "nvd_fetched": v.nvd_modified is not None,
+        "patch_priority": v.patch_priority,
+        "patch_score": v.patch_score,
     }
 
 
-async def _resolve(s: AsyncSession, ident: str) -> graph.Node:
-    node = await graph.resolve(s, ident)
+async def _resolve(s: AsyncSession, ident: str, clearance: str) -> graph.Node:
+    node = await graph.resolve(s, ident, clearance=clearance)
     if node is None:
         raise HTTPException(404, "nothing matches that identifier")
     return node
@@ -207,7 +212,7 @@ async def _resolve(s: AsyncSession, ident: str) -> graph.Node:
 
 
 @router.get("/attack/releases", response_model=list[ReleaseOut], tags=["knowledge"])
-async def attack_releases(_: Viewer, request: Request) -> list[ReleaseOut]:
+async def attack_releases(who: Viewer, request: Request) -> list[ReleaseOut]:
     async with _sm(request)() as s:
         rows = (await s.scalars(select(AttackRelease).order_by(AttackRelease.ingested_at.desc()))).all()
     return [ReleaseOut.model_validate(r, from_attributes=True) for r in rows]
@@ -215,7 +220,7 @@ async def attack_releases(_: Viewer, request: Request) -> list[ReleaseOut]:
 
 @router.get("/attack/releases/{domain}/{version}/changes", response_model=Page[ChangeOut], tags=["knowledge"])
 async def attack_changes(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     domain: Annotated[str, Path(max_length=40)],
     version: Annotated[str, Path(max_length=16)],
@@ -252,7 +257,7 @@ async def attack_changes(
 
 @router.get("/entities", response_model=Page[EntityOut], tags=["knowledge"])
 async def list_entities(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     type: Annotated[str | None, Query(max_length=40)] = None,  # noqa: A002 - public API name
     q: Annotated[str | None, Query(min_length=2, max_length=200)] = None,
@@ -294,9 +299,9 @@ async def list_entities(
 
 
 @router.get("/entities/{ident}", response_model=EntityDetail, tags=["knowledge"])
-async def get_entity(_: Viewer, request: Request, ident: Ident) -> EntityDetail:
+async def get_entity(who: Viewer, request: Request, ident: Ident) -> EntityDetail:
     async with _sm(request)() as s:
-        node = await _resolve(s, ident)
+        node = await _resolve(s, ident, who.clearance)
         if node.kind != "entity":
             raise HTTPException(404, f"{ident} is a {node.kind}, not an entity")
         e = await s.scalar(select(Entity).where(Entity.stix_id == node.ref))
@@ -317,13 +322,19 @@ async def get_entity(_: Viewer, request: Request, ident: Ident) -> EntityDetail:
 
 @router.get("/entities/{ident}/techniques", tags=["knowledge"])
 async def entity_techniques(
-    _: Viewer, request: Request, ident: Ident, include_subtechniques: bool = True
+    who: Viewer, request: Request, ident: Ident, include_subtechniques: bool = True
 ) -> dict[str, Any]:
     """ATT&CK techniques the entity uses, each with the edge that says so."""
     async with _sm(request)() as s:
-        node = await _resolve(s, ident)
+        node = await _resolve(s, ident, who.clearance)
         items, _total = await graph.neighbors(
-            s, node.ref, direction="out", rel="uses", node_type="attack-pattern", limit=2000
+            s,
+            node.ref,
+            direction="out",
+            rel="uses",
+            node_type="attack-pattern",
+            limit=2000,
+            clearance=who.clearance,
         )
         ents = {
             e.stix_id: e
@@ -351,7 +362,7 @@ async def entity_techniques(
 
 @router.get("/vulnerabilities", response_model=Page[VulnOut], tags=["knowledge"])
 async def list_vulnerabilities(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     kev: bool | None = None,
     epss_min: Annotated[float | None, Query(ge=0, le=1)] = None,
@@ -359,11 +370,14 @@ async def list_vulnerabilities(
     vendor: Annotated[str | None, Query(max_length=200)] = None,
     product: Annotated[str | None, Query(max_length=200)] = None,
     q: Annotated[str | None, Query(min_length=2, max_length=200)] = None,
-    sort: Literal["epss", "cvss", "published", "kev_date", "cve"] = "epss",
+    sort: Literal["epss", "cvss", "published", "kev_date", "cve", "patch"] = "epss",
+    patch_priority: Literal["P1", "P2", "P3", "P4"] | None = None,
     limit: Limit = 50,
     offset: Offset = 0,
 ) -> Page[VulnOut]:
     stmt = select(Vulnerability)
+    if patch_priority is not None:
+        stmt = stmt.where(Vulnerability.patch_priority == patch_priority)
     if kev is not None:
         stmt = stmt.where(Vulnerability.kev.is_(kev))
     if epss_min is not None:
@@ -389,6 +403,7 @@ async def list_vulnerabilities(
         "cvss": Vulnerability.cvss_score,
         "published": Vulnerability.published,
         "kev_date": Vulnerability.kev_date_added,
+        "patch": Vulnerability.patch_score,
     }
     order = [key[sort].desc().nulls_last(), Vulnerability.cve_id] if sort in key else [Vulnerability.cve_id]
     async with _sm(request)() as s:
@@ -439,6 +454,7 @@ async def get_vulnerability(
         packages=v.packages or [],
         exploit_signals=exploit_signals(v),
         sources=sources,
+        patch_breakdown=v.patch_breakdown,
     )
 
 
@@ -447,15 +463,15 @@ async def get_vulnerability(
 
 @router.get("/graph/node", tags=["graph"])
 async def graph_node(
-    _: Viewer, request: Request, node: Annotated[str, Query(min_length=1, max_length=300)]
+    who: Viewer, request: Request, node: Annotated[str, Query(min_length=1, max_length=300)]
 ) -> dict[str, Any]:
     async with _sm(request)() as s:
-        return (await _resolve(s, node)).__dict__
+        return (await _resolve(s, node, who.clearance)).__dict__
 
 
 @router.get("/graph/neighbors", tags=["graph"])
 async def graph_neighbors(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     node: Annotated[str, Query(min_length=1, max_length=300)],
     rel: Annotated[str | None, Query(max_length=40)] = None,
@@ -464,16 +480,16 @@ async def graph_neighbors(
     limit: Limit = 200,
 ) -> dict[str, Any]:
     async with _sm(request)() as s:
-        n = await _resolve(s, node)
+        n = await _resolve(s, node, who.clearance)
         items, total = await graph.neighbors(
-            s, n.ref, direction=direction, rel=rel, node_type=type, limit=limit
+            s, n.ref, direction=direction, rel=rel, node_type=type, limit=limit, clearance=who.clearance
         )
     return {"node": n.__dict__, "total": total, "items": items}
 
 
 @router.get("/graph/paths", tags=["graph"])
 async def graph_paths(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     from_: Annotated[str, Query(alias="from", min_length=1, max_length=300)],
     to: Annotated[str, Query(min_length=1, max_length=300)],
@@ -482,9 +498,9 @@ async def graph_paths(
 ) -> dict[str, Any]:
     """Shortest paths between two nodes; every edge carries its provenance."""
     async with _sm(request)() as s:
-        a = await _resolve(s, from_)
-        b = await _resolve(s, to)
-        res = await graph.paths(s, a.ref, b.ref, max_depth=max_depth, limit=limit)
+        a = await _resolve(s, from_, who.clearance)
+        b = await _resolve(s, to, who.clearance)
+        res = await graph.paths(s, a.ref, b.ref, max_depth=max_depth, limit=limit, clearance=who.clearance)
     return {
         "from": a.__dict__,
         "to": b.__dict__,

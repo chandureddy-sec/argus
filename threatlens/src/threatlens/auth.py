@@ -24,6 +24,7 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from threatlens import tlp as tlp_rules
 from threatlens.models import ApiKey, AuditLog
 
 ROLE_RANK = {"viewer": 0, "analyst": 1, "admin": 2}
@@ -45,16 +46,25 @@ class Principal:
     name: str
     role: str
     kind: str = "key"  # "key" (API, programs) or "user" (UI sign-in, see threatlens.users)
+    clearance: str = "TLP:CLEAR"  # most restricted TLP this principal may read (threatlens.tlp)
 
     def can(self, role: str) -> bool:
         return ROLE_RANK[self.role] >= ROLE_RANK[role]
 
 
 async def create_key(
-    s: AsyncSession, name: str, role: str, *, expires_days: int | None = None, actor: str = "cli"
+    s: AsyncSession,
+    name: str,
+    role: str,
+    *,
+    expires_days: int | None = None,
+    actor: str = "cli",
+    clearance: str | None = None,
 ) -> tuple[ApiKey, str]:
     if role not in ROLE_RANK:
         raise ValueError(f"role must be one of {', '.join(ROLE_RANK)}")
+    if clearance is not None and clearance not in tlp_rules.LEVELS:
+        raise ValueError(f"clearance must be one of {', '.join(tlp_rules.LEVELS)}")
     if await s.scalar(select(ApiKey).where(ApiKey.name == name)):
         raise ValueError(f"an API key named {name!r} already exists")
     key = generate_key()
@@ -64,6 +74,7 @@ async def create_key(
         key_hash=hash_key(key),
         role=role,
         expires_at=datetime.now(UTC) + timedelta(days=expires_days) if expires_days else None,
+        tlp_clearance=clearance,
     )
     s.add(row)
     s.add(
@@ -71,7 +82,7 @@ async def create_key(
             actor=actor,
             action="api_key.create",
             target=name,
-            details={"role": role, "expires_days": expires_days},
+            details={"role": role, "expires_days": expires_days, "tlp_clearance": clearance},
         )
     )
     await s.flush()
@@ -109,7 +120,9 @@ async def authenticate(s: AsyncSession, key: str) -> Principal | None:
     if last is None or now - last > _LAST_USED_RESOLUTION:
         row.last_used_at = now  # coarse on purpose: not a write per request
         await s.commit()
-    return Principal(row.id, row.name, row.role)
+    return Principal(
+        row.id, row.name, row.role, clearance=tlp_rules.clearance_for(row.role, row.tlp_clearance)
+    )
 
 
 # ── rate limiting ────────────────────────────────────────────────────────────

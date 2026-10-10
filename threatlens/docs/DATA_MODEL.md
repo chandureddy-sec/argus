@@ -32,7 +32,7 @@ Dotted lines are references by STIX id, with no foreign key (see "Graph" below).
 
 | Table | One row per | Key columns | Notes |
 |---|---|---|---|
-| `sources` | connector | `name` (unique), licence fields, `upstream`, `reliability`, `interval_minutes`, `enabled`, `health`, `checkpoint`, `next_run_at` | Metadata is re-synced from code on every start. Runtime state (enabled, health, checkpoint) is kept. |
+| `sources` | connector | `name` (unique), licence fields, `upstream`, `reliability`, `credibility` (Admiralty 1-6), `feedback_tp` / `feedback_fp` / `weight_factor` (Phase 4), `interval_minutes`, `enabled`, `health`, `checkpoint`, `next_run_at` | Metadata is re-synced from code on every start. Runtime state (enabled, health, checkpoint) is kept. |
 | `raw_documents` | distinct payload per source | `(source_id, sha256)` unique, `payload_ref`, `parse_status` | The body itself is stored gzipped under `TL_DATA_DIR`, not in the database. |
 | `connector_runs` | collection attempt | `status`, `http_status`, `items_total/new/updated/rejected/allowlisted`, `error` | Raw material for health and Phase 4 feed scorecards. |
 
@@ -46,7 +46,8 @@ document), `skipped` (missing key), `failed`. `note` says what a run did.
 | Table | One row per | Key columns | Notes |
 |---|---|---|---|
 | `observables` | normalized value | `type`, `value`, `canonical_key` (unique), `defanged`, `first_seen`, `last_seen` | `type` uses STIX names: `ipv4-addr`, `ipv6-addr`, `ipv4-net`, `ipv6-net`, `domain-name`, `url`, `email-addr`, `file-md5/sha1/sha256`, `vulnerability`, … |
-| `indicators` | observable (1:1) | `status`, `confidence` 0–100, `tlp`, `labels`, `pattern` (STIX 2.1), `allowlist_reason`, `priority_score` + `score_breakdown` (Phase 4) | The platform's own assertion about the value. |
+| `indicators` | observable (1:1) | `status`, `confidence` 0–100, `tlp`, `labels`, `pattern` (STIX 2.1), `allowlist_reason`, `priority_score` + `score_breakdown` + `valid_until` (scoring v1), `analyst_verdict` / `_by` / `_at` | The platform's own assertion about the value. The breakdown holds every term, signal and the config version (ADR 0008). An analyst verdict is never overridden by the allowlist or a feed. |
+| `verdicts` | analyst feedback event | `indicator_id`, `verdict` (tp/fp/reset), `actor`, `note`, `created_at` | Append-only history; the latest is mirrored on the indicator. Source weights are re-derived from the latest verdict per indicator. |
 | `sightings` | (indicator, source) | `first_seen`, `last_seen`, `times_reported`, `confidence`, `labels`, `context`, `raw_document_id` | Re-ingesting updates this row and never adds one. That is what makes collection idempotent. |
 
 Indicator `status`: `new`, `active`, `expired`, `revoked`, `false_positive`.
@@ -109,9 +110,9 @@ enable/disable and provenance; the collector never schedules them.
 
 | Table | Key columns | Notes |
 |---|---|---|
-| `api_keys` | `name` (unique), `prefix` (first 10 chars, for identification), `key_hash` (SHA-256, unique), `role`, `expires_at`, `revoked_at`, `last_used_at` | The plaintext key is shown once and never stored. `last_used_at` is updated at most every 5 minutes. |
-| `users` | `login` (case-folded, unique), `name` (as typed), `password_hash` (scrypt, salted), `role`, `password_changed_at`, `last_login_at`, `disabled_at` | UI accounts (ADR 0007). API keys are for programs; people sign in with these. |
-| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `user.create/login/password/role/disable/enable`, `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call), `assets.import`. |
+| `api_keys` | `name` (unique), `prefix` (first 10 chars, for identification), `key_hash` (SHA-256, unique), `role`, `tlp_clearance`, `expires_at`, `revoked_at`, `last_used_at` | The plaintext key is shown once and never stored. `last_used_at` is updated at most every 5 minutes. `tlp_clearance` null = the role's default (viewer GREEN, analyst AMBER+STRICT, admin RED). |
+| `users` | `login` (case-folded, unique), `name` (as typed), `password_hash` (scrypt, salted), `role`, `password_changed_at`, `last_login_at`, `disabled_at`, `tlp_clearance` | UI accounts (ADR 0007). API keys are for programs; people sign in with these. |
+| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `indicator.feedback`, `source.weight` (from/to/tp/fp/config), `user.create/login/password/role/clearance/disable/enable`, `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call), `assets.import`. |
 
 ## Indexes worth knowing
 * `observables (type, last_seen)`: the indicator list and type filter.
@@ -123,6 +124,9 @@ enable/disable and provenance; the collector never schedules them.
 * `relationships (origin, scope)`: replacing one ATT&CK domain's edges on reload.
 * `vulnerability_products (vendor, product)`: tech-stack and `?vendor=&product=` matching.
 * `vulnerabilities (kev, kev_date_added)`, `(epss)`, `(cvss_score)`: the usual sort and filter orders.
+* `vulnerabilities (patch_priority, patch_score)`: the P1-P4 filter and `sort=patch`.
+* `indicators (status, priority_score)`: `sort=priority`, `min_score`, the dashboard's top list.
+* `verdicts (indicator_id, created_at)`: an indicator's feedback history.
 * `enrichments (canonical_key)`: all answers for one observable in one read (the lookup cache hit); `(enricher, canonical_key)` unique: upsert and the backlog's freshness check; `(observable_id)`: indicator pages.
 * `entities (external_id)`: ATT&CK id lookups; `entity_aliases (alias_key, entity_id)` unique: name resolution.
 * The `pg_trgm` extension (baseline migration) is used for substring search

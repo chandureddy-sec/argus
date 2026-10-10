@@ -81,6 +81,8 @@ class KnownOut(BaseModel):
     first_seen: datetime
     last_seen: datetime
     allowlist_reason: str | None
+    analyst_verdict: str | None = None
+    priority_score: float | None = Field(default=None, description="the stored indicator's score")
 
 
 class RelatedOut(BaseModel):
@@ -111,9 +113,10 @@ class AllowlistHit(BaseModel):
 class LookupOut(BaseModel):
     query: QueryOut
     verdict: Literal["malicious", "suspicious", "benign", "unknown"]
-    score: int = Field(ge=0, le=100)
+    score: int = Field(ge=0, le=100, description="priority rounded to a whole number")
+    priority: float = Field(ge=0, le=100, description="scoring model v1 (ADR 0008)")
     score_model: str
-    score_breakdown: list[dict[str, Any]]
+    score_breakdown: dict[str, Any] = Field(description="every term of the score, with its sources")
     recommended_action: Literal["block", "investigate", "no_action", "monitor"]
     recommended_action_text: str
     tlp: str
@@ -234,7 +237,9 @@ async def lookup(
             raise HTTPException(422, f"unknown enricher(s): {', '.join(unknown)}")
     if active:
         await _allow_active(request, who, 1)
-    return await svc.lookup(r, actor=who.name, active=active, refresh=refresh, tlp=tlp, only=only)
+    return await svc.lookup(
+        r, actor=who.name, active=active, refresh=refresh, tlp=tlp, only=only, clearance=who.clearance
+    )
 
 
 @router.post("/enrich", response_model=EnrichOut)
@@ -268,7 +273,13 @@ async def enrich(who: Analyst, request: Request, body: EnrichIn) -> dict[str, An
     if body.active:
         await _allow_active(request, who, len(unique))
     results, spent = await svc.lookup_many(
-        unique, actor=who.name, active=body.active, refresh=body.refresh, tlp=body.tlp, budget=body.budget
+        unique,
+        actor=who.name,
+        active=body.active,
+        refresh=body.refresh,
+        tlp=body.tlp,
+        budget=body.budget,
+        clearance=who.clearance,
     )
     counts = dict.fromkeys(("malicious", "suspicious", "benign", "unknown"), 0)
     for res in results:

@@ -6,7 +6,7 @@ Requirements, explains every verdict, and shares it in standard formats.
 Lives alongside [ReconX](../README.md), which feeds it the organization's real
 assets (see [ADR 0002](docs/adr/0002-monorepo-and-reconx-link.md)).
 
-**Status:** Phases 1 (collection) and 2 (knowledge base: ATT&CK, NVD, EPSS, KEV, OSV, graph) complete; Docker verification pending. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+**Status:** Phases 0-4 complete and Docker-verified: collection, knowledge base, enrichment, the ReconX link, and scoring/trust/TLP/feedback. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Quickstart (Windows)
 
@@ -65,6 +65,19 @@ Every answer comes back with a verdict, score breakdown, evidence and recommende
 Enrichers without their key (AbuseIPDB, VirusTotal, MalwareBazaar) report `skipped: no_api_key`;
 RDAP, RIPEstat, GreyNoise (25/week), urlscan, crt.sh and DNS need none. URL values go in the path
 (defanged is fine); send a `?` in the URL as `%3F`. Policy (passive-first, TLP, quotas): ADR 0005.
+
+Scores, feedback and TLP (ADR 0008). Every indicator has a priority 0-100 with its full
+breakdown (`config/scoring.yaml`). Indicators decay and expire, and analysts' TP/FP verdicts
+adjust each feed's weight. Nobody sees anything above their TLP clearance.
+
+```bash
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/indicators?sort=priority&min_score=60"
+curl -H "X-API-Key: tl_..." -H "content-type: application/json" -d '{"verdict": "fp", "note": "our scanner"}'      http://127.0.0.1:8000/api/v1/indicators/<id>/feedback          # analyst: tp | fp | reset
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/vulnerabilities?patch_priority=P1&sort=patch"
+.	l rescore                                                     # the daily job, now: weights, P1-P4, decay, expiry
+.	l keys create reconx --role analyst --clearance TLP:GREEN     # a key that reads CLEAR/GREEN only
+.	l users clearance "name" --clearance TLP:RED                  # or --role-default
+```
 
 Own assets from ReconX (scans of your own domains only; ADR 0006):
 

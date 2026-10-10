@@ -68,6 +68,9 @@ markers = [
 [tool.coverage.run]
 source = ["threatlens"]
 branch = true
+# SQLAlchemy's asyncio layer switches greenlets; without this, code after an
+# awaited query is reported as not run.
+concurrency = ["greenlet", "thread"]
 
 [tool.coverage.report]
 show_missing = true

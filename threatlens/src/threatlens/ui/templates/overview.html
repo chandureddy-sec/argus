@@ -33,15 +33,20 @@
   <article class="panel stats">
     <header class="panel-head"><h2>Indicator stats</h2></header>
     <div class="tabs">
-      <input type="radio" name="ist" id="ist1" checked><label for="ist1">Confidence</label>
+      <input type="radio" name="ist" id="ist1" checked><label for="ist1">Priority</label>
       <input type="radio" name="ist" id="ist2"><label for="ist2">By source</label>
       <input type="radio" name="ist" id="ist3"><label for="ist3">Types</label>
       <div class="tabpane p1">
-        <table class="mini"><thead><tr><th>Confidence</th><th class="num">Active</th></tr></thead><tbody>
-        {% for b, n in d.confidence %}<tr><td class="band-{{ loop.index }}">{{ b }}</td><td class="num">{{ "{:,}".format(n) }}</td></tr>{% endfor %}
-        <tr><td class="muted">Allowlisted (suppressed)</td><td class="num">{{ "{:,}".format(d.status.get("false_positive", 0)) }}</td></tr>
+        <table class="mini"><thead><tr><th>Priority</th><th class="num">Active</th></tr></thead><tbody>
+        {% for b, n in d.priority %}<tr><td class="band-{{ loop.index }}">{{ b }}</td><td class="num">{{ "{:,}".format(n) }}</td></tr>{% endfor %}
+        <tr><td class="muted">Expired (decayed)</td><td class="num">{{ "{:,}".format(d.status.get("expired", 0)) }}</td></tr>
+        <tr><td class="muted">False positive / allowlisted</td><td class="num">{{ "{:,}".format(d.status.get("false_positive", 0)) }}</td></tr>
         </tbody></table>
-        <p class="note">Priority scores (decay, corroboration, relevance) arrive with Phase 4.</p>
+        {% if d.top %}
+        <table class="mini"><thead><tr><th>Top priority</th><th class="num">Score</th></tr></thead><tbody>
+        {% for id, t, v, p in d.top %}<tr><td><a href="/ui/indicators/{{ id }}"><code>{{ v }}</code></a> <span class="muted">{{ t }}</span></td><td class="num">{{ "%.0f" | format(p) }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% endif %}
       </div>
       <div class="tabpane p2">
         <table class="mini"><thead><tr><th>Source</th><th class="num">Indicators</th></tr></thead><tbody>

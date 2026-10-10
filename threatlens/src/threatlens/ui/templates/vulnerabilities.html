@@ -10,7 +10,7 @@
       <option value="true"{% if f.kev == "true" %} selected{% endif %}>Yes (CISA KEV)</option>
       <option value="false"{% if f.kev == "false" %} selected{% endif %}>No</option></select></label>
     <label>Sort by<select name="sort">
-      {% for k, v in [("epss", "Exploit probability (EPSS)"), ("cvss", "Severity (CVSS)"), ("kev_date", "Date added to KEV"), ("published", "Published")] %}
+      {% for k, v in [("patch", "Patch priority"), ("epss", "Exploit probability (EPSS)"), ("cvss", "Severity (CVSS)"), ("kev_date", "Date added to KEV"), ("published", "Published")] %}
       <option value="{{ k }}"{% if f.sort == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
     <label class="check"><input type="checkbox" name="stack" value="true"{% if f.stack %} checked{% endif %}> Only our tech stack</label>
     <button class="primary" type="submit">Apply</button>
@@ -18,10 +18,11 @@
 </section>
 <section class="panel">
   <table class="data">
-    <thead><tr><th>CVE</th><th>Product</th><th class="num">CVSS</th><th class="num">EPSS</th><th>Exploitation</th><th class="num">Published</th></tr></thead>
+    <thead><tr><th>Patch</th><th>CVE</th><th>Product</th><th class="num">CVSS</th><th class="num">EPSS</th><th>Exploitation</th><th class="num">Published</th></tr></thead>
     <tbody>
     {% for v in rows %}
       <tr>
+        <td>{% if v.patch_priority %}<span class="pill {{ 'red' if v.patch_priority == 'P1' else 'yellow' if v.patch_priority == 'P2' else 'gray' }}" title="{{ v.patch_score }} points">{{ v.patch_priority }}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td><a class="mono" href="/ui/vulnerabilities/{{ v.cve_id }}">{{ v.cve_id }}</a><small>{{ v.kev_name or (v.description | truncate(80, True)) }}</small></td>
         <td>{{ prods.get(v.id, "") }}</td>
         <td class="num">{% if v.cvss_score is not none %}<span class="sev {{ v.cvss_severity or 'NONE' }}">{{ "%.1f" | format(v.cvss_score) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -30,7 +31,7 @@
         <td class="num muted">{{ v.published.strftime("%Y-%m-%d") if v.published else "stub" }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="empty">Nothing matches.</td></tr>
+      <tr><td colspan="7" class="empty">Nothing matches.</td></tr>
     {% endfor %}
     </tbody>
   </table>

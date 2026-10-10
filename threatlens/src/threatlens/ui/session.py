@@ -18,6 +18,7 @@ import time
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from threatlens import tlp as tlp_rules
 from threatlens.auth import Principal
 from threatlens.logs import get_logger
 from threatlens.models import User
@@ -78,4 +79,10 @@ async def principal(request: Request, settings: Settings) -> Principal | None:
         return None
     if not hmac.compare_digest(password_tag(row.password_hash), parsed[1]):
         return None  # the password changed since this session began
-    return Principal(row.id, row.name, row.role, kind="user")
+    return Principal(
+        row.id,
+        row.name,
+        row.role,
+        kind="user",
+        clearance=tlp_rules.clearance_for(row.role, row.tlp_clearance),
+    )

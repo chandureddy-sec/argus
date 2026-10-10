@@ -56,6 +56,7 @@ class CisaKev(Connector):
         interval=6 * H,
         min_interval=H,
         default_confidence=100,
+        credibility=1,
         verified=VERIFIED,
     )
 
@@ -109,6 +110,7 @@ class UrlHaus(Connector):
         interval=H,
         min_interval=5 * M,
         default_confidence=80,
+        credibility=2,
         key_setting="abusech_auth_key",
         key_required=False,  # dump downloads still work anonymously (2026-10-08)
         verified=VERIFIED,
@@ -191,6 +193,7 @@ class ThreatFox(Connector):
         interval=H,
         min_interval=15 * M,
         default_confidence=75,
+        credibility=3,
         key_setting="abusech_auth_key",
         key_required=True,  # the API answers 401 without Auth-Key (2026-10-08)
         verified=VERIFIED,
@@ -263,6 +266,7 @@ class FeodoTracker(Connector):
         interval=30 * M,
         min_interval=5 * M,
         default_confidence=85,
+        credibility=2,
         verified=VERIFIED,
     )
 
@@ -335,6 +339,7 @@ class Otx(Connector):
         interval=H,
         min_interval=15 * M,
         default_confidence=50,
+        credibility=3,
         key_setting="otx_api_key",
         key_required=True,  # 403 without X-OTX-API-KEY (2026-10-08)
         verified=VERIFIED,
@@ -391,6 +396,14 @@ class Otx(Connector):
                             "adversary": pulse.get("adversary") or None,
                             "malware_families": pulse.get("malware_families") or [],
                             "attack_ids": pulse.get("attack_ids") or [],
+                            # Pulse targeting (array fields per ThreatQ/Elastic OTX integration docs,
+                            # 2026-10-11; not yet seen live: no OTX key). Used for PIR relevance.
+                            "targeted_countries": [
+                                c for c in pulse.get("targeted_countries") or [] if isinstance(c, str)
+                            ][:20],
+                            "industries": [x for x in pulse.get("industries") or [] if isinstance(x, str)][
+                                :20
+                            ],
                             "otx_type": ind["type"],
                         },
                     )
@@ -425,6 +438,7 @@ class SpamhausDrop(Connector):
         interval=24 * H,
         min_interval=24 * H,
         default_confidence=95,
+        credibility=2,
         verified=VERIFIED,
     )
     URLS = ("https://www.spamhaus.org/drop/drop_v4.json", "https://www.spamhaus.org/drop/drop_v6.json")
@@ -476,6 +490,7 @@ class TorExits(Connector):
         min_interval=30 * M,
         # Confidence that an exit is a *threat* is low: it is context, not guilt.
         default_confidence=30,
+        credibility=1,
         verified=VERIFIED,
     )
 
@@ -508,6 +523,7 @@ class OpenPhish(Connector):
         interval=12 * H,  # the community feed updates every 12 hours
         min_interval=H,
         default_confidence=80,
+        credibility=2,
         verified=VERIFIED,
     )
 

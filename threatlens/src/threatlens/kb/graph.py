@@ -12,6 +12,10 @@ its provenance: which source asserted it, how (ATT&CK relationship, feed
 field, text mention, same identifier), and the evidence. Hub nodes (Ingress
 Tool Transfer has 520 `uses` edges in Enterprise 19.2) are handled by a
 visited-node budget; when it runs out, the result says so.
+
+TLP: every query takes the reader's ``clearance``. Indicators above it are
+not nodes at all for that reader: they are not resolved, listed as
+neighbours, or walked through by ``paths`` (ADR 0008).
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ from typing import Any, Literal
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from threatlens import tlp as tlp_rules
 from threatlens.connectors.base import clip
 from threatlens.ioc.normalize import guess
 from threatlens.ioc.types import Observable as Obs
@@ -82,7 +87,27 @@ async def _entity_nodes(s: AsyncSession, where: Any) -> list[Node]:
     ]
 
 
-async def nodes(s: AsyncSession, refs: Iterable[str]) -> dict[str, Node]:
+async def visible_indicators(s: AsyncSession, refs: Iterable[str], clearance: str) -> set[str]:
+    """The indicator refs among ``refs`` this reader may see."""
+    inds = [r for r in dict.fromkeys(refs) if r.startswith("indicator--")]
+    out: set[str] = set()
+    for i in range(0, len(inds), 500):
+        out |= {
+            r
+            for r in (
+                await s.scalars(
+                    select(Indicator.stix_id).where(
+                        Indicator.stix_id.in_(inds[i : i + 500]),
+                        Indicator.tlp.in_(tlp_rules.readable(clearance)),
+                    )
+                )
+            ).all()
+            if r
+        }
+    return out
+
+
+async def nodes(s: AsyncSession, refs: Iterable[str], *, clearance: str) -> dict[str, Node]:
     refs = list(dict.fromkeys(refs))
     out: dict[str, Node] = {}
     ents = [r for r in refs if not r.startswith(("vulnerability--", "indicator--"))]
@@ -107,7 +132,10 @@ async def nodes(s: AsyncSession, refs: Iterable[str]) -> dict[str, Node]:
         rows = await s.execute(
             select(Indicator, Observable)
             .join(Observable, Observable.id == Indicator.observable_id)
-            .where(Indicator.stix_id.in_(inds[i : i + 500]))
+            .where(
+                Indicator.stix_id.in_(inds[i : i + 500]),
+                Indicator.tlp.in_(tlp_rules.readable(clearance)),
+            )
         )
         for ind, obs in rows.all():
             if ind.stix_id is None:
@@ -123,19 +151,19 @@ async def nodes(s: AsyncSession, refs: Iterable[str]) -> dict[str, Node]:
     return out
 
 
-async def resolve(s: AsyncSession, ident: str) -> Node | None:
+async def resolve(s: AsyncSession, ident: str, *, clearance: str) -> Node | None:
     """Find the node a person means; None if nothing matches."""
     ident = ident.strip()
     if not ident or len(ident) > 300:
         return None
     if "--" in ident:
-        return (await nodes(s, [ident])).get(ident)
+        return (await nodes(s, [ident], clearance=clearance)).get(ident)
     if is_cve(ident):
         ref = await s.scalar(select(Vulnerability.stix_id).where(Vulnerability.cve_id == ident.upper()))
-        return (await nodes(s, [ref])).get(ref) if ref else None
+        return (await nodes(s, [ref], clearance=clearance)).get(ref) if ref else None
     if ident.lower().startswith("indicator:") and ident[10:].isdigit():
         ref = await s.scalar(select(Indicator.stix_id).where(Indicator.id == int(ident[10:])))
-        return (await nodes(s, [ref])).get(ref) if ref else None
+        return (await nodes(s, [ref], clearance=clearance)).get(ref) if ref else None
     if _ATTACK_ID.match(ident):
         found = await _entity_nodes(s, func.upper(Entity.external_id) == ident.upper())
         found.sort(key=lambda n: (bool(n.extra.get("revoked")), bool(n.extra.get("deprecated"))))
@@ -155,7 +183,7 @@ async def resolve(s: AsyncSession, ident: str) -> Node | None:
                 ents,
                 key=lambda e: (e.revoked, e.deprecated, e.origin != "attack", alias_key(e.name) != key, e.id),
             )
-            return (await nodes(s, [best.stix_id]))[best.stix_id]
+            return (await nodes(s, [best.stix_id], clearance=clearance))[best.stix_id]
     obs = guess(ident)
     if isinstance(obs, Obs):
         ref = await s.scalar(
@@ -163,7 +191,7 @@ async def resolve(s: AsyncSession, ident: str) -> Node | None:
             .join(Observable, Observable.id == Indicator.observable_id)
             .where(Observable.canonical_key == obs.key)
         )
-        return (await nodes(s, [ref])).get(ref) if ref else None
+        return (await nodes(s, [ref], clearance=clearance)).get(ref) if ref else None
     return None
 
 
@@ -224,11 +252,14 @@ async def neighbors(
     rel: str | None = None,
     node_type: str | None = None,
     limit: int = 200,
+    clearance: str,
 ) -> tuple[list[dict[str, Any]], int]:
     """Edges touching ``ref`` with the node at the other end; returns (items, total)."""
     rels = await edges_of(s, [ref], direction=direction, rel=rel)
     other = {r.id: (r.dst_ref if r.src_ref == ref else r.src_ref) for r in rels}
-    nodemap = await nodes(s, other.values())
+    if ref.startswith("indicator--") and not await visible_indicators(s, [ref], clearance):
+        return [], 0
+    nodemap = await nodes(s, other.values(), clearance=clearance)
     names = await _source_names(s)
     items: list[dict[str, Any]] = []
     for r in rels:
@@ -255,11 +286,22 @@ class PathResult:
 
 
 async def paths(
-    s: AsyncSession, src: str, dst: str, *, max_depth: int = 4, limit: int = 5, max_nodes: int = 20_000
+    s: AsyncSession,
+    src: str,
+    dst: str,
+    *,
+    max_depth: int = 4,
+    limit: int = 5,
+    max_nodes: int = 20_000,
+    clearance: str,
 ) -> PathResult:
+    ends = await visible_indicators(s, [src, dst], clearance)
+    if any(r.startswith("indicator--") and r not in ends for r in (src, dst)):
+        return PathResult([], {}, None, False)
     if src == dst:
-        n = await nodes(s, [src])
+        n = await nodes(s, [src], clearance=clearance)
         return PathResult([[]], {k: asdict(v) for k, v in n.items()}, 0, False)
+    seen_ok: dict[str, bool] = dict.fromkeys(ends, True)
     # parents[node] = [(previous node, edge)], dist[node] = hops from that side's start
     pf: dict[str, list[tuple[str, Relationship]]] = {src: []}
     pb: dict[str, list[tuple[str, Relationship]]] = {dst: []}
@@ -272,9 +314,19 @@ async def paths(
         frontier, parents, dist = (ff, pf, df) if forward else (fb, pb, db)
         level = dist[next(iter(frontier))] + 1
         nxt: set[str] = set()
-        for r in await edges_of(s, sorted(frontier)):
+        level_edges = await edges_of(s, sorted(frontier))
+        new_inds = {
+            x
+            for r in level_edges
+            for x in (r.src_ref, r.dst_ref)
+            if x.startswith("indicator--") and x not in seen_ok
+        }
+        if new_inds:
+            ok = await visible_indicators(s, new_inds, clearance)
+            seen_ok.update({x: x in ok for x in new_inds})
+        for r in level_edges:
             for a, b in ((r.src_ref, r.dst_ref), (r.dst_ref, r.src_ref)):
-                if a not in frontier:
+                if a not in frontier or not seen_ok.get(b, True):
                     continue
                 if b not in dist:
                     dist[b] = level
@@ -324,7 +376,7 @@ async def paths(
             break
     names = await _source_names(s)
     refs = {x for p in found for r in p for x in (r.src_ref, r.dst_ref)} | {src, dst}
-    nodemap = await nodes(s, refs)
+    nodemap = await nodes(s, refs, clearance=clearance)
     return PathResult(
         [[_edge(r, names).view() for r in p] for p in found],
         {k: asdict(v) for k, v in nodemap.items()},

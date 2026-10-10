@@ -9,6 +9,9 @@
 * ``enrich_backlog`` (every 30 minutes) enriches new active IP indicators
   with the free passive enrichers (ASN, location); TL_ENRICH_AUTO_PER_RUN=0
   turns it off.
+* ``daily_scoring`` (daily) re-derives source weights from analyst feedback,
+  recomputes patch priorities, and re-scores every indicator: decay and
+  expiry (ADR 0008). Collection runs score what they touched as they go.
 
 Run with: ``arq threatlens.worker.WorkerSettings``
 """
@@ -26,6 +29,7 @@ from arq.worker import func
 
 from threatlens.enrich.quota import RedisQuotaStore
 from threatlens.enrich.service import EnrichmentService, enrichment_http
+from threatlens.jobs import daily_scoring as run_daily_scoring
 from threatlens.jobs import open_collector, refresh_allowlists
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import get_settings
@@ -65,6 +69,11 @@ async def enrich_backlog(ctx: dict[str, Any]) -> dict[str, int]:
     return await service.enrich_backlog(service.settings.enrich_auto_per_run)
 
 
+async def daily_scoring(ctx: dict[str, Any]) -> dict[str, Any]:
+    collector = ctx["collector"]
+    return await run_daily_scoring(collector.sm, collector.settings)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     s = get_settings()
     configure_logging(s.log_level, s.log_json)
@@ -93,12 +102,14 @@ class WorkerSettings:
         func(collect_source, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(refresh_allowlist, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(enrich_backlog, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(daily_scoring, keep_result=0, timeout=COLLECT_TIMEOUT_S),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),
         cron(enqueue_due, second=10, unique=True),
         cron(refresh_allowlist, hour=3, minute=17, unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(enrich_backlog, minute={7, 37}, unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(daily_scoring, hour=2, minute=47, unique=True, timeout=COLLECT_TIMEOUT_S),
     ]
     on_startup = startup
     on_shutdown = shutdown

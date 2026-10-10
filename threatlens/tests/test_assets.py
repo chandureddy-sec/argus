@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.conftest import FIXTURES
@@ -33,7 +33,16 @@ from threatlens.enrich.service import EnrichmentService
 from threatlens.ioc.types import IOCType, Observable
 from threatlens.kb.base import KbContext
 from threatlens.kb.nvd import Nvd
-from threatlens.models import Asset, AssetProduct, AuditLog, Vulnerability, VulnerabilityProduct
+from threatlens.models import (
+    Asset,
+    AssetProduct,
+    AuditLog,
+    Indicator,
+    Sighting,
+    Vulnerability,
+    VulnerabilityProduct,
+)
+from threatlens.models import Observable as ObsRow
 from threatlens.net.http import SafeHttp
 from threatlens.rawstore import RawStore
 from threatlens.settings import Settings
@@ -252,8 +261,11 @@ async def test_assets_listed_by_feeds_come_first(api: Api) -> None:
     assert first["value"] == "162.243.103.246"  # an own IP that Feodo Tracker lists
     assert first["indicator"]["sources"] == ["feodo"]
     assert first["products"] == ["cpe:2.3:a:nginx:nginx:1.18.0"]
+    # Listed, but Feodo reports it offline since March: the indicator has expired, so
+    # it sorts first (a feed knows it) without being flagged (no active indicator).
+    assert first["indicator"]["status"] == "expired"
     flagged = (await api.client.get("/api/v1/assets?flagged=true", headers=api.h("viewer"))).json()
-    assert [a["value"] for a in flagged["items"]] == ["162.243.103.246"]
+    assert flagged["items"] == []
     hosts = (await api.client.get("/api/v1/assets?kind=host&q=www", headers=api.h("viewer"))).json()
     assert [a["value"] for a in hosts["items"]] == ["www.example.com"]
     prods = {
@@ -268,14 +280,25 @@ async def test_assets_listed_by_feeds_come_first(api: Api) -> None:
     assert imports[0]["counts"]["rejected"] == 3
 
 
+OWN_C2 = "162.243.103.246"
+
+
 async def test_lookup_of_an_own_asset_says_investigate(api: Api) -> None:
     await do_import(api.sm, scan())
+    async with api.sm() as s, s.begin():  # Feodo now reports our IP online as a C2
+        await s.execute(
+            update(Sighting)
+            .where(Sighting.indicator_id.in_(select(Indicator.id).join(ObsRow).where(ObsRow.value == OWN_C2)))
+            .values(context={"malware": "Emotet", "status": "online"})
+        )
     r = await api.client.get(
         "/api/v1/lookup/ipv4-addr/162.243.103.246?enrichers=ripestat", headers=api.h("analyst")
     )
     body = r.json()
     assert body["verdict"] == "malicious"
     assert body["recommended_action"] == "investigate"  # never "block" your own host
+    assert body["score_breakdown"]["own_asset"] == "block becomes investigate"
+    assert any(h["kind"] == "own_asset" for h in body["score_breakdown"]["relevance"]["hits"])
     assert body["asset"]["target"] == "example.com"
     assert any(e["source"] == "assets" and "Own asset" in e["text"] for e in body["evidence"])
     other = await api.client.get(

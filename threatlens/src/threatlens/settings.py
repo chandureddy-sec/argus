@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     profile_path: Path = Path("config/org_profile.yaml")
     pirs_path: Path = Path("config/pirs.yaml")
+    scoring_path: Path = Path("config/scoring.yaml")
 
     # Readiness probes must answer quickly even when a dependency hangs.
     readiness_timeout_s: float = Field(default=2.0, gt=0, le=30)

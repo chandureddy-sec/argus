@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from threatlens import tlp as tlp_rules
 from threatlens.auth import ROLE_RANK
 from threatlens.models import AuditLog, User
 
@@ -97,10 +98,18 @@ async def get_user(s: AsyncSession, name: str) -> User | None:
     return await s.scalar(select(User).where(User.login == login_key(name)))
 
 
-async def create_user(s: AsyncSession, name: str, password: str, role: str, *, actor: str = "cli") -> User:
+def check_clearance(clearance: str | None) -> None:
+    if clearance is not None and clearance not in tlp_rules.LEVELS:
+        raise UserError(f"clearance must be one of {', '.join(tlp_rules.LEVELS)}")
+
+
+async def create_user(
+    s: AsyncSession, name: str, password: str, role: str, *, actor: str = "cli", clearance: str | None = None
+) -> User:
     shown = check_name(name)
     check_password(password)
     check_role(role)
+    check_clearance(clearance)
     if await get_user(s, shown):
         raise UserError(f"a user named {shown!r} already exists (change the password with: passwd)")
     row = User(
@@ -108,9 +117,17 @@ async def create_user(s: AsyncSession, name: str, password: str, role: str, *, a
         name=shown,
         password_hash=await asyncio.to_thread(hash_password, password),
         role=role,
+        tlp_clearance=clearance,
     )
     s.add(row)
-    s.add(AuditLog(actor=actor, action="user.create", target=shown, details={"role": role}))
+    s.add(
+        AuditLog(
+            actor=actor,
+            action="user.create",
+            target=shown,
+            details={"role": role, "tlp_clearance": clearance},
+        )
+    )
     await s.flush()
     return row
 
@@ -137,6 +154,20 @@ async def set_role(s: AsyncSession, name: str, role: str, *, actor: str = "cli")
     row = await _existing(s, name)
     s.add(AuditLog(actor=actor, action="user.role", target=row.name, details={"from": row.role, "to": role}))
     row.role = role
+    return row
+
+
+async def set_clearance(s: AsyncSession, name: str, clearance: str | None, *, actor: str = "cli") -> User:
+    """Set the most restricted TLP the account may read (None: its role's default)."""
+    check_clearance(clearance)
+    row = await _existing(s, name)
+    s.add(
+        AuditLog(
+            actor=actor, action="user.clearance", target=row.name,
+            details={"from": row.tlp_clearance, "to": clearance},
+        )
+    )  # fmt: skip
+    row.tlp_clearance = clearance
     return row
 
 

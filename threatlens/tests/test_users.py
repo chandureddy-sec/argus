@@ -85,7 +85,7 @@ def test_cli_users(
 ) -> None:
     monkeypatch.setattr("sys.stdin", io.StringIO("﻿" + PW + "\r\n"))  # as PowerShell pipes it
     assert cli.main(["users", "create", "chandu reddy", "--role", "admin", "--password-stdin"]) == 0
-    assert "created chandu reddy (admin)" in capsys.readouterr().out
+    assert "created chandu reddy (admin, reads up to TLP:RED)" in capsys.readouterr().out
     monkeypatch.setattr("sys.stdin", io.StringIO(PW + "\n"))
     assert cli.main(["users", "create", "Chandu Reddy", "--password-stdin"]) == 2
     assert "already exists" in capsys.readouterr().err

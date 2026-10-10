@@ -7,7 +7,8 @@
 | 2 Knowledge base | **complete** (Docker verified) | ATT&CK (3 domains, versioned, diffed), NVD/EPSS/KEV/OSV vulnerability records, relationship graph with provenance, path API. Live checks on SQLite and in the Docker stack (below). |
 | 3 Enrichment | **complete** (Docker verified 2026-10-10) | 9 enrichers (RDAP, DNS-over-HTTPS, RIPEstat ASN/geo, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh), DB-backed TTL cache with provenance, shared quota book, passive-first + TLP policy, lookup / bulk / catalogue API, background ASN/geo enrichment, UI panel, CLI `lookup`. ADR 0005. |
 | 3b ReconX link | **complete** (live-verified 2026-10-10) | ReconX `scan --threatlens` → verdicts in JSON/HTML/MD reports, dashboard tab, `threat_intel_flagged` monitor rule; `--threatlens-assets` / `import-reconx` → own assets + observed tech stack (migration 0005), feed-listed assets first, own-asset lookups say investigate, PIR-2/NVD include observed applications. ADR 0006. |
-| 4–9 | not started | see PLAN.md |
+| 4 Scoring, trust, TLP, feedback | **complete** (Docker verified 2026-10-11) | Scoring model v1 (configurable YAML, stored breakdown + config version, monotonic decay, independent-upstream corroboration, PIR/asset relevance, FP penalties), Admiralty credibility, daily rescore + expiry, CVE patch priority P1-P4 (KEV floor), analyst TP/FP feedback with audited source weights, TLP 2.0 clearance on every read path and sink. Migration 0007, ADR 0008. |
+| 5–9 | not started | see PLAN.md |
 
 ## Phase 0 log
 - 2026-10-08: scaffold, settings, structured logging, org profile + PIR validation, API health/readiness, worker heartbeat, Alembic baseline (pg_trgm, citext, app_meta), Dockerfile + Compose, CI workflow, pre-commit, PLAN, ADR 0001/0002, threat model, sources register, learning notes.
@@ -95,6 +96,22 @@ Found and fixed during verification:
 ## UI accounts (2026-10-10, ADR 0007)
 - The owner asked for a username and password on the sign-in page instead of pasting an API key. Migration 0006 (`users`), `threatlens.users` (scrypt hashing, case-insensitive usernames), `threatlens users create|passwd|role|disable|enable|list`, `.\tl user` / `.\tl passwd` (password typed twice, sent on stdin). Sessions are bound to the password; sign-in is rate-limited per address and per account. API keys remain for `/api/v1` and ReconX only.
 - Also removed: the Swagger `/docs` page and its links (owner request), and Docker's "What's next" hints in `tl` output.
+
+## Phase 4 log
+- 2026-10-11: `threatlens.scoring` (config, model, store, feedback, vulns), `threatlens.tlp`, migration 0007 (credibility, feedback weights, `verdicts`, clearances, patch priority), lookups on the v1 model (the v0 interim verdict is removed), feedback API + UI buttons, score panel, priority sort, patch-priority column, daily `daily_scoring` cron + `threatlens rescore`, `--clearance` on keys and users. OTX now stores pulse `targeted_countries` / `industries`.
+- Found while building: Feodo still lists 162.243.103.246 (Phase 3's "malicious/block" example), but reports it offline since 2026-03-07. v1 decays it to 0 ("monitor"). Also: an unknown clearance first mapped to RED (fail-open); fixed to CLEAR and tested.
+- Coverage of async code after a SQLAlchemy greenlet switch was under-reported; `concurrency = ["greenlet", "thread"]` fixed the measurement (feedback.py 56% → 89%).
+
+### Live check (2026-10-11, Docker stack, real data)
+| Check | Result |
+|---|---|
+| `.\tl rescore` | 38,868 indicators scored in 14.1 s; 5,266 expired (5,262 URLhaus URLs offline long ago, 4 Feodo C2s offline since March); 6,225 vulnerabilities given a patch priority; config `1.0/103eb59b` |
+| Distribution (active) | Spamhaus DROP ≈ 95 (block); OpenPhish ≈ 64; URLhaus 16,876 ≥ 60 and 5,324 at 30-59; Tor exits ≈ 30 (monitor); 1 live Feodo C2 at 80.75 |
+| Live Feodo C2 50.16.16.211 | `70.75 + 0 + 10 − 0 = 80.75` malicious; +10 = linked malware uses a PIR-1 technique; valid until 2026-11-07 unless re-listed |
+| Lookup 162.243.103.246 | cold 0.22 s, cached **21 ms**; `unknown` / `monitor`; evidence "listed by feodo; offline since 2026-03-07 … 217.75 days ago" |
+| Patch priority | P1 821 (808 KEV), P2 1,233, P3 4,083, P4 88; CVE-2018-13379 (FortiOS, in the profile stack) P1 with 120 points |
+| UI as a viewer | `/ui` 0.55 s, indicators/indicator/vulnerability/sources/assets pages 0.03-0.12 s; no feedback buttons for viewers |
+| Integration (Postgres/Redis) | 8/8 incl. `alembic check` (0007 matches the models) |
 
 ## Phase 3b log
 - 2026-10-10: ReconX: `internal/threatlens` client (batches of 100, TLP, budget, clear errors), `ScanReport.threat_intel`, scan flags `--threatlens[=url]`, `--threatlens-tlp`, `--threatlens-budget`, `--threatlens-assets`, key-store entry + key test, HTML/Markdown sections, dashboard tab and scan option, `RunScanPipeline` option, monitor runs include ThreatLens when configured, rule `threat_intel_flagged`. Contract fixture recorded from the live API.

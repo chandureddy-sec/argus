@@ -27,6 +27,7 @@ from urllib.parse import unquote
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from threatlens import tlp as tlp_rules
 from threatlens.connectors.base import clip, parse_time
 from threatlens.ioc.normalize import normalize
 from threatlens.ioc.types import IOCType, Observable
@@ -357,18 +358,26 @@ def _flag_join() -> Any:
     return and_(ObsRow.canonical_key == Asset.canonical_key)
 
 
-async def flagged_keys(s: AsyncSession) -> dict[str, dict[str, Any]]:
-    """Assets that are also indicators: canonical key → indicator facts."""
+async def flagged_keys(s: AsyncSession, clearance: str) -> dict[str, dict[str, Any]]:
+    """Assets that are also indicators the reader may see: canonical key → indicator facts."""
     rows = (
         await s.execute(
-            select(Asset.canonical_key, Indicator.id, Indicator.status, Indicator.confidence)
+            select(
+                Asset.canonical_key,
+                Indicator.id,
+                Indicator.status,
+                Indicator.confidence,
+                Indicator.priority_score,
+            )
             .join(ObsRow, _flag_join())
             .join(Indicator, Indicator.observable_id == ObsRow.id)
+            .where(Indicator.tlp.in_(tlp_rules.readable(clearance)))
         )
     ).all()
     out: dict[str, dict[str, Any]] = {}
-    for key, ind_id, status, conf in rows:
-        out[key] = {"indicator_id": ind_id, "status": status, "confidence": conf, "sources": []}
+    for key, ind_id, status, conf, prio in rows:
+        out[key] = {"indicator_id": ind_id, "status": status, "confidence": conf, "priority_score": prio,
+                    "sources": []}  # fmt: skip
     if out:
         ids = {v["indicator_id"]: k for k, v in out.items()}
         for ind_id, name in (
@@ -382,9 +391,9 @@ async def flagged_keys(s: AsyncSession) -> dict[str, dict[str, Any]]:
     return out
 
 
-async def counts(s: AsyncSession) -> dict[str, int]:
+async def counts(s: AsyncSession, clearance: str) -> dict[str, int]:
     rows = dict((await s.execute(select(Asset.kind, func.count()).group_by(Asset.kind))).all())
-    flagged = await flagged_keys(s)
+    flagged = await flagged_keys(s, clearance)
     return {
         "domains": int(rows.get("domain", 0)),
         "hosts": int(rows.get("host", 0)),

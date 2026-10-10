@@ -241,4 +241,9 @@ dl.kv dd { margin: 0; word-break: break-word; }
 
 /* enrichment panel */
 form.inline { display: inline; margin-left: auto; }
+form.feedback { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+form.feedback input { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); font: inherit; min-width: 180px; }
+.formula { font-size: 15px; margin: 4px 0 12px; }
+.formula b { font-size: 22px; margin-right: 4px; }
+dl.terms { margin-top: 12px; }
 .kpis.kpis-4 { grid-template-columns: repeat(4, 1fr); }

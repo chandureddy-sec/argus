@@ -30,6 +30,7 @@ def test_worker_settings_schedule_heartbeat() -> None:
         "cron:heartbeat",
         "cron:enqueue_due",
         "cron:refresh_allowlist",
+        "cron:daily_scoring",
         "cron:enrich_backlog",
     }
     assert ws.redis_settings.host  # parsed from TL_REDIS_URL

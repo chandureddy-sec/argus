@@ -46,6 +46,7 @@ def _ts(**kw: Any) -> Any:
 INDICATOR_STATUSES = ("new", "active", "expired", "revoked", "false_positive")
 ROLES = ("admin", "analyst", "viewer")
 TLP_LEVELS = ("TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED")
+_CLEARANCE_CHECK = "tlp_clearance IN ('TLP:CLEAR','TLP:GREEN','TLP:AMBER','TLP:AMBER+STRICT','TLP:RED')"
 
 
 class AppMeta(Base):
@@ -70,6 +71,12 @@ class Source(Base):
     homepage: Mapped[str] = mapped_column(Text)
     reliability: Mapped[str] = mapped_column(String(1))  # Admiralty grade A-F
     reliability_note: Mapped[str] = mapped_column(Text, default="")
+    credibility: Mapped[int] = mapped_column(Integer, default=6)  # Admiralty information credibility 1-6
+    # Analyst feedback on indicators this source reported (Phase 4): the
+    # tallies and the weight factor derived from them (scoring.feedback).
+    feedback_tp: Mapped[int] = mapped_column(Integer, default=0)
+    feedback_fp: Mapped[int] = mapped_column(Integer, default=0)
+    weight_factor: Mapped[float] = mapped_column(Float, default=1.0)
     license: Mapped[str] = mapped_column(String(200))
     license_url: Mapped[str] = mapped_column(Text)
     commercial_use: Mapped[bool] = mapped_column(Boolean)
@@ -90,7 +97,10 @@ class Source(Base):
     created_at: Mapped[datetime] = _ts(default=utcnow)
     updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
 
-    __table_args__ = (CheckConstraint("reliability IN ('A','B','C','D','E','F')", name="reliability"),)
+    __table_args__ = (
+        CheckConstraint("reliability IN ('A','B','C','D','E','F')", name="reliability"),
+        CheckConstraint("credibility BETWEEN 1 AND 6", name="credibility"),
+    )
 
 
 class RawDocument(Base):
@@ -155,6 +165,10 @@ class Indicator(Base):
     status: Mapped[str] = mapped_column(String(16), default="active")
     labels: Mapped[list[str]] = mapped_column(JSONType, default=list)
     allowlist_reason: Mapped[str | None] = mapped_column(Text)
+    # The latest analyst feedback (tp | fp); the full history is in ``verdicts``.
+    analyst_verdict: Mapped[str | None] = mapped_column(String(8))
+    analyst_verdict_by: Mapped[str | None] = mapped_column(String(100))
+    analyst_verdict_at: Mapped[datetime | None] = _ts()
     created_at: Mapped[datetime] = _ts(default=utcnow)
     updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
 
@@ -167,7 +181,9 @@ class Indicator(Base):
             name="status",
         ),
         CheckConstraint("confidence BETWEEN 0 AND 100", name="confidence"),
+        CheckConstraint("analyst_verdict IN ('tp','fp')", name="analyst_verdict"),
         Index("ix_indicators_status_updated", "status", "updated_at"),
+        Index("ix_indicators_status_priority", "status", "priority_score"),
     )
 
 
@@ -258,8 +274,12 @@ class ApiKey(Base):
     last_used_at: Mapped[datetime | None] = _ts()
     expires_at: Mapped[datetime | None] = _ts()
     revoked_at: Mapped[datetime | None] = _ts()
+    tlp_clearance: Mapped[str | None] = mapped_column(String(20))  # None: the role's default (tlp.py)
 
-    __table_args__ = (CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),
+        CheckConstraint(_CLEARANCE_CHECK, name="tlp_clearance"),
+    )
 
 
 class User(Base):
@@ -282,8 +302,32 @@ class User(Base):
     password_changed_at: Mapped[datetime] = _ts(default=utcnow)
     last_login_at: Mapped[datetime | None] = _ts()
     disabled_at: Mapped[datetime | None] = _ts()
+    tlp_clearance: Mapped[str | None] = mapped_column(String(20))  # None: the role's default (tlp.py)
 
-    __table_args__ = (CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),)
+    __table_args__ = (
+        CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),
+        CheckConstraint(_CLEARANCE_CHECK, name="tlp_clearance"),
+    )
+
+
+class Verdict(Base):
+    """Analyst feedback on an indicator, append-only (Phase 4). The latest
+    row is mirrored on ``indicators.analyst_verdict``; source weights are
+    recomputed from the latest verdict per indicator."""
+
+    __tablename__ = "verdicts"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    indicator_id: Mapped[int] = mapped_column(ForeignKey("indicators.id", ondelete="CASCADE"))
+    verdict: Mapped[str] = mapped_column(String(8))  # tp | fp | reset
+    actor: Mapped[str] = mapped_column(String(100))
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("verdict IN ('tp','fp','reset')", name="verdict"),
+        Index("ix_verdicts_indicator_created", "indicator_id", "created_at"),
+    )
 
 
 class AuditLog(Base):
@@ -425,6 +469,10 @@ class Vulnerability(Base):
     osv_ids: Mapped[list[str]] = mapped_column(JSONType, default=list)  # GHSA-..., PYSEC-...
     packages: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
     osv_checked_at: Mapped[datetime | None] = _ts()
+    # Patch priority (Phase 4, scoring.vulns): P1-P4, its points and reasons.
+    patch_priority: Mapped[str | None] = mapped_column(String(2))
+    patch_score: Mapped[float | None] = mapped_column(Float)
+    patch_breakdown: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
     created_at: Mapped[datetime] = _ts(default=utcnow)
     updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
 
@@ -437,6 +485,7 @@ class Vulnerability(Base):
         Index("ix_vulnerabilities_epss", "epss"),
         Index("ix_vulnerabilities_cvss", "cvss_score"),
         Index("ix_vulnerabilities_nvd_modified", "nvd_modified"),
+        Index("ix_vulnerabilities_patch", "patch_priority", "patch_score"),
     )
 
 

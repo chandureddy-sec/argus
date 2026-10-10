@@ -1,8 +1,9 @@
-"""REST API v1 (Phase 1): sources and their health, indicators, IOC
-extraction, and the allowlist.
+"""REST API v1: sources and their health, indicators (with their scores and
+analyst feedback), IOC extraction, and the allowlist.
 
 Every route requires an API key; responses are explicit Pydantic models so
-no database object is ever serialized directly (OWASP API3).
+no database object is ever serialized directly (OWASP API3). Indicators above
+the caller's TLP clearance don't exist for that caller (ADR 0008).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
+from threatlens import tlp as tlp_rules
 from threatlens.auth import Principal, require
 from threatlens.collect import reapply_allowlist
 from threatlens.connectors import REGISTRY
@@ -28,6 +30,7 @@ from threatlens.ioc.types import IOCType, Observable, Rejected
 from threatlens.kb import KB_REGISTRY
 from threatlens.models import AllowlistEntry, AuditLog, ConnectorRun, Indicator, Sighting, Source
 from threatlens.models import Observable as ObsRow
+from threatlens.scoring.feedback import give_feedback, history, rescore_sources
 from threatlens.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1")
@@ -43,6 +46,11 @@ def _sm(request: Request) -> async_sessionmaker[AsyncSession]:
     return sm
 
 
+def _app_settings(request: Request) -> Settings:
+    s: Settings = getattr(request.app.state, "settings", None) or get_settings()
+    return s
+
+
 # ── schemas ──────────────────────────────────────────────────────────────────
 
 
@@ -52,6 +60,10 @@ class SourceOut(BaseModel):
     kind: str
     reliability: str
     reliability_note: str
+    credibility: int = Field(description="Admiralty information credibility 1-6 (6: cannot be judged)")
+    weight_factor: float = Field(description="from analyst TP/FP feedback; multiplies the reliability weight")
+    feedback_tp: int
+    feedback_fp: int
     license: str
     license_url: str
     commercial_use: bool
@@ -105,10 +117,44 @@ class IndicatorOut(BaseModel):
     first_seen: datetime
     last_seen: datetime
     sources: list[str]
+    priority_score: float | None = Field(description="0-100, scoring model v1 (ADR 0008)")
+    verdict: str | None = Field(description="malicious | suspicious | benign | unknown, from the score")
+    valid_until: datetime | None = Field(description="when it expires unless a source reports it again")
+    analyst_verdict: str | None = Field(description="tp | fp: the latest analyst feedback")
+
+
+class FeedbackOut(BaseModel):
+    verdict: str
+    actor: str
+    note: str
+    at: datetime
 
 
 class IndicatorDetail(IndicatorOut):
     sightings: list[SightingOut]
+    score_breakdown: dict[str, Any] | None
+    feedback: list[FeedbackOut]
+
+
+class FeedbackIn(BaseModel):
+    verdict: Literal["tp", "fp", "reset"] = Field(
+        description="tp: confirmed malicious; fp: not malicious (score 0, never re-activated); "
+        "reset: remove the analyst decision"
+    )
+    note: str = Field(default="", max_length=2000)
+
+
+class WeightChangeOut(BaseModel):
+    source: str
+    tp: int
+    fp: int
+    before: float
+    after: float
+
+
+class FeedbackResult(BaseModel):
+    indicator: IndicatorDetail
+    source_weights: list[WeightChangeOut]
 
 
 class Page[T](BaseModel):
@@ -217,7 +263,12 @@ async def trigger_run(
 
 
 def _indicator_out(ind: Indicator, obs: ObsRow, sources: list[str]) -> dict[str, Any]:
+    bd = ind.score_breakdown or {}
     return {
+        "priority_score": ind.priority_score,
+        "verdict": bd.get("verdict"),
+        "valid_until": ind.valid_until,
+        "analyst_verdict": ind.analyst_verdict,
         "id": ind.id,
         "type": obs.type,
         "value": obs.value,
@@ -236,7 +287,7 @@ def _indicator_out(ind: Indicator, obs: ObsRow, sources: list[str]) -> dict[str,
 
 @router.get("/indicators", response_model=Page[IndicatorOut], tags=["indicators"])
 async def list_indicators(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     type: Annotated[IOCType | None, Query()] = None,  # noqa: A002 - public API name
     status: Annotated[
@@ -246,8 +297,16 @@ async def list_indicators(
     q: Annotated[str | None, Query(min_length=2, max_length=200)] = None,
     limit: Limit = 50,
     offset: Offset = 0,
+    sort: Literal["recent", "priority"] = "recent",
+    min_score: Annotated[float | None, Query(ge=0, le=100)] = None,
 ) -> Page[IndicatorOut]:
-    stmt = select(Indicator, ObsRow).join(ObsRow, Indicator.observable_id == ObsRow.id)
+    stmt = (
+        select(Indicator, ObsRow)
+        .join(ObsRow, Indicator.observable_id == ObsRow.id)
+        .where(Indicator.tlp.in_(tlp_rules.readable(who.clearance)))
+    )
+    if min_score is not None:
+        stmt = stmt.where(Indicator.priority_score >= min_score)
     if type is not None:
         stmt = stmt.where(ObsRow.type == type.value)
     if status is not None:
@@ -262,11 +321,12 @@ async def list_indicators(
         stmt = stmt.where(func.lower(ObsRow.value).like(pattern, escape="\\"))
     async with _sm(request)() as s:
         total = int(await s.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
-        rows = (
-            await s.execute(
-                stmt.order_by(ObsRow.last_seen.desc(), Indicator.id.desc()).limit(limit).offset(offset)
-            )
-        ).all()
+        order = (
+            (Indicator.priority_score.desc().nulls_last(), Indicator.id.desc())
+            if sort == "priority"
+            else (ObsRow.last_seen.desc(), Indicator.id.desc())
+        )
+        rows = (await s.execute(stmt.order_by(*order).limit(limit).offset(offset))).all()
         ids = [ind.id for ind, _ in rows]
         names: dict[int, list[str]] = {}
         for ind_id, src_name in (
@@ -280,7 +340,7 @@ async def list_indicators(
 
 
 @router.get("/indicators/{indicator_id}", response_model=IndicatorDetail, tags=["indicators"])
-async def get_indicator(_: Viewer, request: Request, indicator_id: int) -> IndicatorDetail:
+async def get_indicator(who: Viewer, request: Request, indicator_id: int) -> IndicatorDetail:
     async with _sm(request)() as s:
         ind = await s.scalar(
             select(Indicator)
@@ -290,8 +350,8 @@ async def get_indicator(_: Viewer, request: Request, indicator_id: int) -> Indic
                 selectinload(Indicator.sightings).selectinload(Sighting.source),
             )
         )
-        if ind is None:
-            raise HTTPException(404, "no such indicator")
+        if ind is None or not tlp_rules.may_read(who.clearance, ind.tlp):
+            raise HTTPException(404, "no such indicator")  # above clearance: as if it didn't exist
         sightings = [
             SightingOut(
                 source=sg.source.name,
@@ -305,7 +365,27 @@ async def get_indicator(_: Viewer, request: Request, indicator_id: int) -> Indic
             for sg in ind.sightings
         ]
         base = _indicator_out(ind, ind.observable, sorted(x.source for x in sightings))
-    return IndicatorDetail(**base, sightings=sightings)
+        fb = [FeedbackOut(**f) for f in await history(s, ind.id)]
+    return IndicatorDetail(**base, sightings=sightings, score_breakdown=ind.score_breakdown, feedback=fb)
+
+
+@router.post("/indicators/{indicator_id}/feedback", response_model=FeedbackResult, tags=["indicators"])
+async def indicator_feedback(
+    who: Analyst, request: Request, indicator_id: int, body: FeedbackIn, tasks: BackgroundTasks
+) -> FeedbackResult:
+    """Analyst true/false-positive feedback. Updates the indicator and its score
+    at once, re-derives every source's weight from all verdicts (each change is
+    audited) and re-scores the affected sources' indicators in the background."""
+    await get_indicator(who, request, indicator_id)  # 404 when missing or above clearance
+    changes = await give_feedback(
+        _sm(request), _app_settings(request), indicator_id, body.verdict, actor=who.name, note=body.note
+    )
+    if changes:
+        tasks.add_task(rescore_sources, _sm(request), _app_settings(request), [c.source for c in changes])
+    return FeedbackResult(
+        indicator=await get_indicator(who, request, indicator_id),
+        source_weights=[WeightChangeOut(**c.__dict__) for c in changes],
+    )
 
 
 # ── extraction ───────────────────────────────────────────────────────────────
@@ -395,7 +475,7 @@ async def add_allowlist(
         )
         await s.flush()
         out = AllowlistOut.model_validate(row, from_attributes=True)
-    tasks.add_task(reapply_allowlist, _sm(request))
+    tasks.add_task(reapply_allowlist, _sm(request), _app_settings(request))
     return out
 
 
@@ -413,4 +493,4 @@ async def delete_allowlist(who: Admin, request: Request, entry_id: int, tasks: B
         s.add(
             AuditLog(actor=who.name, action="allowlist.delete", target=f"{row.kind}:{row.value}", details={})
         )
-    tasks.add_task(reapply_allowlist, _sm(request))
+    tasks.add_task(reapply_allowlist, _sm(request), _app_settings(request))

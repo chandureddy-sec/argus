@@ -43,6 +43,7 @@ class FlagOut(BaseModel):
     indicator_id: int
     status: str
     confidence: int
+    priority_score: float | None = None
     sources: list[str]
 
 
@@ -102,7 +103,7 @@ async def import_reconx(who: Analyst, request: Request) -> dict[str, Any]:
 
 @router.get("", response_model=Page[AssetOut])
 async def list_assets(
-    _: Viewer,
+    who: Viewer,
     request: Request,
     kind: Literal["domain", "host", "ip"] | None = None,
     flagged: bool = False,
@@ -113,7 +114,7 @@ async def list_assets(
     """Own assets; those that are also indicators (a feed lists them) first.
     ``flagged=true`` returns only assets an active indicator matches."""
     async with _sm(request)() as s:
-        flags = await asset_store.flagged_keys(s)
+        flags = await asset_store.flagged_keys(s, who.clearance)
         stmt = select(Asset)
         if kind:
             stmt = stmt.where(Asset.kind == kind)

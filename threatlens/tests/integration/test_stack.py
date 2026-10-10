@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from threatlens.api.app import create_app
 from threatlens.db import make_engine
 from threatlens.settings import get_settings
+from threatlens.tlp import RED
 
 pytestmark = [
     pytest.mark.integration,
@@ -162,11 +163,11 @@ async def test_pipeline_and_graph_on_postgres(scratch_db: str, tmp_path: Path) -
         async with sm() as s:
             feodo = json.loads((ROOT / "tests" / "fixtures" / "feodo.json").read_text())
             emotet_ip = next(d["ip_address"] for d in feodo if d.get("malware") == "Emotet")
-            ip = await graph.resolve(s, emotet_ip)
-            t = await graph.resolve(s, "T1047")
+            ip = await graph.resolve(s, emotet_ip, clearance=RED)
+            t = await graph.resolve(s, "T1047", clearance=RED)
             assert ip is not None
             assert t is not None
-            res = await graph.paths(s, ip.ref, t.ref)
+            res = await graph.paths(s, ip.ref, t.ref, clearance=RED)
         assert res.length == 2
         assert [e["source"] for e in res.paths[0]] == ["feodo", "mitre_attack"]
     finally:
@@ -224,9 +225,10 @@ async def test_enrichment_on_postgres(scratch_db: str, tmp_path: Path) -> None:
         http = SafeHttp(transport=httpx.MockTransport(Upstream()), sleep=no_sleep, retries=0)
         svc = EnrichmentService(sm, http, MemoryQuotaStore(), Settings())
         ip = Observable(IOCType.IPV4, FEODO_IP)
-        first = await svc.lookup(ip, actor="it")
-        assert first["verdict"] == "malicious"
-        again = await svc.lookup(ip, actor="it")
+        first = await svc.lookup(ip, actor="it", clearance=RED)
+        # Feodo reports this C2 offline since March: scored v1, it has decayed (ADR 0008).
+        assert (first["score_model"], first["known"]["status"]) == ("v1", "expired")
+        again = await svc.lookup(ip, actor="it", clearance=RED)
         assert {r["status"] for r in again["enrichments"] if r["enricher"] == "ripestat"} == {"cached"}
         assert again["took_ms"] < 2000
         async with sm() as s:

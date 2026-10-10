@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from threatlens import tlp as tlp_rules
 from threatlens.models import (
     ConnectorRun,
     Enrichment,
@@ -94,13 +95,21 @@ def _buckets(
     )
 
 
-async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]]) -> dict[str, Any]:
+async def overview(
+    s: AsyncSession, now: datetime, stack: list[tuple[str, str]], clearance: str
+) -> dict[str, Any]:
+    """Dashboard figures. Indicators above the viewer's TLP clearance are left
+    out of every count, list and map (ADR 0008)."""
     day_ago = now - timedelta(hours=24)
+    vis = Indicator.tlp.in_(tlp_rules.readable(clearance))
     active = (
-        await s.scalar(select(func.count()).select_from(Indicator).where(Indicator.status == "active")) or 0
+        await s.scalar(select(func.count()).select_from(Indicator).where(Indicator.status == "active", vis))
+        or 0
     )
     new_24h = (
-        await s.scalar(select(func.count()).select_from(Indicator).where(Indicator.created_at >= day_ago))
+        await s.scalar(
+            select(func.count()).select_from(Indicator).where(Indicator.created_at >= day_ago, vis)
+        )
         or 0
     )
     kev = (
@@ -130,7 +139,8 @@ async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]])
     fam_rows = (
         await s.execute(
             select(Relationship.dst_ref, func.count(func.distinct(Relationship.src_ref)))
-            .where(Relationship.origin == "feed", Relationship.rel_type == "indicates")
+            .join(Indicator, Indicator.stix_id == Relationship.src_ref)
+            .where(Relationship.origin == "feed", Relationship.rel_type == "indicates", vis)
             .group_by(Relationship.dst_ref)
         )
     ).all()
@@ -216,34 +226,48 @@ async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]])
         await s.execute(
             select(Observable.type, func.count())
             .join(Indicator, Indicator.observable_id == Observable.id)
-            .where(Indicator.status == "active")
+            .where(Indicator.status == "active", vis)
             .group_by(Observable.type)
             .order_by(func.count().desc())
         )
     ).all()
 
     band = case(
-        (Indicator.confidence >= 80, "80-100"),
-        (Indicator.confidence >= 50, "50-79"),
-        else_="0-49",
+        (Indicator.priority_score >= 60, "malicious (60+)"),
+        (Indicator.priority_score >= 30, "suspicious (30-59)"),
+        else_="low (under 30)",
     )
-    conf_map: dict[str, int] = {
+    prio_map: dict[str, int] = {
         str(b): int(n)
         for b, n in (
-            await s.execute(select(band, func.count()).where(Indicator.status == "active").group_by(band))
+            await s.execute(
+                select(band, func.count()).where(Indicator.status == "active", vis).group_by(band)
+            )
         ).all()
     }
+    top = (
+        await s.execute(
+            select(Indicator.id, Observable.type, Observable.defanged, Indicator.priority_score)
+            .join(Observable, Observable.id == Indicator.observable_id)
+            .where(Indicator.status == "active", vis, Indicator.priority_score.is_not(None),
+                   Observable.type != "vulnerability")
+            .order_by(Indicator.priority_score.desc(), Indicator.id.desc())
+            .limit(8)
+        )
+    ).all()  # fmt: skip
     by_source = (
         await s.execute(
             select(Source.name, func.count(func.distinct(Sighting.indicator_id)))
             .join(Sighting, Sighting.source_id == Source.id)
+            .join(Indicator, Indicator.id == Sighting.indicator_id)
+            .where(vis)
             .group_by(Source.name)
             .order_by(func.count(func.distinct(Sighting.indicator_id)).desc())
             .limit(6)
         )
     ).all()
     status_rows = dict(
-        (await s.execute(select(Indicator.status, func.count()).group_by(Indicator.status))).all()
+        (await s.execute(select(Indicator.status, func.count()).where(vis).group_by(Indicator.status))).all()
     )
 
     # Location: RIPEstat (GeoLite2) enrichment where an IP has it, else the
@@ -256,7 +280,7 @@ async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]])
                 select(Observable.canonical_key, feed_country)
                 .join(Indicator, Indicator.observable_id == Observable.id)
                 .join(Sighting, Sighting.indicator_id == Indicator.id)
-                .where(feed_country.is_not(None))
+                .where(feed_country.is_not(None), vis)
             )
         ).all()
         if c
@@ -271,7 +295,17 @@ async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]])
     ).all():
         if c:
             located[str(k)] = str(c)
+    hidden = set(
+        (
+            await s.scalars(
+                select(Observable.canonical_key)
+                .join(Indicator, Indicator.observable_id == Observable.id)
+                .where(~vis)
+            )
+        ).all()
+    )
     geo: dict[str, int] = {}
+    located = {k: c for k, c in located.items() if k not in hidden}
     for c in located.values():
         geo[c] = geo.get(c, 0) + 1
     ips = (
@@ -363,7 +397,10 @@ async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]])
         "window": window,
         "kev_months": months,
         "types": [(TYPE_LABELS.get(t, t), int(n), f"/ui/indicators?type={t}") for t, n in types],
-        "confidence": [(b, int(conf_map.get(b, 0))) for b in ("80-100", "50-79", "0-49")],
+        "priority": [
+            (b, int(prio_map.get(b, 0))) for b in ("malicious (60+)", "suspicious (30-59)", "low (under 30)")
+        ],
+        "top": [(i, TYPE_LABELS.get(t, t), v, p) for i, t, v, p in top],
         "by_source": [(n, int(c)) for n, c in by_source],
         "status": {k: int(v) for k, v in status_rows.items()},
         "families": [(name, n, f"/ui/entities/{ext or ref}") for name, n, ref, ext in families[:6]],

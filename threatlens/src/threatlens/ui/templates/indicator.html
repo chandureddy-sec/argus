@@ -5,12 +5,14 @@
 <section class="panel">
   <div class="hero">
     <span class="big mono">{{ ind.defanged }}</span>
-    {% if ind.status == "active" %}<span class="pill green">active</span>{% elif ind.status == "false_positive" %}<span class="pill gray">allowlisted</span>{% else %}<span class="pill gray">{{ ind.status }}</span>{% endif %}
+    {% if ind.status == "active" %}<span class="pill green">active</span>{% elif ind.status == "false_positive" %}<span class="pill gray">{{ "false positive" if ind.analyst_verdict == "fp" else "allowlisted" }}</span>{% else %}<span class="pill gray">{{ ind.status }}</span>{% endif %}
+    {% if ind.analyst_verdict == "tp" %}<span class="pill red">confirmed by analyst</span>{% endif %}
     <span class="pill yellow">{{ ind.tlp }}</span>
   </div>
   {% if ind.allowlist_reason %}<p class="note">Allowlisted: {{ ind.allowlist_reason }}</p>{% endif %}
   <div class="facts">
     <div class="fact"><b>{{ ind.type }}</b><span>type</span></div>
+    <div class="fact"><b class="{{ 'band-1' if (ind.priority_score or 0) >= 60 else 'band-2' if (ind.priority_score or 0) >= 30 else 'band-3' }}">{{ "%.0f" | format(ind.priority_score) if ind.priority_score is not none else "–" }}</b><span>priority</span></div>
     <div class="fact"><b class="{{ 'band-1' if ind.confidence >= 80 else 'band-2' if ind.confidence >= 50 else 'band-3' }}">{{ ind.confidence }}</b><span>confidence</span></div>
     <div class="fact"><b>{{ ind.sources | length }}</b><span>source{{ "s" if ind.sources | length != 1 }}</span></div>
     <div class="fact"><b>{{ ind.first_seen.strftime("%Y-%m-%d") }}</b><span>first seen</span></div>
@@ -18,6 +20,49 @@
   </div>
   {% if ind.labels %}<div class="tags">{% for l in ind.labels %}<span class="tag">{{ l }}</span>{% endfor %}</div>{% endif %}
   {% if ind.pattern %}<p class="note">STIX pattern: <code>{{ ind.pattern | defang_text }}</code></p>{% endif %}
+</section>
+
+{% set bd = ind.score_breakdown %}
+<section class="panel" id="score">
+  <header class="panel-head"><h2>Score</h2>
+    <span class="hint">model {{ bd.model if bd else "–" }}{% if bd and bd.config %} · config {{ bd.config }}{% endif %}{% if bd and bd.computed_at %} · computed {{ bd.computed_at[:16].replace("T", " ") }} UTC{% endif %}</span>
+    {% if me.can("analyst") %}
+    <form method="post" action="/ui/indicators/{{ ind.id }}/feedback" class="inline feedback">
+      <input type="text" name="note" maxlength="500" placeholder="note (optional)" aria-label="Feedback note">
+      <button class="btn" type="submit" name="verdict" value="tp" title="Confirmed malicious">True positive</button>
+      <button class="btn" type="submit" name="verdict" value="fp" title="Not malicious: score 0, never re-activated">False positive</button>
+      {% if ind.analyst_verdict %}<button class="btn ghost" type="submit" name="verdict" value="reset">Reset</button>{% endif %}
+    </form>
+    {% endif %}
+  </header>
+  {% if bd and bd.model == "v1" %}
+  <p class="formula"><b>{{ "%.1f" | format(ind.priority_score or 0) }}</b> = {{ bd.formula }} ·
+    <span class="pill {{ 'red' if bd.verdict == 'malicious' else 'yellow' if bd.verdict == 'suspicious' else 'green' if bd.verdict == 'benign' else 'gray' }}">{{ bd.verdict }}</span>
+    {% if ind.valid_until %}<span class="muted">· expires {{ ind.valid_until.strftime("%Y-%m-%d") }} unless reported again</span>{% endif %}</p>
+  {% if bd.cap %}<p class="note">{{ bd.cap }}</p>{% endif %}
+  <table class="data"><thead><tr><th>Signal</th><th class="num">Confidence</th><th class="num">Weight</th><th class="num">Age (days)</th><th class="num">Decay</th><th class="num">Worth</th></tr></thead><tbody>
+  {% for sg in bd.signals %}
+    <tr><td><b>{{ sg.source }}</b> <span class="tag">{{ sg.kind }}</span>{% if sg.counted %} <span class="tag">counted</span>{% endif %}<small>{{ sg.text | defang_text }} · upstream {{ sg.upstream }}</small></td>
+      <td class="num">{{ sg.confidence }}</td><td class="num">{{ sg.weight }}</td><td class="num">{{ sg.age_days }}</td><td class="num">{{ sg.decay }}</td><td class="num">{{ sg.value }}</td></tr>
+  {% else %}<tr><td colspan="6" class="empty">No signals.</td></tr>{% endfor %}
+  </tbody></table>
+  <dl class="kv terms">
+    <dt>base</dt><dd>{{ bd.base.value }}{% if bd.base.source %} (strongest: {{ bd.base.source }}){% endif %}</dd>
+    <dt>corroboration</dt><dd>+{{ bd.corroboration.value }}{% if bd.corroboration.upstreams %} ({{ bd.corroboration.upstreams | join(", ") }}){% endif %}</dd>
+    <dt>relevance</dt><dd>+{{ bd.relevance.value }}{% for h in bd.relevance.hits %}<br><small>{{ h.kind }} +{{ h.points }}: {{ h.reason | defang_text }}</small>{% endfor %}{% if bd.relevance.hits and not bd.relevance.applied %}<br><small>not applied: no report strong enough</small>{% endif %}</dd>
+    <dt>penalty</dt><dd>&minus;{{ bd.penalty.value }}{% for h in bd.penalty["items"] %}<br><small>{{ h.kind }} &minus;{{ h.points }}: {{ h.reason | defang_text }}</small>{% endfor %}</dd>
+  </dl>
+  {% elif bd and bd.model == "patch-priority" %}
+  <p class="note">A CVE: ranked by patch priority ({{ bd.priority or "not scored yet" }}); KEV entries never expire.</p>
+  {% else %}
+  <p class="empty">Not scored yet (the worker scores indicators after each collection and once a day).</p>
+  {% endif %}
+  {% if ind.feedback %}
+  <h3>Analyst feedback</h3>
+  <table class="data"><tbody>
+  {% for f in ind.feedback %}<tr><td><span class="tag">{{ f.verdict }}</span></td><td>{{ f.actor }}</td><td>{{ f.at | ago }}</td><td>{{ f.note }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% endif %}
 </section>
 
 <section class="grid-side">

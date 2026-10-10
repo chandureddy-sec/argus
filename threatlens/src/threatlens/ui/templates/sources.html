@@ -5,12 +5,13 @@
 {% block content %}
 <section class="panel">
   <table class="data">
-    <thead><tr><th>Source</th><th>Reliability</th><th>Last run</th><th class="num">Items</th><th class="num">Every</th><th>Next</th><th>Licence</th></tr></thead>
+    <thead><tr><th>Source</th><th>Reliability</th><th title="analyst TP/FP feedback adjusts the weight">Feedback</th><th>Last run</th><th class="num">Items</th><th class="num">Every</th><th>Next</th><th>Licence</th></tr></thead>
     <tbody>
     {% for s in rows %}{% set r = runs.get(s.name) %}
       <tr>
         <td><span class="health {{ s.health }}"></span><b>{{ s.title }}</b><small>{{ s.name }} · {{ s.kind }}{% if s.requires_key and not s.key_configured %} · needs an API key{% endif %}</small></td>
-        <td><span class="pill {{ 'green' if s.reliability == 'A' else 'yellow' if s.reliability == 'B' else 'gray' }}">{{ s.reliability }}</span><small>{{ s.reliability_note | truncate(70, True) }}</small></td>
+        <td><span class="pill {{ 'green' if s.reliability == 'A' else 'yellow' if s.reliability == 'B' else 'gray' }}">{{ s.reliability }}{{ s.credibility if s.credibility != 6 else "" }}</span><small>{{ s.reliability_note | truncate(70, True) }}</small></td>
+        <td class="num">{% if s.feedback_tp or s.feedback_fp %}×{{ "%.2f" | format(s.weight_factor) }}<small>{{ s.feedback_tp }} TP · {{ s.feedback_fp }} FP</small>{% else %}<span class="muted">–</span>{% endif %}</td>
         <td>{% if r %}<span class="pill {{ 'green' if r.status in ('success', 'not_modified', 'unchanged') else 'yellow' if r.status in ('partial', 'skipped') else 'red' }}">{{ r.status.replace("_", " ") }}</span><small>{{ r.started_at | ago }}{% if r.note %} · {{ r.note | truncate(60, True) }}{% endif %}{% if r.error %} · {{ r.error | truncate(80, True) }}{% endif %}</small>{% else %}<span class="muted">never</span>{% endif %}</td>
         <td class="num">{% if r %}{{ "{:,}".format(r.items_total) }}<small>{{ "{:,}".format(r.items_new) }} new</small>{% endif %}</td>
         <td class="num">{% if s.kind == "enricher" %}on demand{% else %}{{ (s.interval_minutes // 60) ~ " h" if s.interval_minutes >= 60 else s.interval_minutes ~ " min" }}{% endif %}</td>

@@ -28,6 +28,27 @@ doesn't count a mirror as an independent second source.
 Confidence is the default per-sighting value. Tor exit IPs get 30 because
 being a Tor exit isn't malicious in itself. Phase 4 scoring builds on these values.
 
+### Information credibility (Admiralty 1-6, Phase 4)
+
+Each feed also has a typical *information credibility*. It multiplies the reliability weight
+(`config/scoring.yaml`: 1-2 → 1.0, 3 → 0.9, 4 → 0.75, 5 → 0.5, 6 → 1.0). Enrichers are 6
+("cannot be judged"): their findings already carry per-answer weights.
+
+| Source | Credibility | Why |
+|---|---|---|
+| CISA KEV | 1 confirmed | Exploitation confirmed by CISA before listing. |
+| Tor exit list | 1 confirmed | Measured by the Tor Project's own exit scanner. |
+| URLhaus, Feodo Tracker, OpenPhish | 2 probably true | Curated or verified by the operator; status (online/offline) is checked. |
+| Spamhaus DROP | 2 probably true | Hand-maintained by Spamhaus; listing criteria are strict. |
+| ThreatFox | 3 possibly true | Community submissions, moderated but with mixed quality. |
+| AlienVault OTX | 3 possibly true | Community pulses; trust depends on the author. |
+
+Feeds that report a host offline with a `last_online` date (URLhaus `url_status`, Feodo
+`status`) age from that date in scoring (ADR 0008). OTX pulses' `targeted_countries` and
+`industries` arrays are stored for PIR relevance. The field names come from the ThreatQ and
+Elastic OTX integration docs (2026-10-11); they have not been seen live, because there is no
+OTX key.
+
 ## Allowlist sources (built)
 
 | Source | Use | Endpoint | Licence | Verified |

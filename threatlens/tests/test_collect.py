@@ -154,9 +154,7 @@ async def test_allowlisted_domains_never_become_active(sm: SM, mock_http: MakeHt
 async def test_allowlist_changes_are_reapplied(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
     c = collector(sm, mock_http(feed_handler()), tmp_path, Clock())
     await c.run("feodo")
-    async with sm() as s:
-        ip_value = (await s.scalars(select(ObsRow.value))).first()
-    assert ip_value
+    ip_value = "50.16.16.211"  # the fixture's one "online" C2: still active after scoring
 
     await c.replace_allowlist(
         "manual", [Entry("cidr", f"{ip_value}/32", "suppress", "analyst: sinkhole", "manual")]

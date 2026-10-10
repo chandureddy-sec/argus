@@ -8,7 +8,8 @@ ThreatLens stack helper for Windows. Run it through tl.cmd from the threatlens f
     .\tl logs      follow worker and API logs (Ctrl+C to stop)
     .\tl user NAME [viewer|analyst|admin]   create a sign-in account (asks for the password)
     .\tl passwd NAME                       change an account's password
-    .\tl key NAME [viewer|analyst|admin]    create an API key for a program (e.g. ReconX)
+    .\tl key NAME [viewer|analyst|admin] [TLP:...]   API key for a program (e.g. ReconX);
+                                                    the optional TLP is the most it may read
     .\tl <anything else>   runs the threatlens CLI inside the stack,
                            e.g.  .\tl sources   .\tl collect nvd   .\tl users list
 
@@ -160,9 +161,11 @@ switch ($Command) {
     }
     'key' {
         $docker = Find-Docker
-        if (-not $Rest.Count) { Write-Host 'usage: .\tl key NAME [viewer|analyst|admin]'; exit 2 }
+        if (-not $Rest.Count) { Write-Host 'usage: .\tl key NAME [viewer|analyst|admin] [TLP:CLEAR|TLP:GREEN|...]'; exit 2 }
         $role = if ($Rest.Count -ge 2) { $Rest[1] } else { 'viewer' }
-        Invoke-Compose $docker @('exec', '-T', 'worker', 'threatlens', 'keys', 'create', $Rest[0], '--role', $role)
+        $keyArgs = @('exec', '-T', 'worker', 'threatlens', 'keys', 'create', $Rest[0], '--role', $role)
+        if ($Rest.Count -ge 3) { $keyArgs += @('--clearance', $Rest[2]) }
+        Invoke-Compose $docker $keyArgs
     }
     default {
         # Anything else is a threatlens CLI command, run inside the worker container.

@@ -36,6 +36,7 @@ from threatlens.models import (
 from threatlens.net.http import SafeHttp
 from threatlens.rawstore import RawStore
 from threatlens.settings import Settings
+from threatlens.tlp import RED
 
 SM = async_sessionmaker[AsyncSession]
 MakeHttp = Callable[[Callable[[httpx.Request], httpx.Response]], SafeHttp]
@@ -501,26 +502,26 @@ async def test_resolve(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
     await build_graph(sm, mock_http, tmp_path)
     async with sm() as s:
         for ident in ("S0367", "emotet", "Geodo", EMOTET):
-            n = await graph.resolve(s, ident)
+            n = await graph.resolve(s, ident, clearance=RED)
             assert n is not None
             assert n.ref == EMOTET, ident
-        t = await graph.resolve(s, "t1047")
+        t = await graph.resolve(s, "t1047", clearance=RED)
         assert t is not None
         assert t.label == "Windows Management Instrumentation"
-        v = await graph.resolve(s, "cve-2024-3400")
+        v = await graph.resolve(s, "cve-2024-3400", clearance=RED)
         assert v is not None
         assert v.kind == "vulnerability"
         assert v.extra["kev"] is True
         feodo_ip = json.loads((Path(__file__).parent / "fixtures" / "feodo.json").read_text())[0][
             "ip_address"
         ]
-        ip = await graph.resolve(s, feodo_ip)
+        ip = await graph.resolve(s, feodo_ip, clearance=RED)
         assert ip is not None
         assert ip.kind == "indicator"
         assert "[.]" in ip.label  # defanged label
-        assert await graph.resolve(s, f"indicator:{ip.extra['id']}") is not None
-        assert await graph.resolve(s, "no such thing at all") is None
-        assert await graph.resolve(s, "x" * 400) is None
+        assert await graph.resolve(s, f"indicator:{ip.extra['id']}", clearance=RED) is not None
+        assert await graph.resolve(s, "no such thing at all", clearance=RED) is None
+        assert await graph.resolve(s, "x" * 400, clearance=RED) is None
 
 
 async def test_paths_with_provenance(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
@@ -528,14 +529,14 @@ async def test_paths_with_provenance(sm: SM, mock_http: MakeHttp, tmp_path: Path
     feodo = json.loads((Path(__file__).parent / "fixtures" / "feodo.json").read_text())
     emotet_ip = next(d["ip_address"] for d in feodo if d.get("malware") == "Emotet")
     async with sm() as s:
-        ip = await graph.resolve(s, emotet_ip)
-        tech = await graph.resolve(s, "T1047")
-        cve = await graph.resolve(s, "CVE-2020-1472")
+        ip = await graph.resolve(s, emotet_ip, clearance=RED)
+        tech = await graph.resolve(s, "T1047", clearance=RED)
+        cve = await graph.resolve(s, "CVE-2020-1472", clearance=RED)
         assert ip is not None
         assert tech is not None
         assert cve is not None
 
-        res = await graph.paths(s, ip.ref, tech.ref)
+        res = await graph.paths(s, ip.ref, tech.ref, clearance=RED)
         assert res.length == 2
         (path,) = res.paths
         assert [e["rel_type"] for e in path] == ["indicates", "uses"]
@@ -544,30 +545,30 @@ async def test_paths_with_provenance(sm: SM, mock_http: MakeHttp, tmp_path: Path
         assert path[1]["provenance"]["attack_relationship"].startswith("relationship--")
 
         # indicator → malware ← group → CVE named in ATT&CK text
-        res = await graph.paths(s, ip.ref, cve.ref)
+        res = await graph.paths(s, ip.ref, cve.ref, clearance=RED)
         assert res.length == 3
         assert [e["origin"] for e in res.paths[0]] == ["feed", "attack", "attack-mention"]
         assert "CVE-2020-1472" in res.paths[0][2]["provenance"]["quote"]
         assert set(res.nodes) >= {ip.ref, EMOTET, cve.ref}
 
-        none = await graph.paths(s, ip.ref, cve.ref, max_depth=2)
+        none = await graph.paths(s, ip.ref, cve.ref, max_depth=2, clearance=RED)
         assert none.paths == []
         assert none.length is None
 
         revoked_src = await s.scalar(select(Entity.stix_id).where(Entity.revoked.is_(True)))
         if revoked_src:
-            items, _ = await graph.neighbors(s, revoked_src)
+            items, _ = await graph.neighbors(s, revoked_src, clearance=RED)
             assert all(i["edge"]["rel_type"] != "revoked-by" for i in items)
 
 
 async def test_paths_respect_node_budget(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> None:
     await build_graph(sm, mock_http, tmp_path)
     async with sm() as s:
-        a = await graph.resolve(s, "TeamPCP")
-        b = await graph.resolve(s, "CVE-2024-3400")
+        a = await graph.resolve(s, "TeamPCP", clearance=RED)
+        b = await graph.resolve(s, "CVE-2024-3400", clearance=RED)
         assert a is not None
         assert b is not None
-        res = await graph.paths(s, a.ref, b.ref, max_depth=6, max_nodes=1)
+        res = await graph.paths(s, a.ref, b.ref, max_depth=6, max_nodes=1, clearance=RED)
     assert res.paths == []
     assert res.truncated
 
@@ -612,8 +613,8 @@ async def test_otx_pulse_links_actor_malware_and_techniques(
     written = await link_source(sm, "otx", now)
     assert written == 5  # 3 indicates, actor uses malware, malware uses technique
     async with sm() as s:
-        wizard = await graph.resolve(s, "Wizard Spider")
-        t1047 = await graph.resolve(s, "T1047")
+        wizard = await graph.resolve(s, "Wizard Spider", clearance=RED)
+        t1047 = await graph.resolve(s, "T1047", clearance=RED)
         assert wizard is not None
         assert t1047 is not None
         claims = (

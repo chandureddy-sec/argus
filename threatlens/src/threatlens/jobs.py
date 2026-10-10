@@ -10,8 +10,10 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 import httpx
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens.allowlist import Entry, fetch_cloudflare, fetch_fastly, fetch_tranco, org_profile_entries
 from threatlens.collect import Collector, RunSummary
@@ -21,6 +23,9 @@ from threatlens.net.guard import BlockedAddressError
 from threatlens.net.http import FetchError, SafeHttp
 from threatlens.profile import ProfileError, load_profile
 from threatlens.rawstore import RawStore
+from threatlens.scoring.config import get_config
+from threatlens.scoring.feedback import recompute_source_weights
+from threatlens.scoring.store import rescore, rescore_vulns
 from threatlens.settings import Settings
 
 log = get_logger("threatlens.jobs")
@@ -110,4 +115,27 @@ async def refresh_allowlists(
         out[origin] = await c.replace_allowlist(origin, entries)
     changed = await c.reapply_allowlist()
     log.info("allowlist.refreshed", origins=out, indicators_changed=changed)
+    return out
+
+
+async def daily_scoring(sm: async_sessionmaker[AsyncSession], settings: Settings) -> dict[str, Any]:
+    """The daily scoring job (ADR 0008), in order: re-derive source weights
+    from analyst feedback, recompute vulnerability patch priorities (CVE
+    indicators take theirs), then re-score every indicator, which applies
+    decay and expiry (``active`` -> ``expired`` below the threshold)."""
+    cfg = get_config(settings.scoring_path)
+    async with sm() as s, s.begin():
+        changes = await recompute_source_weights(s, cfg, actor="worker")
+    vulns = await rescore_vulns(sm, settings, cfg=cfg)
+    res = await rescore(sm, settings)
+    out = {
+        "config": cfg.tag,
+        "source_weight_changes": len(changes),
+        "vulnerabilities": vulns,
+        "indicators": res.scored,
+        "expired": res.expired,
+        "reactivated": res.reactivated,
+        "seconds": res.seconds,
+    }
+    log.info("scoring.daily", **out)
     return out

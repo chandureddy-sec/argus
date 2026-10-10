@@ -56,6 +56,9 @@ class SourceInfo:
     key_required: bool = False
     max_bytes: int = 50 * 1024 * 1024
     verified: str = ""  # date the terms and format were checked (docs/SOURCES.md)
+    # Admiralty information credibility 1-6 of a typical item (6: cannot be
+    # judged). Multiplies the reliability weight in scoring (docs/SOURCES.md).
+    credibility: int = 6
 
 
 @dataclass(frozen=True)

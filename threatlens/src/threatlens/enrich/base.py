@@ -82,6 +82,7 @@ class EnricherInfo:
     timeout_s: float | None = None  # overrides TL_ENRICH_TIMEOUT_S (slow providers)
     auto: bool = False  # may run in background enrichment (free, passive, unmetered)
     attribution: str | None = None
+    credibility: int = 6  # Admiralty information credibility; 6: cannot be judged
 
     def quotas_for(self, keyed: bool) -> tuple[Quota, ...]:
         if keyed and self.keyed_quotas is not None:

@@ -5,8 +5,8 @@ For each enricher that handles the observable's type, in this order:
 
 1. a fresh cached answer is used as is (``cached``) unless ``refresh``;
 2. an active enricher runs only when the caller asked for active mode;
-3. TLP: no third party sees AMBER/RED values; GREEN values only go to
-   providers that don't disclose lookups;
+3. TLP (``threatlens.tlp`` sinks): no third party sees AMBER/RED values;
+   GREEN values only go to providers that don't disclose lookups;
 4. a missing key, a disabled source, an exhausted bulk budget or provider
    quota each give ``skipped`` with a ``skipped_reason``;
 5. otherwise the provider is called under a timeout; failures are reported
@@ -14,6 +14,12 @@ For each enricher that handles the observable's type, in this order:
 
 Nothing here raises for a provider problem: a lookup always returns, with
 ``partial: true`` when anything was skipped or failed.
+
+The verdict comes from the scoring model (``threatlens.scoring``, ADR 0008):
+the same function that scores stored indicators, applied to the feeds'
+sightings plus the providers' findings of this lookup. Everything the caller
+may not read (an indicator above their TLP clearance) is left out of the
+answer and of the score; it still keeps the value away from third parties.
 """
 
 from __future__ import annotations
@@ -30,25 +36,36 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
+from threatlens import tlp as tlp_rules
 from threatlens.allowlist import Allowlist
 from threatlens.assets import asset_for
 from threatlens.connectors.base import clip
-from threatlens.enrich.base import REGISTRY, Enricher, EnrichError, Evidence, EvidenceKind, Outcome
+from threatlens.enrich.base import REGISTRY, Enricher, EnrichError, Evidence, Outcome
 from threatlens.enrich.quota import QuotaStore
-from threatlens.enrich.verdict import assess
 from threatlens.ioc.defang import defang
 from threatlens.ioc.types import IOCType, Observable
 from threatlens.kb import graph
 from threatlens.logs import get_logger
-from threatlens.models import TLP_LEVELS, AuditLog, Enrichment, Indicator, Sighting, Source
+from threatlens.models import AuditLog, Enrichment, Indicator, Sighting, Source
 from threatlens.models import Observable as ObsRow
 from threatlens.net.http import FetchError, SafeHttp
+from threatlens.scoring.model import Score
+from threatlens.scoring.model import score as score_signals
+from threatlens.scoring.store import (
+    Context,
+    analyst_signal,
+    evidence_signals,
+    load_context,
+    penalty_hits,
+    relevance_hits,
+    sighting_signal,
+)
 from threatlens.settings import Settings
 
 log = get_logger("threatlens.enrich")
 
 ALLOWLIST_TTL_S = 300
-THIRD_PARTY_BLOCKED = frozenset({"TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED"})
+CONTEXT_TTL_S = 300
 
 
 def utcnow() -> datetime:
@@ -60,19 +77,25 @@ def _aware(dt: datetime) -> datetime:
 
 
 def stricter_tlp(*levels: str | None) -> str:
-    known = [lv for lv in levels if lv in TLP_LEVELS]
-    return max(known, key=TLP_LEVELS.index) if known else "TLP:CLEAR"
+    """The most restricted marking given; unknown markings count as RED."""
+    return tlp_rules.stricter(*levels)
+
+
+def sink_for(info_third_party: bool, info_discloses: bool) -> str | None:
+    """The TLP sink a provider is (None: the value doesn't leave the platform)."""
+    if not info_third_party:
+        return None
+    return "enricher:disclosing" if info_discloses else "enricher:third_party"
 
 
 def tlp_blocks(info_third_party: bool, info_discloses: bool, tlp: str) -> str | None:
     """Why TLP keeps this value away from the provider, or None."""
-    if not info_third_party:
+    sink = sink_for(info_third_party, info_discloses)
+    if sink is None or tlp_rules.sink_allows(sink, tlp):
         return None
-    if tlp in THIRD_PARTY_BLOCKED:
-        return f"{tlp}: not shared with third parties"
-    if tlp == "TLP:GREEN" and info_discloses:
-        return "TLP:GREEN: this provider may disclose lookups to others"
-    return None
+    if sink == "enricher:disclosing" and tlp_rules.rank(tlp) == 1:
+        return f"{tlp}: this provider may disclose lookups to others"
+    return f"{tlp}: not shared with third parties"
 
 
 @dataclass
@@ -123,6 +146,7 @@ class EnrichmentService:
         self._synced = False
         self._sync_lock = asyncio.Lock()  # concurrent first lookups must not race the inserts
         self._allowlist: tuple[float, Allowlist] | None = None
+        self._context: tuple[float, Context] | None = None
 
     # ── setup ───────────────────────────────────────────────────────────────
 
@@ -144,6 +168,7 @@ class EnrichmentService:
                     "homepage": i.homepage,
                     "reliability": i.reliability,
                     "reliability_note": i.reliability_note,
+                    "credibility": i.credibility,
                     "license": i.license,
                     "license_url": i.license_url,
                     "commercial_use": i.commercial_use,
@@ -182,6 +207,13 @@ class EnrichmentService:
                 self._allowlist = (now, await load_allowlist(s))
         return self._allowlist[1]
 
+    async def scoring_context(self) -> Context:
+        now = time.monotonic()
+        if self._context is None or now - self._context[0] > CONTEXT_TTL_S:
+            async with self.sm() as s:
+                self._context = (now, await load_context(s, self.settings))
+        return self._context[1]
+
     def applicable(self, type_: IOCType, only: Iterable[str] | None = None) -> list[str]:
         names = set(only) if only else None
         return [
@@ -194,7 +226,7 @@ class EnrichmentService:
 
     async def _known(
         self, s: AsyncSession, obs: Observable
-    ) -> tuple[dict[str, Any] | None, list[dict[str, Any]], int | None]:
+    ) -> tuple[dict[str, Any] | None, list[dict[str, Any]], int | None, list[Sighting]]:
         row = await s.scalar(
             select(ObsRow)
             .where(ObsRow.canonical_key == obs.key)
@@ -203,10 +235,10 @@ class EnrichmentService:
             )
         )
         if row is None:
-            return None, [], None
+            return None, [], None, []
         ind = row.indicator
         if ind is None:
-            return None, [], row.id
+            return None, [], row.id, []
         sources = sorted({sg.source.name for sg in ind.sightings})
         known = {
             "indicator_id": ind.id,
@@ -218,10 +250,14 @@ class EnrichmentService:
             "first_seen": _aware(row.first_seen),
             "last_seen": _aware(row.last_seen),
             "allowlist_reason": ind.allowlist_reason,
+            "analyst_verdict": ind.analyst_verdict,
+            "analyst_verdict_by": ind.analyst_verdict_by,
+            "analyst_verdict_at": _aware(ind.analyst_verdict_at) if ind.analyst_verdict_at else None,
+            "priority_score": ind.priority_score,
         }
         related: list[dict[str, Any]] = []
         if ind.stix_id:
-            items, _ = await graph.neighbors(s, ind.stix_id, limit=50)
+            items, _ = await graph.neighbors(s, ind.stix_id, limit=50, clearance=tlp_rules.RED)
             for it in items:
                 node, edge = it["node"], it["edge"]
                 if node["kind"] in ("entity", "vulnerability"):
@@ -236,7 +272,7 @@ class EnrichmentService:
                             "via": edge.get("source") or edge.get("origin"),
                         }
                     )
-        return known, related, row.id
+        return known, related, row.id, list(ind.sightings)
 
     @staticmethod
     def _local_evidence(
@@ -244,27 +280,31 @@ class EnrichmentService:
         related: list[dict[str, Any]],
         allow_effect: str | None,
         allow_reasons: Sequence[str],
+        signals: Sequence[dict[str, Any]] = (),
     ) -> list[Evidence]:
         ev: list[Evidence] = []
         if known is not None:
             srcs = ", ".join(known["sources"]) or "no source"
-            conf = known["confidence"]
-            if known["status"] in ("active", "new"):
-                kind: EvidenceKind = "malicious" if conf >= 60 else "suspicious"
-                ev.append(
-                    Evidence(
-                        "threatlens", kind, conf, f"Active indicator reported by {srcs} (confidence {conf})"
+            if known["status"] in ("active", "new", "expired"):
+                for sig in signals:
+                    ev.append(
+                        Evidence(
+                            "threatlens",
+                            sig["kind"],
+                            round(sig["value"]),
+                            f"{sig['text']} (confidence {sig['confidence']}, "
+                            f"{sig['age_days']:g} days ago, weight {sig['weight']:g})",
+                        )
                     )
-                )
+                if known["status"] == "expired":
+                    ev.append(Evidence("threatlens", "info", 0, f"Expired: reported by {srcs} too long ago"))
             elif known["status"] == "false_positive":
-                ev.append(
-                    Evidence(
-                        "threatlens",
-                        "benign",
-                        80,
-                        f"Marked not malicious: {known['allowlist_reason'] or 'allowlisted'}",
-                    )
+                reason = (
+                    f"marked false positive by {known['analyst_verdict_by'] or 'an analyst'}"
+                    if known.get("analyst_verdict") == "fp"
+                    else known["allowlist_reason"] or "allowlisted"
                 )
+                ev.append(Evidence("threatlens", "benign", 80, f"Marked not malicious: {reason}"))
             else:
                 ev.append(Evidence("threatlens", "info", 0, f"Was reported by {srcs}; now {known['status']}"))
         if allow_effect == "suppress":
@@ -445,15 +485,22 @@ class EnrichmentService:
         tlp: str | None = None,
         only: Iterable[str] | None = None,
         budget: Budget | None = None,
+        clearance: str,
     ) -> dict[str, Any]:
+        """``clearance``: the caller's TLP clearance (``tlp.RED`` for the
+        platform itself). Local knowledge above it is not used or returned."""
         started = time.perf_counter()
         await self._ensure_synced()
         async with self.sm() as s:
-            known, related, observable_id = await self._known(s, obs)
+            known, related, observable_id, sightings = await self._known(s, obs)
             cached = await self._cached(s, obs)
             own = await asset_for(s, obs.key)
         verdict_al = (await self.allowlist()).check(obs)
+        # Sinks see the strictest marking we hold, whoever is asking.
         eff_tlp = stricter_tlp(tlp, known["tlp"] if known else None)
+        if known is not None and not tlp_rules.may_read(clearance, known["tlp"]):
+            known, related, sightings = None, [], []
+        reply_tlp = stricter_tlp(tlp, known["tlp"] if known else None)
         names = self.applicable(obs.type, only)
         results = await asyncio.gather(
             *(
@@ -464,15 +511,13 @@ class EnrichmentService:
                 for n in names
             )
         )  # fmt: skip
-        evidence = self._local_evidence(known, related, verdict_al.effect, verdict_al.reasons)
+        sc = await self._score(obs, known, related, sightings, results, verdict_al)
+        local = {sg.source.name for sg in sightings} | {"analyst"}
+        mine = [r for r in sc.signals if r["source"] in local]
+        evidence = self._local_evidence(known, related, verdict_al.effect, verdict_al.reasons, mine)
         for r in results:
             for e in r.get("evidence") or []:
                 evidence.append(Evidence(e["source"], e["kind"], int(e["weight"]), e["text"], e.get("ref")))
-        suppressed = None
-        if verdict_al.suppressed:
-            suppressed = "; ".join(verdict_al.reasons) or "allowlisted"
-        elif known is not None and known["status"] == "false_positive":
-            suppressed = known["allowlist_reason"] or "marked not malicious"
         if own is not None:
             evidence.append(
                 Evidence(
@@ -483,16 +528,16 @@ class EnrichmentService:
                     f"last seen {own['last_seen'].date()})",
                 )
             )
-        a = assess(evidence, suppressed_by=suppressed)
-        if own is not None and a.action == "block":
+        action, action_text = sc.action, sc.action_text
+        if own is not None and action == "block":
             # Blocking our own host or IP cuts off our own service; a feed
             # listing it means compromise, abuse or a shared address (ADR 0006).
-            a.action = "investigate"
-            a.action_text = (
+            action = "investigate"
+            action_text = (
                 "This is one of your own assets: check it for compromise or abuse "
                 "(or a shared IP) instead of blocking it."
             )
-            a.breakdown.append({"step": "own asset: block becomes investigate", "value": None})
+            sc.breakdown["own_asset"] = "block becomes investigate"
         partial = any(
             r["status"] in ("error", "stale")
             or (r["status"] == "skipped" and r["skipped_reason"] != "active_not_requested")
@@ -505,13 +550,14 @@ class EnrichmentService:
                 "defanged": defang(obs.value, obs.type),
                 "canonical_key": obs.key,
             },
-            "verdict": a.verdict,
-            "score": a.score,
-            "score_model": a.model,
-            "score_breakdown": a.breakdown,
-            "recommended_action": a.action,
-            "recommended_action_text": a.action_text,
-            "tlp": eff_tlp,
+            "verdict": sc.verdict,
+            "score": round(sc.priority),
+            "priority": sc.priority,
+            "score_model": sc.breakdown["model"],
+            "score_breakdown": sc.breakdown,
+            "recommended_action": action,
+            "recommended_action_text": action_text,
+            "tlp": reply_tlp,
             "known": known,
             "asset": own,
             "allowlist": {
@@ -526,6 +572,52 @@ class EnrichmentService:
             "took_ms": round((time.perf_counter() - started) * 1000, 1),
         }
 
+    async def _score(
+        self,
+        obs: Observable,
+        known: dict[str, Any] | None,
+        related: list[dict[str, Any]],
+        sightings: Sequence[Sighting],
+        results: Sequence[dict[str, Any]],
+        verdict_al: Any,
+    ) -> Score:
+        ctx = await self.scoring_context()
+        signals = []
+        for sg in sightings:
+            meta = ctx.sources.get(sg.source_id)
+            if meta is not None:
+                signals.append(sighting_signal(meta, sg.confidence, sg.last_seen, sg.context))
+        dead = False
+        for r in results:
+            if r.get("evidence") and r.get("fetched_at"):
+                signals += evidence_signals(r["evidence"], r["fetched_at"], ctx.by_name)
+            if r["enricher"] == "rdap" and obs.type == IOCType.DOMAIN and r.get("found") is False:
+                dead = True
+        if known is not None and known.get("analyst_verdict") == "tp":
+            signals.append(analyst_signal(ctx.cfg, known["analyst_verdict_by"], known["analyst_verdict_at"]))
+        labels = list(dict.fromkeys([*(known["labels"] if known else []), *verdict_al.labels]))
+        suppressed = None
+        if verdict_al.suppressed:
+            suppressed = "; ".join(verdict_al.reasons) or "allowlisted"
+        elif known is not None and known["status"] == "false_positive":
+            suppressed = (
+                f"marked false positive by {known['analyst_verdict_by'] or 'an analyst'}"
+                if known.get("analyst_verdict") == "fp"
+                else known["allowlist_reason"] or "marked not malicious"
+            )
+        return score_signals(
+            signals,
+            obs_type=obs.type.value,
+            now=self.now(),
+            cfg=ctx.cfg,
+            relevance=relevance_hits(
+                ctx, obs.type.value, obs.value, obs.key, [sg.context or {} for sg in sightings],
+                [r["ref"] for r in related], labels,
+            ),
+            penalties=penalty_hits(ctx, labels, dead),
+            suppressed=suppressed,
+        )  # fmt: skip
+
     async def lookup_many(
         self,
         observables: Sequence[Observable],
@@ -536,6 +628,7 @@ class EnrichmentService:
         tlp: str | None = None,
         budget: int | None = None,
         concurrency: int = 4,
+        clearance: str,
     ) -> tuple[list[dict[str, Any]], int]:
         """Look up several observables (deduplicated, order kept) sharing one
         metered-call budget; returns (results, units spent)."""
@@ -546,7 +639,9 @@ class EnrichmentService:
 
         async def one(o: Observable) -> dict[str, Any]:
             async with sem:
-                return await self.lookup(o, actor=actor, active=active, refresh=refresh, tlp=tlp, budget=b)
+                return await self.lookup(
+                    o, actor=actor, active=active, refresh=refresh, tlp=tlp, budget=b, clearance=clearance
+                )
 
         results = await asyncio.gather(*(one(o) for o in uniq))
         return list(results), start - b.left
@@ -580,7 +675,9 @@ class EnrichmentService:
             ).all()
         done = 0
         for t, v, tlp in rows:
-            res = await self.lookup(Observable(IOCType(t), v), actor="worker", tlp=tlp, only=names)
+            res = await self.lookup(
+                Observable(IOCType(t), v), actor="worker", tlp=tlp, only=names, clearance=tlp_rules.RED
+            )
             done += sum(1 for r in res["enrichments"] if r["status"] == "ok")
         log.info("enrich.backlog", candidates=len(rows), enriched=done)
         return {"candidates": len(rows), "enriched": done}
