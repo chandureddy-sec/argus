@@ -17,6 +17,7 @@ import (
 	reporter "reconx/internal/report"
 	"reconx/internal/storage"
 	"reconx/internal/target"
+	"reconx/internal/threatlens"
 	"reconx/internal/ui"
 	"reconx/internal/whois"
 	"reconx/pkg/models"
@@ -38,6 +39,10 @@ var (
 	scanHTML        string
 	scanMD          string
 	scanArchiveRaw  bool
+	scanThreatLens  string
+	scanTLP         string
+	scanTLBudget    int
+	scanTLAssets    bool
 )
 
 var scanCmd = &cobra.Command{
@@ -64,6 +69,13 @@ var scanCmd = &cobra.Command{
 			if err := ensureAuthorized(parsedTarget.Value); err != nil {
 				return err
 			}
+		}
+		tlCfg, useTL, err := threatlensConfig(scanThreatLens, scanTLP, scanTLBudget)
+		if err != nil {
+			return err // checked before scanning, not after minutes of work
+		}
+		if scanTLAssets && !useTL {
+			return fmt.Errorf("--threatlens-assets needs --threatlens")
 		}
 
 		startTime := time.Now()
@@ -378,6 +390,20 @@ var scanCmd = &cobra.Command{
 			}
 		}
 
+		// ── 4.9 ThreatLens (opt-in via --threatlens) ──────────────────────────────────
+		if useTL {
+			if !silent {
+				fmt.Printf("\n[*] Asking ThreatLens (%s) about %d hosts/IPs...\n", tlCfg.URL, len(threatlens.Values(report)))
+			}
+			ti := gatherThreatIntel(context.Background(), report, tlCfg)
+			if !silent {
+				printThreatIntel(ti)
+			}
+			if scanTLAssets {
+				importAssets(report, tlCfg, silent)
+			}
+		}
+
 		// ── 5. SQLite Storage & Drift Detection ───────────────────────────────────────
 		if !silent {
 			fmt.Printf("\n[5/6] Saving scan to local database & checking for drift...\n")
@@ -476,6 +502,11 @@ func init() {
 	scanCmd.Flags().StringVar(&scanHTML, "html", "", "export results to HTML report (auto-generated if omitted)")
 	scanCmd.Flags().StringVar(&scanMD, "md", "", "export results to Markdown file (auto-generated if omitted)")
 	scanCmd.Flags().BoolVar(&scanArchiveRaw, "archive-raw", false, "save every raw third-party HTTP response of the passive phase (with a manifest) under <output>/raw/")
+	scanCmd.Flags().StringVar(&scanThreatLens, "threatlens", "", "check the scan's hosts and IPs against a ThreatLens server: --threatlens=<url>, or --threatlens alone to use RECONX_THREATLENS_URL (key: RECONX_THREATLENS_API_KEY or 'reconx keys set threatlens')")
+	scanCmd.Flags().Lookup("threatlens").NoOptDefVal = threatlensFlagEnv
+	scanCmd.Flags().StringVar(&scanTLP, "threatlens-tlp", "TLP:GREEN", "TLP of the scan's values sent to ThreatLens (TLP:AMBER/RED: no third-party lookups at all)")
+	scanCmd.Flags().BoolVar(&scanTLAssets, "threatlens-assets", false, "also import this scan into ThreatLens as YOUR OWN assets and tech stack (only for targets you own)")
+	scanCmd.Flags().IntVar(&scanTLBudget, "threatlens-budget", 0, "max metered provider calls ThreatLens may spend per 100 values (0 = server default)")
 	addActiveAuthFlags(scanCmd.Flags())
 }
 

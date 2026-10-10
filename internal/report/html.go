@@ -218,6 +218,8 @@ const htmlTemplate = `<!DOCTYPE html>
 
   {{template "intel" .}}
 
+  {{template "threat" .}}
+
   {{if and .Correlation (not .Intel)}}
   <h2 class="section-title">Attack Surface Correlation (Resolving Infrastructure & Cloud Providers)</h2>
   <table>
@@ -508,7 +510,10 @@ func parseReportTemplate() (*template.Template, error) {
 	if err != nil {
 		return nil, err
 	}
-	return tmpl.Parse(intelTemplate)
+	if tmpl, err = tmpl.Parse(intelTemplate); err != nil {
+		return nil, err
+	}
+	return tmpl.Parse(threatTemplate)
 }
 
 // reportFuncMap is the shared set of template helpers for the HTML report.
@@ -520,6 +525,8 @@ func reportFuncMap() template.FuncMap {
 		"cves":         cveList,
 		"sortFindings": sortFindings,
 		"sevStyle":     sevStyle,
+		"verdictStyle": verdictStyle,
+		"upper":        strings.ToUpper,
 		"geomap":       geoMapSVG,
 		"day":          day,
 		"ms":           func(ms int64) string { return fmt.Sprintf("%.1fs", float64(ms)/1000) },

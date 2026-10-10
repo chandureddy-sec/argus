@@ -14,6 +14,7 @@ import (
 	"reconx/internal/history"
 	"reconx/internal/monitor"
 	"reconx/internal/target"
+	"reconx/internal/threatlens"
 	"reconx/internal/ui"
 	"reconx/pkg/models"
 )
@@ -298,7 +299,10 @@ func newMonitorRunner(log func(string)) *monitor.Runner {
 		Notifier: &monitor.Notifier{},
 		Log:      log,
 		Scan: func(ctx context.Context, m *monitor.Monitor) (*models.ScanReport, string, error) {
-			res, err := RunScanPipeline(ctx, ScanOptions{Target: m.Target, Mode: "passive", Persist: true, ArchiveRaw: m.ArchiveRaw}, nil)
+			// With a ThreatLens server configured, every run also checks the
+			// target's hosts and IPs, so the threat_intel_flagged rule can fire.
+			tl := threatlens.Config{}.FromEnv().Configured()
+			res, err := RunScanPipeline(ctx, ScanOptions{Target: m.Target, Mode: "passive", Persist: true, ArchiveRaw: m.ArchiveRaw, ThreatLens: tl}, nil)
 			if err != nil {
 				return nil, "", err
 			}

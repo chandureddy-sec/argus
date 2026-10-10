@@ -47,6 +47,11 @@ var Supported = []Key{
 		Effect: "Optional — raises the anonymous limit of 10 subdomain queries per hour.",
 		GetURL: "https://sslmate.com/account/api_credentials",
 	},
+	{
+		Name: "threatlens", Env: "RECONX_THREATLENS_API_KEY", Service: "ThreatLens (threat intel server)",
+		Effect: "Needed for --threatlens: an analyst key from the ThreatLens server (create one with: tl key reconx analyst). Set the server with --threatlens=<url> or RECONX_THREATLENS_URL.",
+		GetURL: "http://127.0.0.1:8000/docs",
+	},
 }
 
 // Lookup returns the key definition for a name (case-insensitive) or env var.

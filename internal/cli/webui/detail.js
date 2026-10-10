@@ -6,7 +6,7 @@ let DETAIL = null; // {rep, kind, id, tab, filter, role, q, sort, dir}
 
 const TABS = [
   ["overview", "Overview"], ["subdomains", "Subdomains"], ["dns", "DNS"], ["email", "Email Security"],
-  ["certs", "Certificates"], ["infra", "Infrastructure"], ["graph", "Graph"], ["map", "Map"], ["changes", "Changes"], ["sources", "Sources"], ["active", "Active Metadata"],
+  ["certs", "Certificates"], ["infra", "Infrastructure"], ["graph", "Graph"], ["map", "Map"], ["changes", "Changes"], ["sources", "Sources"], ["threat", "Threat Intel"], ["active", "Active Metadata"],
 ];
 
 function renderDetail(rep, kind, id) {
@@ -46,10 +46,12 @@ function tabAvailable(k, rep) {
     case "email": case "certs": case "infra": case "sources": case "graph": case "map": return !!pi;
     case "changes": return !!(pi || rep.normalized_assets);
     case "active": return !!(rep.active_recon || rep.web_map);
+    case "threat": return !!rep.threat_intel;
   }
   return false;
 }
 function tabBadge(k, rep) {
+  if (k === "threat" && rep.threat_intel) { const c = rep.threat_intel.counts || {}; const n = (c.malicious || 0) + (c.suspicious || 0); return n ? ` <span class="cnt hot">${n}</span>` : ""; }
   const pi = rep.passive_intel; if (!pi) return "";
   if (k === "subdomains") return ` <span class="cnt">${pi.hosts?.length || 0}</span>`;
   if (k === "certs") return ` <span class="cnt">${pi.certificate_summary?.total || 0}</span>`;
@@ -61,7 +63,7 @@ function tabBadge(k, rep) {
 function renderTab() {
   const b = document.getElementById("tabBody");
   const r = DETAIL.rep;
-  const fn = { overview: tabOverview, subdomains: tabSubdomains, dns: tabDNS, email: tabEmail, certs: tabCerts, infra: tabInfra, graph: tabGraph, map: tabMap, changes: tabChanges, sources: tabSources, active: tabActive }[DETAIL.tab];
+  const fn = { overview: tabOverview, subdomains: tabSubdomains, dns: tabDNS, email: tabEmail, certs: tabCerts, infra: tabInfra, graph: tabGraph, map: tabMap, changes: tabChanges, sources: tabSources, threat: tabThreat, active: tabActive }[DETAIL.tab];
   if (GRAPH?.raf) cancelAnimationFrame(GRAPH.raf);
   b.innerHTML = fn ? fn(r) : "";
   if (DETAIL.tab === "subdomains") wireSubdomains();
@@ -436,6 +438,29 @@ function tabSources(r) {
     `</tbody></table></div>` +
     (r.raw_archive ? `<div class="note2">Raw source responses (with a SHA-256 manifest) are archived in <code>${esc(r.raw_archive)}</code>.</div>` : "") +
     `<div class="muted" style="font-size:12px;margin-top:8px">Model version ${r.passive_intel.version} · scanned ${esc(fmtFull(r.timestamp))}</div>`;
+}
+
+/* ───────── Threat intel (ThreatLens verdicts) ───────── */
+function safeHref(u) { return /^https?:\/\//i.test(u || "") ? u : ""; }
+function tabThreat(r) {
+  const ti = r.threat_intel, c = ti.counts || {};
+  const cls = { malicious: "lc-removed", suspicious: "lc-changed", benign: "lc-active", unknown: "lc-hist" };
+  let h = `<div class="muted" style="margin-bottom:10px">${(ti.items || []).length} hosts and IPs checked against <code>${esc(ti.server)}</code> on ${esc(fmtFull(ti.checked_at))} as ${esc(ti.tlp)}:
+    <b>${c.malicious || 0}</b> malicious · <b>${c.suspicious || 0}</b> suspicious · ${c.benign || 0} benign · ${c.unknown || 0} unknown.
+    Verdicts are ThreatLens's assessment, each with its evidence. An own asset listed as malicious usually means compromise, abuse or a shared IP: verify before acting.</div>`;
+  if (ti.error) h += `<div class="notice">ThreatLens ${ti.status === "error" ? "could not be used" : "stopped part-way"}: ${esc(ti.error)}</div>`;
+  if (!(ti.items || []).length) return h;
+  h += `<div class="tbl"><table><thead><tr><th>Asset</th><th>Verdict</th><th class="num">Score</th><th>Action</th><th>Evidence</th><th>Known to</th></tr></thead><tbody>` +
+    ti.items.map(v => {
+      const ev = (v.evidence || []).filter(e => e.kind !== "info").map(e => {
+        const href = safeHref(e.ref);
+        return `<div class="muted" style="font-size:12px"><b>${esc(e.kind)} ${e.weight}</b> · ${esc(e.source)}: ${esc(e.text)}${href ? ` <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">↗</a>` : ""}</div>`;
+      }).join("") + (v.related || []).map(x => `<div class="muted" style="font-size:12px">linked to ${esc(x)}</div>`).join("");
+      const partial = v.partial ? ` <span class="muted" title="${esc((v.skipped || []).join("; "))}" style="font-size:11px">partial</span>` : "";
+      return `<tr><td><b>${esc(v.value)}</b><div class="muted" style="font-size:11px">${esc(v.type)}</div></td><td>${pill(v.verdict, cls[v.verdict] || "lc-hist")}${partial}</td><td class="num">${v.score}</td><td>${esc(v.action)}</td><td class="wrap">${ev || '<span class="muted">—</span>'}</td><td>${esc((v.known_sources || []).join(", ") || "—")}</td></tr>`;
+    }).join("") + `</tbody></table></div>`;
+  if ((ti.rejected || []).length) h += `<div class="muted" style="font-size:12px;margin-top:8px">Not checked: ${ti.rejected.map(x => esc(x.value) + " (" + esc(x.reason) + ")").join(" · ")}</div>`;
+  return h;
 }
 
 /* ───────── Active metadata (separate, authorization-gated mode) ───────── */

@@ -14,6 +14,7 @@ import (
 	reporter "reconx/internal/report"
 	"reconx/internal/storage"
 	"reconx/internal/target"
+	"reconx/internal/threatlens"
 	"reconx/internal/whois"
 	"reconx/pkg/models"
 )
@@ -34,6 +35,10 @@ type ScanOptions struct {
 	// ArchiveRaw saves every raw third-party HTTP response of the passive
 	// phase under reports/raw/ (written immediately, even for unsaved scans).
 	ArchiveRaw bool `json:"archive_raw"`
+	// ThreatLens sends the scan's hosts and IPs to the ThreatLens server
+	// configured in RECONX_THREATLENS_URL / RECONX_THREATLENS_API_KEY.
+	ThreatLens    bool   `json:"threatlens"`
+	ThreatLensTLP string `json:"threatlens_tlp"` // default TLP:GREEN
 	// Persist, when true, writes the JSON/HTML/MD report files and a drift-DB
 	// entry. The web dashboard leaves this false and offers on-demand downloads
 	// instead, so scans aren't written to disk unless the user asks.
@@ -170,6 +175,24 @@ func RunScanPipeline(ctx context.Context, opts ScanOptions, progress func(Progre
 
 		emit("webmap", "Crawling & web mapping…", 85, "info")
 		report.WebMap = runWebMapGather(ctx, parsed.Value, opts.Browser, opts.MaxDepth, opts.MaxPages)
+	}
+
+	// ── ThreatLens (opt-in) ────────────────────────────────────────────────────
+	if opts.ThreatLens {
+		cfg := threatlens.Config{TLP: opts.ThreatLensTLP}.FromEnv()
+		if err := cfg.Validate(); err != nil {
+			emit("threatlens", "ThreatLens skipped: "+err.Error(), 90, "warn")
+		} else {
+			emit("threatlens", fmt.Sprintf("Asking ThreatLens about %d hosts/IPs…", len(threatlens.Values(report))), 88, "info")
+			if ti := gatherThreatIntel(ctx, report, cfg); ti != nil {
+				level := "info"
+				msg := fmt.Sprintf("ThreatLens: %d malicious, %d suspicious of %d checked", ti.Counts["malicious"], ti.Counts["suspicious"], len(ti.Items))
+				if ti.Error != "" {
+					level, msg = "warn", msg+" — "+ti.Error
+				}
+				emit("threatlens", msg, 92, level)
+			}
+		}
 	}
 
 	// ── Persist (only on request; the web UI saves on demand instead) ────────────

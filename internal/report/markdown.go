@@ -122,6 +122,10 @@ func RenderMarkdown(report *models.ScanReport) string {
 		sb.WriteString("\n---\n\n")
 	}
 
+	if report.ThreatIntel != nil {
+		writeThreatMarkdown(&sb, report.ThreatIntel)
+	}
+
 	// ── DNS Records ────────────────────────────────────────────────────────────────
 	if report.DNS != nil && len(report.DNS.Records) > 0 {
 		sb.WriteString("## DNS Records\n\n")

@@ -146,12 +146,34 @@ reconx monitor rules             # the alert rules
 Alert rules: new / removed subdomains, DNS changes, new certificates,
 certificates crossing 14/7 days to expiry, provider/ASN changes, new open
 ports or CVE IDs from Shodan on the target's own IPs (KEV → high), new
-potential dangling DNS, and weakened SPF/DMARC. The first run saves a baseline.
+potential dangling DNS, weakened SPF/DMARC, and hosts or IPs that ThreatLens
+newly flags (when it is configured). The first run saves a baseline.
 Alerts are logged to `reports/monitor/alerts.jsonl`. Slack, Discord and Teams
 webhook URLs get chat-formatted messages; any other URL receives JSON
 (`{"text": …, "alert": {…}}`). Monitors run while `reconx serve` is open
 (disable with `--no-monitor`) or under `reconx monitor daemon`; the dashboard's
 **Monitoring** page manages them.
+
+### Threat intel from ThreatLens
+
+ReconX can ask a [ThreatLens](threatlens/) server (this repository's threat-intelligence
+platform) about every host and IP a scan finds:
+
+```bash
+export RECONX_THREATLENS_URL=http://127.0.0.1:8000
+reconx keys set threatlens            # an analyst key: in threatlens/, run  tl key reconx analyst
+reconx scan example.com --threatlens                      # verdicts for hosts and IPs (TLP:GREEN)
+reconx scan example.com --threatlens --threatlens-assets  # also import as YOUR OWN assets
+```
+
+Each host and IP gets a verdict (malicious / suspicious / benign / unknown), a score, the
+evidence and a recommended action. They are shown in the terminal (flagged ones), the JSON,
+HTML and Markdown reports, and the dashboard's **Threat Intel** tab. `--threatlens-tlp
+TLP:AMBER` keeps the values on the ThreatLens server (no third-party lookups).
+`--threatlens-assets` is only for targets you own: ThreatLens then lists your hosts that a feed
+reports, treats lookups of them as "investigate, don't block", and adds the software Shodan saw on
+them to your tech stack. Monitors include the check automatically when ThreatLens is configured
+(rule `threat_intel_flagged`). Design: `threatlens/docs/adr/0006-reconx-link.md`.
 
 ### Dashboard visualisations
 

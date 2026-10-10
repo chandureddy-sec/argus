@@ -38,6 +38,7 @@ const (
 	RuleExposure         = "exposure_changed"
 	RuleDangling         = "dangling_dns"
 	RuleEmailPosture     = "email_posture"
+	RuleThreatFlagged    = "threat_intel_flagged"
 )
 
 // Rules describes every rule, for the CLI and dashboard.
@@ -51,6 +52,7 @@ var Rules = []struct{ ID, Description string }{
 	{RuleExposure, "Shodan reports new open ports or CVE IDs (KEV-listed CVEs are high)"},
 	{RuleDangling, "A new potential dangling-DNS indicator appears"},
 	{RuleEmailPosture, "SPF, DMARC or the email-security score weakens"},
+	{RuleThreatFlagged, "ThreatLens newly flags a host or IP as malicious (high) or suspicious (medium); needs RECONX_THREATLENS_URL and a key"},
 }
 
 // ValidateRules rejects unknown rule IDs.
@@ -171,6 +173,13 @@ func Evaluate(m *Monitor, prev, cur *models.ScanReport, prevFile, curFile string
 	}
 	add(RuleDangling, SevHigh, "New potential dangling DNS on "+m.Target+" (verify — not a confirmed takeover)", newDangling(prev, cur))
 	add(RuleEmailPosture, SevMedium, "Email security weakened on "+m.Target, emailRegressions(prev, cur))
+	if items, malicious := newlyFlagged(prev, cur); len(items) > 0 {
+		s := SevMedium
+		if malicious {
+			s = SevHigh
+		}
+		add(RuleThreatFlagged, s, "ThreatLens flags "+plural(len(items), "asset", "assets")+" of "+m.Target, items)
+	}
 
 	sort.SliceStable(out, func(i, j int) bool { return sevRank[out[i].Severity] < sevRank[out[j].Severity] })
 	return out
@@ -368,4 +377,39 @@ func first(s []string) string {
 		return ""
 	}
 	return s[0]
+}
+
+// newlyFlagged lists hosts and IPs ThreatLens calls malicious or suspicious
+// now but did not in prev (an asset already flagged alerts again only when it
+// goes from suspicious to malicious). The bool reports any malicious item.
+func newlyFlagged(prev, cur *models.ScanReport) ([]string, bool) {
+	if cur.ThreatIntel == nil {
+		return nil, false
+	}
+	before := map[string]string{}
+	if prev.ThreatIntel != nil {
+		for _, v := range prev.ThreatIntel.Items {
+			before[v.Value] = v.Verdict
+		}
+	}
+	var out []string
+	malicious := false
+	for _, v := range cur.ThreatIntel.Items {
+		if !v.Flagged() {
+			continue
+		}
+		was := before[v.Value]
+		if was == v.Verdict || (was == "malicious" && v.Verdict == "suspicious") {
+			continue
+		}
+		why := ""
+		if len(v.Evidence) > 0 {
+			why = " — " + v.Evidence[0].Source + ": " + v.Evidence[0].Text
+		}
+		out = append(out, fmt.Sprintf("%s: %s (score %d, %s)%s", v.Defanged, strings.ToUpper(v.Verdict), v.Score, v.Action, why))
+		if v.Verdict == "malicious" {
+			malicious = true
+		}
+	}
+	return out, malicious
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -22,6 +24,8 @@ var (
 	githubRateURL   = "https://api.github.com/rate_limit"
 	urlscanQuotaURL = "https://urlscan.io/user/quotas/"
 	certspotterURL  = "https://api.certspotter.com/v1/issuances?domain=example.com"
+	// ThreatLens is self-hosted: its address comes from RECONX_THREATLENS_URL.
+	threatlensDefaultURL = "http://127.0.0.1:8000"
 )
 
 // Verify checks one key value with its service.
@@ -49,6 +53,18 @@ func Verify(ctx context.Context, name, value string) Result {
 	case "certspotter":
 		req, _ = http.NewRequestWithContext(ctx, http.MethodGet, certspotterURL, nil)
 		req.Header.Set("Authorization", "Bearer "+value)
+	case "threatlens":
+		base := strings.TrimRight(os.Getenv("RECONX_THREATLENS_URL"), "/")
+		if base == "" {
+			base = threatlensDefaultURL
+		}
+		var err error
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/v1/enrichers", nil)
+		if err != nil {
+			res.Detail = "bad RECONX_THREATLENS_URL: " + err.Error()
+			return res
+		}
+		req.Header.Set("X-API-Key", value)
 	}
 	req.Header.Set("User-Agent", "ReconX/1.0 key-check")
 

@@ -417,6 +417,7 @@
             </div>
             <div class="authln"><label class="ck" style="margin:0"><input type="checkbox" id="optAuth"> I'm authorized to actively test this target</label></div>
           </div>
+          <label class="ck" id="tlLn" title="Send the scan's hosts and IPs to the ThreatLens server (RECONX_THREATLENS_URL) as TLP:GREEN and show its verdicts in a Threat Intel tab."><input type="checkbox" id="optTL" disabled> Check with ThreatLens <small id="tlHint" style="color:#6f6a52">(not configured: set RECONX_THREATLENS_URL and the threatlens key)</small></label>
           <label class="ck" id="archiveLn" title="Every raw response from the passive sources is written to reports/raw/ with a SHA-256 manifest — immediately, even if you don't save the scan."><input type="checkbox" id="optArchive"> Archive raw source responses <small style="color:#6f6a52">(passive phase → reports/raw/)</small></label>
 
           <div class="formerr hidden" id="formErr"></div>
@@ -529,7 +530,14 @@ const VIEWS={
 
 /* ───────────── boot & routing ───────────── */
 async function init(){
-  try{ TOKEN=(await (await fetch("/api/config")).json()).token; }catch(e){}
+  try{
+    const cfg=await (await fetch("/api/config")).json();
+    TOKEN=cfg.token;
+    if(cfg.threatlens){
+      document.getElementById("optTL").disabled=false;
+      document.getElementById("tlHint").textContent="("+cfg.threatlens_url+")";
+    }
+  }catch(e){}
   document.querySelectorAll(".mode").forEach(el=>el.addEventListener("click",()=>setMode(el.dataset.mode)));
   setMode("passive");
   document.addEventListener("click",e=>{
@@ -720,7 +728,8 @@ async function startScan(ev){
     browser:document.getElementById("optBrowser").checked,
     max_depth:clampInt("optDepth",1,5,2), max_pages:clampInt("optPages",1,200,25),
     nmap:document.getElementById("optNmap").checked, nmap_profile:document.getElementById("optNmapProfile").value,
-    archive_raw:MODE!=="active"&&document.getElementById("optArchive").checked};
+    archive_raw:MODE!=="active"&&document.getElementById("optArchive").checked,
+    threatlens:document.getElementById("optTL").checked};
 
   setBusy(true);
   let res;
