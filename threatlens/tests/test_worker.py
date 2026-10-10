@@ -25,6 +25,11 @@ def test_worker_settings_schedule_heartbeat() -> None:
     ws = worker.WorkerSettings
     assert worker.heartbeat in ws.functions
     names = {getattr(f, "name", getattr(f, "__name__", "")) for f in ws.functions}
-    assert {"collect_source", "refresh_allowlist"} <= names
-    assert {c.name for c in ws.cron_jobs} == {"cron:heartbeat", "cron:enqueue_due", "cron:refresh_allowlist"}
+    assert {"collect_source", "refresh_allowlist", "enrich_backlog"} <= names
+    assert {c.name for c in ws.cron_jobs} == {
+        "cron:heartbeat",
+        "cron:enqueue_due",
+        "cron:refresh_allowlist",
+        "cron:enrich_backlog",
+    }
     assert ws.redis_settings.host  # parsed from TL_REDIS_URL

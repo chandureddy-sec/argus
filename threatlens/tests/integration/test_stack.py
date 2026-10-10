@@ -172,3 +172,71 @@ async def test_pipeline_and_graph_on_postgres(scratch_db: str, tmp_path: Path) -
     finally:
         await http.aclose()
         await engine.dispose()
+
+
+async def test_redis_quota_store() -> None:
+    """The quota book shared by API and worker: windows, refusals that cost
+    nothing, provider blocks, usage."""
+    from threatlens.enrich.base import Quota
+    from threatlens.enrich.quota import RedisQuotaStore
+
+    r: Redis = Redis.from_url(get_settings().redis_url.get_secret_value())
+    name = f"it_{uuid.uuid4().hex[:8]}"
+    q = RedisQuotaStore(r)
+    quotas = (Quota(2, 60), Quota(5, 86400))
+    try:
+        assert [await q.take(name, quotas) for _ in range(2)] == [0.0, 0.0]
+        assert 0 < await q.take(name, quotas) <= 60
+        assert await q.usage(name, quotas) == {"2/minute": 2, "5/day": 2}  # the refusal cost nothing
+        await q.block(name + "b", 5)
+        assert 0 < await q.take(name + "b", ()) <= 5
+    finally:
+        keys = [k async for k in r.scan_iter(match=f"{RedisQuotaStore.PREFIX}{name}*")]
+        if keys:
+            await r.delete(*keys)
+        await r.aclose()
+
+
+async def test_enrichment_on_postgres(scratch_db: str, tmp_path: Path) -> None:
+    """Phase 3 on Postgres: lookup, JSONB summaries, provenance rows, cache hit."""
+    import httpx
+
+    from tests.test_collect import Clock, feed_handler
+    from tests.test_enrich import FEODO_IP, Upstream
+    from threatlens.collect import Collector
+    from threatlens.db import make_sessionmaker
+    from threatlens.enrich.quota import MemoryQuotaStore
+    from threatlens.enrich.service import EnrichmentService
+    from threatlens.ioc.types import IOCType, Observable
+    from threatlens.models import Enrichment
+    from threatlens.net.http import SafeHttp
+    from threatlens.rawstore import RawStore
+    from threatlens.settings import Settings
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    e = make_engine(scratch_db)
+    sm = make_sessionmaker(e)
+    try:
+        feeds = SafeHttp(transport=httpx.MockTransport(feed_handler()), sleep=no_sleep)
+        await Collector(sm, feeds, RawStore(tmp_path), Settings(), now=Clock()).run("feodo")
+        http = SafeHttp(transport=httpx.MockTransport(Upstream()), sleep=no_sleep, retries=0)
+        svc = EnrichmentService(sm, http, MemoryQuotaStore(), Settings())
+        ip = Observable(IOCType.IPV4, FEODO_IP)
+        first = await svc.lookup(ip, actor="it")
+        assert first["verdict"] == "malicious"
+        again = await svc.lookup(ip, actor="it")
+        assert {r["status"] for r in again["enrichments"] if r["enricher"] == "ripestat"} == {"cached"}
+        assert again["took_ms"] < 2000
+        async with sm() as s:
+            country = await s.scalar(
+                text("SELECT summary->>'country' FROM enrichments WHERE enricher = 'ripestat'")
+            )
+            rows = (await s.execute(text("SELECT count(*) FROM enrichments"))).scalar_one()
+        assert country == "US"
+        assert rows == 4
+        assert Enrichment.__tablename__ == "enrichments"
+        await svc.enrich_backlog(10)
+    finally:
+        await e.dispose()

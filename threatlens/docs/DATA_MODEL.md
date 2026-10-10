@@ -88,12 +88,21 @@ Endpoints have no foreign keys: one table and one traversal query serve every
 edge kind, at the cost of possible dangling refs, which queries drop.
 `indicators.stix_id` (uuid5 of the canonical key) makes indicators graph nodes.
 
+## Enrichment (Phase 3)
+
+| Table | One row per | Key columns | Notes |
+|---|---|---|---|
+| `enrichments` | (enricher, canonical key) | `enricher`, `canonical_key` (unique together), `observable_id` (nullable), `source_id` (the enricher's `sources` row), `status` ∈ ok/not_found, `mode` ∈ passive/active, `summary`, `evidence`, `raw` (≤ 256 KB), `query` (never contains a key), `http_status`, `cost`, `requested_by`, `fetched_at`, `expires_at`, `times_fetched` | The latest answer **and** the cache (fresh until `expires_at`). Keyed by canonical key so ad-hoc lookups of values that are not indicators are stored too; `observable_id` links them when one exists. Errors and skips are not stored. |
+
+Enrichers are also `sources` rows (`kind = enricher`, `interval_minutes = 0`), for licence flags,
+enable/disable and provenance; the collector never schedules them.
+
 ## Access and audit
 
 | Table | Key columns | Notes |
 |---|---|---|
 | `api_keys` | `name` (unique), `prefix` (first 10 chars, for identification), `key_hash` (SHA-256, unique), `role`, `expires_at`, `revoked_at`, `last_used_at` | The plaintext key is shown once and never stored. `last_used_at` is updated at most every 5 minutes. |
-| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`. |
+| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call). |
 
 ## Indexes worth knowing
 * `observables (type, last_seen)`: the indicator list and type filter.
@@ -105,6 +114,7 @@ edge kind, at the cost of possible dangling refs, which queries drop.
 * `relationships (origin, scope)`: replacing one ATT&CK domain's edges on reload.
 * `vulnerability_products (vendor, product)`: tech-stack and `?vendor=&product=` matching.
 * `vulnerabilities (kev, kev_date_added)`, `(epss)`, `(cvss_score)`: the usual sort and filter orders.
+* `enrichments (canonical_key)`: all answers for one observable in one read (the lookup cache hit); `(enricher, canonical_key)` unique: upsert and the backlog's freshness check; `(observable_id)`: indicator pages.
 * `entities (external_id)`: ATT&CK id lookups; `entity_aliases (alias_key, entity_id)` unique: name resolution.
 * The `pg_trgm` extension (baseline migration) is used for substring search
   on Postgres from Phase 5. Today `?q=` uses an escaped `LIKE`.

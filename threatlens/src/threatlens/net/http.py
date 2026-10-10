@@ -20,7 +20,7 @@ import asyncio
 import hashlib
 import secrets
 from collections.abc import Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -64,6 +64,7 @@ class FetchResult:
     content_type: str
     etag: str | None
     last_modified: str | None
+    headers: Mapping[str, str] = field(default_factory=dict)  # lower-case names
 
     @property
     def not_modified(self) -> bool:
@@ -151,14 +152,17 @@ class SafeHttp:
         headers: Mapping[str, str] | None = None,
         etag: str | None = None,
         last_modified: str | None = None,
+        accept: frozenset[int] = frozenset(),
         max_bytes: int | None = None,
     ) -> FetchResult:
+        """GET ``url``. Statuses in ``accept`` (e.g. a 404 that carries a JSON
+        "not found" body) are returned as results instead of raising."""
         h = dict(headers or {})
         if etag:
             h["If-None-Match"] = etag
         if last_modified:
             h["If-Modified-Since"] = last_modified
-        return await self.request("GET", url, params=params, headers=h, max_bytes=max_bytes)
+        return await self.request("GET", url, params=params, headers=h, accept=accept, max_bytes=max_bytes)
 
     async def post_json(
         self,
@@ -170,6 +174,17 @@ class SafeHttp:
     ) -> FetchResult:
         return await self.request("POST", url, json=payload, headers=headers, max_bytes=max_bytes)
 
+    async def post_form(
+        self,
+        url: str,
+        form: Mapping[str, str],
+        *,
+        headers: Mapping[str, str] | None = None,
+        accept: frozenset[int] = frozenset(),
+        max_bytes: int | None = None,
+    ) -> FetchResult:
+        return await self.request("POST", url, form=form, headers=headers, accept=accept, max_bytes=max_bytes)
+
     async def request(
         self,
         method: str,
@@ -178,13 +193,15 @@ class SafeHttp:
         params: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
         json: Any = None,
+        form: Mapping[str, str] | None = None,
+        accept: frozenset[int] = frozenset(),
         max_bytes: int | None = None,
     ) -> FetchResult:
         limit = max_bytes or self.max_bytes
         attempt = 0
         while True:
             try:
-                return await self._follow(method, url, params, headers, json, limit)
+                return await self._follow(method, url, params, headers, json, form, accept, limit)
             except (BlockedAddressError, UnsafeURLError, ResponseTooLargeError):
                 raise  # never retry a policy refusal
             except FetchError as e:
@@ -214,28 +231,34 @@ class SafeHttp:
         params: Mapping[str, str] | None,
         headers: Mapping[str, str] | None,
         json: Any,
+        form: Mapping[str, str] | None,
+        accept: frozenset[int],
         limit: int,
     ) -> FetchResult:
         for _ in range(self.max_redirects + 1):
             self._check_url(url)
-            req = self._client.build_request(method, url, params=params, headers=headers, json=json)
+            req = self._client.build_request(
+                method, url, params=params, headers=headers, json=json, data=form
+            )
             resp = await self._client.send(req, stream=True)
             try:
                 if resp.status_code in _REDIRECTS and "location" in resp.headers:
                     url = urljoin(str(resp.url), resp.headers["location"])
                     params = None  # already part of the URL we are leaving
                     if resp.status_code == 303 or (resp.status_code in (301, 302) and method == "POST"):
-                        method, json = "GET", None
+                        method, json, form = "GET", None, None
                     continue
-                return await self._read(resp, limit)
+                return await self._read(resp, limit, accept)
             finally:
                 await resp.aclose()
         raise FetchError(f"more than {self.max_redirects} redirects: {url}")
 
-    async def _read(self, resp: httpx.Response, limit: int) -> FetchResult:
+    async def _read(
+        self, resp: httpx.Response, limit: int, accept: frozenset[int] = frozenset()
+    ) -> FetchResult:
         if resp.status_code == 304:
             return FetchResult(str(resp.url), 304, b"", "", resp.headers.get("etag"), None)
-        if resp.status_code >= 400:
+        if resp.status_code >= 400 and resp.status_code not in accept:
             raise FetchError(
                 f"HTTP {resp.status_code} from {resp.url}", resp.status_code, self._retry_after(resp)
             )
@@ -257,6 +280,7 @@ class SafeHttp:
             content_type=resp.headers.get("content-type", ""),
             etag=resp.headers.get("etag"),
             last_modified=resp.headers.get("last-modified"),
+            headers={k.lower(): v for k, v in resp.headers.items()},
         )
 
     def _retry_after(self, resp: httpx.Response) -> float | None:

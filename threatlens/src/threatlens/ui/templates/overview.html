@@ -54,7 +54,7 @@
 
   <article class="panel map-panel">
     <header class="panel-head"><h2>Botnet C2 locations</h2>
-      <span class="hint">{{ d.geo_located }} of {{ "{:,}".format(d.ips) }} IP indicators carry a location (Feodo Tracker); IP geolocation comes with enrichment</span></header>
+      <span class="hint">{{ d.geo_located }} of {{ "{:,}".format(d.ips) }} IPs located (RIPEstat GeoLite2 enrichment, else the feed's country); new IPs are enriched every 30 minutes</span></header>
     {{ charts.world_map(d.geo) }}
     <div class="legend"><span class="dot crit"></span>Most C2 <span class="dot high"></span>Some <span class="dot med"></span>Few</div>
   </article>

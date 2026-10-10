@@ -20,13 +20,15 @@ from sqlalchemy.orm import selectinload
 from threatlens.auth import Principal, require
 from threatlens.collect import reapply_allowlist
 from threatlens.connectors import REGISTRY
+from threatlens.enrich import REGISTRY as ENRICHERS
 from threatlens.ioc.defang import defang
 from threatlens.ioc.extract import extract
 from threatlens.ioc.normalize import normalize
 from threatlens.ioc.types import IOCType, Observable, Rejected
+from threatlens.kb import KB_REGISTRY
 from threatlens.models import AllowlistEntry, AuditLog, ConnectorRun, Indicator, Sighting, Source
 from threatlens.models import Observable as ObsRow
-from threatlens.settings import get_settings
+from threatlens.settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1")
 Viewer = Annotated[Principal, Depends(require("viewer"))]
@@ -159,16 +161,16 @@ class AllowlistOut(BaseModel):
 # ── sources ──────────────────────────────────────────────────────────────────
 
 
-def _key_configured(name: str) -> bool:
-    cls = REGISTRY.get(name)
+def _key_configured(name: str, settings: Settings) -> bool:
+    cls = REGISTRY.get(name) or KB_REGISTRY.get(name) or ENRICHERS.get(name)
     attr = cls.info.key_setting if cls else None
-    return bool(attr and getattr(get_settings(), attr, None))
+    return bool(attr and getattr(settings, attr, None))
 
 
-def _source_out(s: Source) -> SourceOut:
+def _source_out(s: Source, settings: Settings) -> SourceOut:
     return SourceOut(
         **{k: getattr(s, k) for k in SourceOut.model_fields if k != "key_configured"},
-        key_configured=_key_configured(s.name),
+        key_configured=_key_configured(s.name, settings),
     )
 
 
@@ -176,7 +178,8 @@ def _source_out(s: Source) -> SourceOut:
 async def list_sources(_: Viewer, request: Request) -> list[SourceOut]:
     async with _sm(request)() as s:
         rows = (await s.scalars(select(Source).order_by(Source.name))).all()
-    return [_source_out(r) for r in rows]
+    settings: Settings = getattr(request.app.state, "settings", None) or get_settings()
+    return [_source_out(r, settings) for r in rows]
 
 
 @router.get("/sources/{name}/runs", response_model=list[RunOut], tags=["sources"])

@@ -6,6 +6,9 @@
 * ``collect_source`` runs one connector through the collection pipeline.
 * ``refresh_allowlist`` (daily) refreshes Tranco, CDN ranges and the org
   profile entries, then re-evaluates every indicator.
+* ``enrich_backlog`` (every 30 minutes) enriches new active IP indicators
+  with the free passive enrichers (ASN, location); TL_ENRICH_AUTO_PER_RUN=0
+  turns it off.
 
 Run with: ``arq threatlens.worker.WorkerSettings``
 """
@@ -21,6 +24,8 @@ from arq import cron
 from arq.connections import RedisSettings
 from arq.worker import func
 
+from threatlens.enrich.quota import RedisQuotaStore
+from threatlens.enrich.service import EnrichmentService, enrichment_http
 from threatlens.jobs import open_collector, refresh_allowlists
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import get_settings
@@ -55,11 +60,18 @@ async def refresh_allowlist(ctx: dict[str, Any]) -> dict[str, int | str]:
     return await refresh_allowlists(ctx["collector"])
 
 
+async def enrich_backlog(ctx: dict[str, Any]) -> dict[str, int]:
+    service: EnrichmentService = ctx["enrich"]
+    return await service.enrich_backlog(service.settings.enrich_auto_per_run)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     s = get_settings()
     configure_logging(s.log_level, s.log_json)
     stack = AsyncExitStack()
     ctx["collector"] = await stack.enter_async_context(open_collector(s))
+    http = await stack.enter_async_context(enrichment_http(s))
+    ctx["enrich"] = EnrichmentService(ctx["collector"].sm, http, RedisQuotaStore(ctx["redis"]), s)
     ctx["stack"] = stack
     await heartbeat(ctx)
     log.info("worker.startup")
@@ -80,11 +92,13 @@ class WorkerSettings:
         # same source (arq refuses a job id while its result is still stored).
         func(collect_source, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(refresh_allowlist, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(enrich_backlog, keep_result=0, timeout=COLLECT_TIMEOUT_S),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),
         cron(enqueue_due, second=10, unique=True),
         cron(refresh_allowlist, hour=3, minute=17, unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(enrich_backlog, minute={7, 37}, unique=True, timeout=COLLECT_TIMEOUT_S),
     ]
     on_startup = startup
     on_shutdown = shutdown

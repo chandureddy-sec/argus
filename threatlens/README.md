@@ -49,6 +49,21 @@ curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/vulnerabilities?kev=tr
 curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/graph/paths?from=<feodo-ip>&to=T1047"
 ```
 
+Enrichment (analyst key): one value, a SOC alert, or the enricher catalogue.
+
+```bash
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/lookup/ipv4-addr/162.243.103.246"
+curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/lookup/domain-name/example.com?active=true"  # + DNS (audited)
+curl -H "X-API-Key: tl_..." -H "content-type: application/json"      -d '{"text": "beacon to 162.243.103[.]246 from host-17", "tlp": "TLP:GREEN"}'      http://127.0.0.1:8000/api/v1/enrich
+curl -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/enrichers
+docker compose exec worker threatlens lookup 162.243.103.246      # same, from the CLI
+```
+
+Every answer comes back with a verdict, score breakdown, evidence and recommended action.
+Enrichers without their key (AbuseIPDB, VirusTotal, MalwareBazaar) report `skipped: no_api_key`;
+RDAP, RIPEstat, GreyNoise (25/week), urlscan, crt.sh and DNS need none. URL values go in the path
+(defanged is fine); send a `?` in the URL as `%3F`. Policy (passive-first, TLP, quotas): ADR 0005.
+
 The worker collects every enabled source on its own schedule. Sources that
 need a free key (ThreatFox, OTX) show `skipped` until `TL_ABUSECH_AUTH_KEY` /
 `TL_OTX_API_KEY` are set in `.env`. API docs: http://127.0.0.1:8000/docs (dev only).
@@ -91,7 +106,7 @@ Windows PowerShell sets the integration flag with `$env:TL_INTEGRATION=1`.
 threatlens/
 ├── config/            org_profile.yaml, pirs.yaml (SYNTHETIC examples)
 ├── migrations/        Alembic (async)
-├── src/threatlens/    api/, net/ (hardened HTTP), ioc/, connectors/, collect, allowlist,
+├── src/threatlens/    api/, net/ (hardened HTTP), ioc/, connectors/, kb/, enrich/, ui/, collect, allowlist,
 │                      auth, jobs, worker, cli, settings, logs, profile, db, models
 ├── tests/             unit tests; integration/ needs Postgres + Redis
 └── docs/              PLAN-linked ADRs, THREAT_MODEL, SOURCES, learn/

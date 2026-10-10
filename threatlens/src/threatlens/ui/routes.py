@@ -27,9 +27,19 @@ from threatlens.auth import Principal, authenticate
 from threatlens.connectors.base import clip
 from threatlens.ioc.extract import defang_text
 from threatlens.ioc.types import IOCType
+from threatlens.ioc.types import Observable as IocObservable
 from threatlens.kb import graph
 from threatlens.kb.nvd import stack_cpes
-from threatlens.models import Entity, Indicator, Relationship, Source, Vulnerability, VulnerabilityProduct
+from threatlens.models import (
+    Enrichment,
+    Entity,
+    Indicator,
+    Relationship,
+    Source,
+    Vulnerability,
+    VulnerabilityProduct,
+)
+from threatlens.models import Observable as ObsRow
 from threatlens.settings import Settings, get_settings
 from threatlens.ui import charts, data, session
 
@@ -260,9 +270,45 @@ async def indicator(request: Request, indicator_id: int) -> HTMLResponse:
                     s, r["node"]["ref"], direction="out", rel="uses", node_type="attack-pattern", limit=200
                 )
                 techniques += [{"via": r["node"]["label"], **i} for i in items]
+        enrichments = (
+            await s.scalars(
+                select(Enrichment)
+                .where(Enrichment.canonical_key == f"{ind.type}|{ind.value}")
+                .order_by(Enrichment.enricher)
+            )
+        ).all()
     return page(
-        request, "indicator.html", {"me": me, "ind": ind, "related": related, "techniques": techniques[:60]}
-    )
+        request,
+        "indicator.html",
+        {"me": me, "ind": ind, "related": related, "techniques": techniques[:60],
+         "enrichments": enrichments, "now": datetime.now(UTC)},
+    )  # fmt: skip
+
+
+@router.post("/indicators/{indicator_id}/enrich", response_model=None)
+async def enrich_indicator(request: Request, indicator_id: int) -> Response:
+    """Run the passive enrichers for one indicator (analysts only). Active
+    enrichment stays an explicit API call (``active=true``)."""
+    me = await who(request)
+    if not _same_origin(request):
+        raise HTTPException(403, "cross-site request refused")
+    if not me.can("analyst"):
+        raise HTTPException(403, "enrichment needs the analyst role")
+    svc = getattr(request.app.state, "enrich", None)
+    if svc is None:
+        raise HTTPException(503, "enrichment is not configured")
+    async with _sm(request)() as s:
+        row = (
+            await s.execute(
+                select(ObsRow.type, ObsRow.value, Indicator.tlp)
+                .join(Indicator, Indicator.observable_id == ObsRow.id)
+                .where(Indicator.id == indicator_id)
+            )
+        ).first()
+    if row is None:
+        raise HTTPException(404, "no such indicator")
+    await svc.lookup(IocObservable(IOCType(row[0]), row[1]), actor=me.name, tlp=row[2])
+    return RedirectResponse(f"/ui/indicators/{indicator_id}#enrichment", status_code=303)
 
 
 @router.get("/vulnerabilities", response_class=HTMLResponse)

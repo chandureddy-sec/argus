@@ -1,8 +1,8 @@
 """Read-side queries for the analyst UI (dashboard aggregates and page data).
 
 Everything is computed from stored data; nothing is estimated or invented.
-Where a panel depends on data the platform doesn't collect yet (IP
-geolocation for most indicators, priority scores), it says so.
+Where a panel depends on data the platform doesn't collect yet (Phase 4
+priority scores), it says so.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from threatlens.models import (
     ConnectorRun,
+    Enrichment,
     Entity,
     Indicator,
     Observable,
@@ -245,12 +246,34 @@ async def overview(s: AsyncSession, now: datetime, stack: list[tuple[str, str]])
         (await s.execute(select(Indicator.status, func.count()).group_by(Indicator.status))).all()
     )
 
-    # Location: only Feodo Tracker reports a country today (geo enrichment is Phase 3).
-    country = Sighting.context["country"].as_string()
-    geo_rows = (
-        await s.execute(select(country, func.count()).where(country.is_not(None)).group_by(country))
-    ).all()
-    geo = {str(c): int(n) for c, n in geo_rows if c}
+    # Location: RIPEstat (GeoLite2) enrichment where an IP has it, else the
+    # country a feed reported (Feodo Tracker); each IP counts once.
+    feed_country = Sighting.context["country"].as_string()
+    located: dict[str, str] = {
+        str(k): str(c)
+        for k, c in (
+            await s.execute(
+                select(Observable.canonical_key, feed_country)
+                .join(Indicator, Indicator.observable_id == Observable.id)
+                .join(Sighting, Sighting.indicator_id == Indicator.id)
+                .where(feed_country.is_not(None))
+            )
+        ).all()
+        if c
+    }
+    enriched_country = Enrichment.summary["country"].as_string()
+    for k, c in (
+        await s.execute(
+            select(Enrichment.canonical_key, enriched_country).where(
+                Enrichment.enricher == "ripestat", Enrichment.status == "ok", enriched_country.is_not(None)
+            )
+        )
+    ).all():
+        if c:
+            located[str(k)] = str(c)
+    geo: dict[str, int] = {}
+    for c in located.values():
+        geo[c] = geo.get(c, 0) + 1
     ips = (
         await s.scalar(
             select(func.count())

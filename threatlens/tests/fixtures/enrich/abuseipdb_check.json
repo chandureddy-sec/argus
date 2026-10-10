@@ -1,0 +1,18 @@
+{
+ "data": {
+  "ipAddress": "162.243.103.246",
+  "isPublic": true,
+  "ipVersion": 4,
+  "isWhitelisted": false,
+  "abuseConfidenceScore": 88,
+  "countryCode": "US",
+  "usageType": "Data Center/Web Hosting/Transit",
+  "isp": "DigitalOcean LLC",
+  "domain": "digitalocean.com",
+  "hostnames": [],
+  "isTor": false,
+  "totalReports": 41,
+  "numDistinctUsers": 17,
+  "lastReportedAt": "2026-10-09T21:14:03+00:00"
+ }
+}

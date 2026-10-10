@@ -29,3 +29,21 @@ trimmed real responses and note the date here.
 | `osv_CVE-2021-44228.json`, `osv_GHSA-jfh8-c2jp-5v3q.json` | **Real** OSV records, trimmed (affected/references) | GHSA: CC-BY 4.0 (GitHub) |
 
 All recorded 2026-10-09.
+
+## Enrichment (`enrich/`)
+
+Recorded 2026-10-10 from the live, keyless endpoints, unless marked SYNTHETIC.
+
+| File | Origin | Why |
+|---|---|---|
+| `iana_{dns,ipv4,ipv6,asn}.json` | **Real** IANA RDAP bootstrap files, trimmed to the services the tests use | IANA registry data |
+| `rdap_domain_github.json`, `rdap_domain_404.json` | **Real** Verisign RDAP answers (github.com; a non-existent .com: 404 with an empty body) | public registry record |
+| `rdap_ip_arin.json` | **Real** ARIN RDAP answer for 162.243.103.246 (a Feodo Tracker C2 in `feodo.json`) | public RIR record |
+| `ripestat_prefix.json`, `ripestat_geo.json` | **Real** RIPEstat `prefix-overview` / `maxmind-geo-lite` for the same IP | small excerpt for testing only; RIPEstat terms bar redistribution of the data set |
+| `greynoise_benign.json`, `greynoise_404.json` | **Real** GreyNoise Community answers (71.6.199.23 = Shodan scanner; 8.8.8.8 not observed) | — |
+| `doh_github_{A,AAAA,MX,NS,TXT}.json`, `doh_nx_A.json` | **Real** Cloudflare DoH JSON answers | DNS answers |
+| `urlscan_search.json`, `urlscan_empty.json` | **Real** anonymous urlscan search (`page.domain:"github.com"`, 3 results; a miss) | public scans |
+| `abuseipdb_check.json` | **SYNTHETIC** values in the documented `check` fields | needs a key |
+| `virustotal_ip.json`, `virustotal_file.json`, `virustotal_404.json` | **SYNTHETIC** values in the documented object attributes (file = EICAR test file) | needs a key |
+| `malwarebazaar_hit.json`, `malwarebazaar_miss.json` | **SYNTHETIC** values in the documented `get_info` fields (EICAR hashes) | needs an abuse.ch key |
+| `crtsh.json` | **SYNTHETIC** rows (example.com) in crt.sh's JSON format | crt.sh returned 502 all day on 2026-10-10 |

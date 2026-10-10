@@ -1,0 +1,26 @@
+[
+ {
+  "issuer_ca_id": 1,
+  "issuer_name": "C=US, O=Let's Encrypt, CN=R11",
+  "common_name": "example.com",
+  "name_value": "example.com\nwww.example.com",
+  "id": 1001,
+  "entry_timestamp": "2026-09-01T10:00:00.000",
+  "not_before": "2026-09-01T09:00:00",
+  "not_after": "2026-11-30T09:00:00",
+  "serial_number": "01",
+  "result_count": 2
+ },
+ {
+  "issuer_ca_id": 2,
+  "issuer_name": "C=US, O=DigiCert Inc, CN=DigiCert Global G2 TLS RSA SHA256 2020 CA1",
+  "common_name": "example.com",
+  "name_value": "example.com\nmail.example.com",
+  "id": 1002,
+  "entry_timestamp": "2024-01-15T10:00:00.000",
+  "not_before": "2024-01-15T00:00:00",
+  "not_after": "2025-01-15T00:00:00",
+  "serial_number": "02",
+  "result_count": 2
+ }
+]

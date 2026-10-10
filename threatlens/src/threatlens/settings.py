@@ -63,6 +63,21 @@ class Settings(BaseSettings):
     nvd_max_requests: int = Field(default=60, ge=1, le=5000)  # per run
     osv_max_per_run: int = Field(default=300, ge=0, le=20_000)
 
+    # Enrichment (Phase 3). Keys are optional: an enricher without its key is
+    # reported as skipped. MalwareBazaar uses TL_ABUSECH_AUTH_KEY.
+    abuseipdb_api_key: SecretStr | None = None
+    greynoise_api_key: SecretStr | None = None  # optional: raises the weekly allowance
+    virustotal_api_key: SecretStr | None = None  # public API: non-commercial use only
+    urlscan_api_key: SecretStr | None = None  # optional: raises the search quota
+    ripestat_sourceapp: str = Field(default="threatlens", pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    enrich_timeout_s: float = Field(default=10.0, gt=0, le=60)  # per enricher call
+    enrich_bulk_max: int = Field(default=100, ge=1, le=1000)  # observables per POST /enrich
+    enrich_budget: int = Field(default=50, ge=0, le=10_000)  # metered calls per bulk request
+    enrich_active_per_min: int = Field(default=30, ge=1)  # active lookups per key per minute
+    # Background enrichment of new IP indicators with free passive enrichers
+    # (RIPEstat ASN/geo) so the dashboard map has data; 0 turns it off.
+    enrich_auto_per_run: int = Field(default=100, ge=0, le=5000)
+
     # Allowlisting: the top-N Tranco domains never become active indicators.
     tranco_top: int = Field(default=10_000, ge=0, le=1_000_000)
 

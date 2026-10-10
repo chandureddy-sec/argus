@@ -47,17 +47,25 @@ being a Tor exit isn't malicious in itself. Phase 4 scoring builds on these valu
 | OSV.dev (incl. GitHub Advisory Database) | OSS advisories | `api.osv.dev/v1/vulns/{CVE or GHSA id}` (CVE ids work; 404 when OSV has no record) | none | 24 h / 1 h; ≤ `TL_OSV_MAX_PER_RUN` (300) CVEs, 0.2 s apart; each CVE re-checked after 7 days | per upstream database: GHSA CC-BY 4.0, others CC0/CC-BY/MIT/Apache/CC-BY-SA; we keep only ids and package names | yes | **no** (mixed licences) | A | osv | 2026-10-09 |
 | CISA KEV (knowledge use) | exploited CVEs | read from the Phase 1 `cisa_kev` connector's sightings; no extra download | — | — | CC0 1.0 | yes | yes | A | cisa | 2026-10-08 |
 
-## Later phases (not built yet)
+## Phase 3 enrichers (built)
 
-| Source | Type | Phase | Upstream | Verified |
-|---|---|---|---|---|
-| AbuseIPDB | reputation | 3 | community | not yet |
-| GreyNoise Community | reputation | 3 | GreyNoise | not yet |
-| VirusTotal | reputation | 3 | VirusTotal | not yet |
-| urlscan.io | reputation | 3 | urlscan | not yet |
-| MalwareBazaar | hashes | 3 | abuse.ch | not yet |
-| crt.sh | CT logs | 3 | CT logs | not yet |
-| RDAP | registration | 3 | registries | not yet |
+Machine-readable copy: each enricher's `EnricherInfo` (`src/threatlens/enrich/`), synced into
+`sources` (`kind = enricher`) and served at `GET /api/v1/enrichers`. Weights and policy: ADR 0005.
+
+| Enricher | Types | Mode | Endpoint | Auth | Limits (ours) | Licence | Commercial | Redistribute | Rel. | Verified |
+|---|---|---|---|---|---|---|---|---|---|---|
+| RDAP | domain, IPv4/6 | passive | IANA bootstrap `data.iana.org/rdap/{dns,ipv4,ipv6,asn}.json` (cached 24 h) → the registry's RDAP server; domains by registrable domain | none | concurrency 4; TTL 7 d (miss 1 d) | registry terms (notices in each answer) | yes | **no** | A | 2026-10-10 (live) |
+| DNS | domain | **active** | Cloudflare DoH JSON `cloudflare-dns.com/dns-query?name=&type=` (A, AAAA, MX, NS, TXT) | none | only with `active=true`; per-key 30/min; audited; TTL 1 h | Cloudflare 1.1.1.1 | yes | yes | A | 2026-10-10 (live) |
+| RIPEstat | IPv4/6 | passive, **auto** | `stat.ripe.net/data/prefix-overview/` + `/maxmind-geo-lite/` with `sourceapp=threatlens` | none | RIPE: 8 concurrent per IP (we use 4); register `sourceapp` with stat@ripe.net if > ~1000/day; TTL 1 d | RIPEstat T&C; GeoLite2 by MaxMind | **no** (written permission needed) | **no** | A | 2026-10-10 (live; terms page read) |
+| AbuseIPDB | IPv4/6 | passive | `api.abuseipdb.com/api/v2/check?ipAddress=&maxAgeInDays=90`, header `Key` | **key** `TL_ABUSEIPDB_API_KEY` | 1 000/day (Standard); `X-RateLimit-*` headers; 429 when out; TTL 24 h | AbuseIPDB ToS: free plans non-commercial | **no** | **no** | C | 2026-10-10 (docs; fixture synthetic) |
+| GreyNoise Community | IPv4 | passive | `api.greynoise.io/v3/community/{ip}`; 404 + JSON = not observed | optional header `key` | **25/week without a key** (live `X-Ratelimit-Limit: 25`, reset 7 d); 50/week with a free account (docs, shared with the Visualizer); TTL 3 d | GreyNoise EULA: internal business or non-commercial use | internal only | **no** | B | 2026-10-10 (live) |
+| VirusTotal | IP, domain, URL, hashes | passive, **discloses** | `www.virustotal.com/api/v3/{ip_addresses,domains,urls,files}/{id}`, header `x-apikey`; URL id = unpadded URL-safe base64 | **key** `TL_VIRUSTOTAL_API_KEY` | public API: 4/min, 500/day; TTL 24 h; never for TLP:GREEN+ (looked-up IPs are added to VT's dataset) | VT ToS: public API not for commercial products or business workflows | **no** | **no** | B | 2026-10-10 (docs; fixture synthetic) |
+| urlscan.io | domain, URL, IP | passive (search only, never submits) | `urlscan.io/api/v1/search/?q=` (`page.domain`/`task.domain`, `page.url`/`task.url`, `page.ip`) | optional header `API-Key` | without a key 30/min per IP (live `X-Rate-Limit-*`); TTL 12 h | urlscan ToS: commercial use needs written permission | **no** | **no** | C | 2026-10-10 (live) |
+| MalwareBazaar | MD5/SHA1/SHA256 | passive (metadata only) | `mb-api.abuse.ch/api/v1/` POST `query=get_info&hash=` | **Auth-Key** `TL_ABUSECH_AUTH_KEY` | fair use (no numbers published); concurrency 2; TTL 7 d (miss 1 d) | abuse.ch terms | **no** | **no** | B | 2026-10-10 (docs; fixture synthetic) |
+| crt.sh | domain | passive | `crt.sh/?q={domain}&output=json` | none | concurrency 1, timeout 30 s; TTL 24 h | none published; CT data public by design | yes | **no** | A | 2026-10-10 (service down: 502 all day; format from earlier use, fixture synthetic) |
+
+Not built: **Pulsedive** (optional in the spec); a local **MaxMind GeoLite2** database (RIPEstat
+serves GeoLite2 data, so no MaxMind account is needed; ADR 0005).
 
 ## Open points
 * **OTX terms**: confirm the commercial and redistribution position once there is a
@@ -67,8 +75,15 @@ being a Tor exit isn't malicious in itself. Phase 4 scoring builds on these valu
 * **Tranco** inherits a non-commercial input (Cloudflare Radar). We only use it
   as an internal filter. Revisit if the deployment is commercial and that use
   is in doubt.
-* **VirusTotal** public API terms restrict use in commercial products (Phase 3).
-* **MaxMind GeoLite2** needs an account and licence key, with its own EULA.
+* **Keyed enricher fixtures** (AbuseIPDB, VirusTotal, MalwareBazaar) are built from the
+  documented fields. Record trimmed real answers once keys exist, and re-check the field names.
+* **crt.sh** was unavailable during the whole Phase 3 check. Record a real answer and confirm the
+  JSON fields when it is back.
+* **Commercial deployments**: AbuseIPDB (free), VirusTotal (public API), urlscan and RIPEstat
+  need a paid plan or written permission. Disable them with `threatlens sources disable <name>`
+  until that is settled.
+* **RIPEstat `sourceapp`**: register `threatlens` (or your own id) with stat@ripe.net if the
+  deployment makes more than about 1 000 queries a day (`TL_RIPESTAT_SOURCEAPP`).
 * **NVD API 2.0 rate limits and notice**: the developer pages render client-side and
   couldn't be read (2026-10-09). The pacing (6.5 s without a key, 0.7 s with one) and
   the notice text come from earlier knowledge of the documented limits (5 and 50

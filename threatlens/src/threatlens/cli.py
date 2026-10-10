@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from contextlib import asynccontextmanager
@@ -19,12 +20,14 @@ from threatlens.auth import ROLE_RANK, create_key, revoke_key
 from threatlens.collect import RunSummary
 from threatlens.connectors import REGISTRY
 from threatlens.db import make_engine, make_sessionmaker
+from threatlens.enrich.service import EnrichmentService
 from threatlens.ioc.defang import defang
-from threatlens.ioc.extract import extract
-from threatlens.ioc.types import Observable, Rejected
+from threatlens.ioc.extract import defang_text, extract
+from threatlens.ioc.normalize import guess, normalize
+from threatlens.ioc.types import IOCType, Observable, Rejected
 from threatlens.jobs import collect_due, open_collector, refresh_allowlists
 from threatlens.kb import KB_REGISTRY
-from threatlens.models import ApiKey, AuditLog, Source
+from threatlens.models import TLP_LEVELS, ApiKey, AuditLog, Source
 from threatlens.profile import ProfileError, load_pirs, load_profile
 from threatlens.settings import get_settings
 
@@ -161,6 +164,57 @@ async def _sources(args: argparse.Namespace) -> int:
     return 0
 
 
+@asynccontextmanager
+async def _enrichment() -> AsyncIterator[EnrichmentService]:
+    """The enrichment service with the stack's shared quota book (Redis)."""
+    from redis.asyncio import Redis
+
+    from threatlens.enrich.quota import RedisQuotaStore
+    from threatlens.enrich.service import enrichment_http
+
+    s = get_settings()
+    engine = make_engine(s.database_url.get_secret_value())
+    redis: Redis = Redis.from_url(s.redis_url.get_secret_value())
+    http = enrichment_http(s)
+    try:
+        yield EnrichmentService(make_sessionmaker(engine), http, RedisQuotaStore(redis), s)
+    finally:
+        await http.aclose()
+        await redis.aclose()
+        await engine.dispose()
+
+
+async def _lookup(args: argparse.Namespace) -> int:
+    r = normalize(IOCType(args.type), args.value) if args.type else guess(args.value)
+    if not isinstance(r, Observable):
+        print(f"rejected: {r.reason}", file=sys.stderr)
+        return 2
+    async with _enrichment() as svc:
+        res = await svc.lookup(r, actor="cli", active=args.active, refresh=args.refresh, tlp=args.tlp)
+    if args.json:
+        print(json.dumps(res, default=str, indent=2))
+        return 0
+    q = res["query"]
+    verdict = f"{res['verdict'].upper()} score {res['score']} -> {res['recommended_action']}"
+    print(f"{q['defanged']} ({q['type']}): {verdict}")
+    print(f"  {res['recommended_action_text']}")
+    for e in res["evidence"]:
+        mark = f"{e['kind']} {e['weight']}" if e["kind"] != "info" else "info"
+        print(f"  [{mark:>13}] {e['source']}: {defang_text(e['text'])}")
+    for e in res["enrichments"]:
+        why = e.get("skipped_reason") or e.get("error") or ("found" if e.get("found") else "not found")
+        print(f"  {e['enricher']:<14} {e['status']:<8} {why}")
+    print(f"  ({res['took_ms']} ms{', partial' if res['partial'] else ''})")
+    return 0
+
+
+async def _enrich_backlog(args: argparse.Namespace) -> int:
+    async with _enrichment() as svc:
+        out = await svc.enrich_backlog(args.limit)
+    print(f"{out['candidates']} IP indicators checked, {out['enriched']} answers stored")
+    return 0
+
+
 async def _allowlist_refresh(args: argparse.Namespace) -> int:
     async with open_collector(get_settings()) as c:
         out = await refresh_allowlists(c)
@@ -289,6 +343,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     k.add_argument("--role", choices=list(ROLE_RANK), default="viewer")
     k.add_argument("--expires-days", type=int)
     k.set_defaults(func=_run(_keys))
+
+    lk = sub.add_parser("lookup", help="enrich one value and print the verdict and evidence")
+    lk.add_argument("value", help="IP, domain, URL, hash or email (defanged input is fine)")
+    lk.add_argument("--type", choices=[t.value for t in IOCType if t != IOCType.CVE], help="default: guess")
+    lk.add_argument("--active", action="store_true", help="also run active enrichers (DNS); audited")
+    lk.add_argument("--refresh", action="store_true", help="ignore cached answers")
+    lk.add_argument("--tlp", choices=list(TLP_LEVELS), help="TLP of the value (default: stored, else CLEAR)")
+    lk.add_argument("--json", action="store_true", help="print the full result as JSON")
+    lk.set_defaults(func=_run(_lookup))
+
+    eb = sub.add_parser("enrich-backlog", help="enrich new active IP indicators now (ASN, location)")
+    eb.add_argument("--limit", type=int, default=100)
+    eb.set_defaults(func=_run(_enrich_backlog))
 
     e = sub.add_parser("extract", help="extract IOCs from a file or stdin (nothing is stored)")
     e.add_argument("file", nargs="?")

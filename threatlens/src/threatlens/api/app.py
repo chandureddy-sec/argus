@@ -16,10 +16,13 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens import __version__
+from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
 from threatlens.auth import MemoryRateLimiter, RateLimiter, RedisRateLimiter
 from threatlens.db import make_engine, make_sessionmaker, ping
+from threatlens.enrich.quota import RedisQuotaStore
+from threatlens.enrich.service import EnrichmentService, enrichment_http
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import Environment, Settings, get_settings
@@ -60,9 +63,10 @@ def create_app(
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
     limiter: RateLimiter | None = None,
     enqueue: Enqueue | None = None,
+    enrich: EnrichmentService | None = None,
 ) -> FastAPI:
-    """Build the app. ``checks``, ``sessionmaker``, ``limiter`` and ``enqueue``
-    override the real dependencies (tests)."""
+    """Build the app. ``checks``, ``sessionmaker``, ``limiter``, ``enqueue`` and
+    ``enrich`` override the real dependencies (tests)."""
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_json)
     dev = settings.env != Environment.PROD
@@ -79,6 +83,7 @@ def create_app(
             app.state.sessionmaker = sessionmaker
             app.state.limiter = limiter or MemoryRateLimiter()
             app.state.enqueue = enqueue
+            app.state.enrich = enrich
             yield
             return
         engine = make_engine(settings.database_url.get_secret_value())
@@ -101,10 +106,13 @@ def create_app(
         app.state.sessionmaker = make_sessionmaker(engine)
         app.state.limiter = RedisRateLimiter(redis)
         app.state.enqueue = enqueue or enqueue_run
+        http = enrichment_http(settings)
+        app.state.enrich = EnrichmentService(app.state.sessionmaker, http, RedisQuotaStore(redis), settings)
         log.info("api.startup", version=__version__, env=settings.env.value)
         try:
             yield
         finally:
+            await http.aclose()
             await pool.aclose()
             await redis.aclose()
             await engine.dispose()
@@ -120,6 +128,7 @@ def create_app(
     )
     app.include_router(v1_router)
     app.include_router(kb_router)
+    app.include_router(enrich_router)
     app.include_router(ui_router)
     app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
     app.state.settings = settings

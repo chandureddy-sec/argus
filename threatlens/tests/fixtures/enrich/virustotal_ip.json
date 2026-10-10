@@ -1,0 +1,26 @@
+{
+ "data": {
+  "id": "162.243.103.246",
+  "type": "ip_address",
+  "attributes": {
+   "as_owner": "DIGITALOCEAN-ASN",
+   "asn": 14061,
+   "country": "US",
+   "network": "162.243.0.0/17",
+   "last_analysis_date": 1791936000,
+   "reputation": -11,
+   "tags": [],
+   "last_analysis_stats": {
+    "harmless": 52,
+    "malicious": 9,
+    "suspicious": 1,
+    "undetected": 32,
+    "timeout": 0
+   },
+   "total_votes": {
+    "harmless": 0,
+    "malicious": 2
+   }
+  }
+ }
+}

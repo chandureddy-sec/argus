@@ -12,9 +12,12 @@ import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from tests.test_enrich import Upstream
 from tests.test_kb import build_graph
 from threatlens.api.app import create_app
 from threatlens.auth import MemoryRateLimiter, create_key, revoke_key
+from threatlens.enrich.quota import MemoryQuotaStore
+from threatlens.enrich.service import EnrichmentService
 from threatlens.models import ApiKey, Indicator, Observable
 from threatlens.net.http import SafeHttp
 from threatlens.settings import Settings
@@ -43,7 +46,9 @@ async def ui(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> AsyncIterator[Ui]:
     await build_graph(sm, mock_http, tmp_path)
     async with sm() as s, s.begin():
         _, key = await create_key(s, "alice", "analyst")
-    app = create_app(SETTINGS, checks={}, sessionmaker=sm, limiter=MemoryRateLimiter())
+    upstream = mock_http(Upstream())  # every enrichment provider, from recorded answers
+    svc = EnrichmentService(sm, upstream, MemoryQuotaStore(), SETTINGS)
+    app = create_app(SETTINGS, checks={}, sessionmaker=sm, limiter=MemoryRateLimiter(), enrich=svc)
     async with (
         app.router.lifespan_context(app),
         httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c,
@@ -232,3 +237,37 @@ def test_template_filters() -> None:
     assert ago(now) == "just now"
     assert ago(now - timedelta(hours=3, minutes=5)) == "3h ago"
     assert ago(now - timedelta(days=2)) == "2d ago"
+
+
+async def test_indicator_enrichment_panel(ui: Ui) -> None:
+    await ui.login()
+    async with ui.sm() as s:
+        ind_id = await s.scalar(
+            select(Indicator.id)
+            .join(Observable, Observable.id == Indicator.observable_id)
+            .where(Observable.value == "162.243.103.246")
+        )
+    page = f"/ui/indicators/{ind_id}"
+    assert "Not enriched yet" in (await ui.client.get(page)).text
+    url = f"{page}/enrich"
+    assert (await ui.client.post(url, headers={"Sec-Fetch-Site": "cross-site"})).status_code == 403
+    r = await ui.client.post(url, headers={"Sec-Fetch-Site": "same-origin"})
+    assert r.status_code == 303
+    assert r.headers["location"] == f"{page}#enrichment"
+    html = (await ui.client.get(page)).text
+    assert "DIGITALOCEAN-162-243-0-0" in html  # RDAP network name
+    assert "Secaucus" in html  # RIPEstat location
+    assert "162.243.103.246" not in html  # provider text is defanged too
+    assert "<script" not in html
+    assert (
+        await ui.client.post("/ui/indicators/999999/enrich", headers={"Sec-Fetch-Site": "same-origin"})
+    ).status_code == 404
+
+
+async def test_viewers_cannot_trigger_enrichment(ui: Ui) -> None:
+    async with ui.sm() as s, s.begin():
+        _, key = await create_key(s, "vic", "viewer")
+    await ui.login(key)
+    r = await ui.client.post("/ui/indicators/1/enrich", headers={"Sec-Fetch-Site": "same-origin"})
+    assert r.status_code == 403
+    assert "Enrich now" not in (await ui.client.get("/ui/indicators/1")).text

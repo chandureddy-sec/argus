@@ -49,7 +49,7 @@ flowchart LR
 | T3 | Tampering with stored raw documents | DB | Raw documents stored with SHA-256; reading one back verifies the hash; path traversal refused | **done · Phase 1** |
 | T4 | Malicious dependency or base image | Build | Locked dependencies (uv.lock), pip-audit, Trivy image scan, SBOM, gitleaks, bandit, semgrep in CI | **done · Phase 0** (CI defined; first green run pending) |
 | R1 | Analyst denies changing a verdict or exporting data | API | Append-only `audit_log` (who, what, when, before/after) | planned · Phase 4 |
-| R2 | Unclear where an indicator came from | Pipeline | Provenance on every sighting and graph edge (source, fetch time, raw document, evidence) | **done · Phases 1–2** (enrichment: Phase 3) |
+| R2 | Unclear where an indicator came from | Pipeline | Provenance on every sighting and graph edge (source, fetch time, raw document, evidence) and every enrichment (query, status, time, requester, upstream answer) | **done · Phases 1–3** |
 | I1 | Secrets leak via logs, errors or reprs | All | `SecretStr` settings; log processor redacts key-like fields; readiness reports exception *type* only | **done · Phase 0** |
 | I2 | TLP:AMBER/RED data reaches a viewer or external sink | API, exports | TLP 2.0 enforced in the query layer and per sink; tests attempt bypasses | planned · Phase 4 |
 | I3 | Stored XSS from feed content in the UI | UI | Server-side escaping by default, no raw HTML rendering, IOCs defanged in display, strict CSP | partial · Phase 0 (CSP + headers); UI in Phase 5 |
@@ -59,7 +59,10 @@ flowchart LR
 | D1 | Huge or decompression-bomb responses exhaust memory | Connectors | Per-source size caps while streaming, unzipped-size checks (Tranco, EPSS), timeouts | **done · Phases 1–2** (ATT&CK Enterprise is parsed in memory, ≤ 128 MB cap) |
 | D2 | API flooding | API | Per-key rate limits in Redis; request size limits; page size ≤ 500 | **done · Phase 1** |
 | D3 | Dependency outage stalls readiness probe | API | Readiness checks run concurrently with a hard timeout (default 2 s); liveness never touches dependencies | **done · Phase 0** |
-| D4 | Free-tier quota exhaustion | Enrichment | Quota buckets, TTL cache, partial results with `skipped_reason` | planned · Phase 3 |
+| D4 | Free-tier quota exhaustion (by load, a runaway job or an attacker driving lookups) | Enrichment | Shared quota book (our windows + provider headers/429), DB TTL cache incl. negative answers, bulk budget of metered calls, analyst role for lookups, only free passive enrichers in the background; partial results with `skipped_reason` | **done · Phase 3** |
+| I8 | Lookups disclose intelligence: sending a value to a third party reveals interest, and some providers publish lookups | Enrichment | TLP enforced before any third-party call (AMBER/RED never leave; GREEN not to disclosing providers such as VirusTotal); effective TLP is the stricter of request and stored marking; private/reserved values rejected before any lookup | **done · Phase 3** |
+| I9 | Active enrichment tips off the adversary (their DNS sees our resolver) | Enrichment | Active enrichers off unless `active=true`; per-key active rate limit; every call audited (`enrich.active`); UI offers passive enrichment only | **done · Phase 3** |
+| T6 | Hostile enrichment responses (oversized, malformed, markup in fields) | Enrichment | Same SSRF-guarded client, size caps per provider, JSON only, readers tolerate missing/odd fields (error, never crash), raw answers capped at 256 KB, all text rendered escaped and defanged | **done · Phase 3** |
 | T5 | Poisoned knowledge: a feed names a fake or misleading malware/actor to create false links | Graph | Feed-named entities are marked `origin=feed` and attributed; ATT&CK entities win name resolution; feed-derived edges carry the feed's confidence (OTX co-mentions: 40) and the field as evidence; CVE mentions are `related-to`, never `exploits` | **done · Phase 2**; analyst merge/override in Phase 4 |
 | D5 | Expensive graph queries (hub techniques, deep searches) | API, graph | `max_depth` ≤ 6, `limit` ≤ 50, bidirectional BFS with a visited-node budget (20 000) that returns `truncated`; neighbour lists capped | **done · Phase 2** |
 | I7 | Licence breach: ATT&CK/EPSS/OSV data shared without required notices | API, exports | Per-source licence, redistribution and attribution flags (`/api/v1/sources`); ATT&CK copies must keep MITRE's notice | partial · Phase 2 (flags); enforced in Phase 6 exports |
@@ -100,3 +103,5 @@ flowchart LR
 ## 6. Residual risks (accepted for now)
 * The dev stack uses Redis without a password on a localhost-only port.
 * Phase 0 has no authentication because it exposes only health endpoints.
+* Enrichment keys are shared by all analysts; per-user provider accounts are out of scope.
+* crt.sh and RIPEstat publish no numeric rate limits; we rely on low concurrency (1 and 4) and their errors.

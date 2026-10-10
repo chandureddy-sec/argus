@@ -67,3 +67,8 @@ def test_migration_sql_offline() -> None:
     assert "CREATE EXTENSION IF NOT EXISTS pg_trgm" in out
     assert "CREATE TABLE app_meta" in out
     assert "INSERT INTO alembic_version (version_num) VALUES ('0001')" in out
+
+
+def test_cli_lookup_rejects_values_before_any_lookup(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["lookup", "10.0.0.1"]) == 2  # private: never sent anywhere
+    assert "rejected" in capsys.readouterr().err

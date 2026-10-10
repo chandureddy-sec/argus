@@ -5,7 +5,9 @@
 | 0 Foundation | **complete** (Docker verified 2026-10-09) | `docker compose up --wait` healthy in 65 s; migrations 0001→0003 apply and re-apply cleanly; `/readyz` ready. CI workflow not yet run (no remote). |
 | 1 Collection core | **complete** (Docker verified) | 8 connectors, hardened HTTP client, IOC extraction, allowlist, idempotent pipeline, API keys/RBAC/rate limits, v1 API, worker scheduling, CLI. Live collection checked on SQLite (below). |
 | 2 Knowledge base | **complete** (Docker verified) | ATT&CK (3 domains, versioned, diffed), NVD/EPSS/KEV/OSV vulnerability records, relationship graph with provenance, path API. Live checks on SQLite and in the Docker stack (below). |
-| 3–9 | not started | see PLAN.md |
+| 3 Enrichment | **complete** (Docker verified 2026-10-10) | 9 enrichers (RDAP, DNS-over-HTTPS, RIPEstat ASN/geo, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh), DB-backed TTL cache with provenance, shared quota book, passive-first + TLP policy, lookup / bulk / catalogue API, background ASN/geo enrichment, UI panel, CLI `lookup`. ADR 0005. |
+| 3b ReconX link | in progress | see PLAN.md |
+| 4–9 | not started | see PLAN.md |
 
 ## Phase 0 log
 - 2026-10-08: scaffold, settings, structured logging, org profile + PIR validation, API health/readiness, worker heartbeat, Alembic baseline (pg_trgm, citext, app_meta), Dockerfile + Compose, CI workflow, pre-commit, PLAN, ADR 0001/0002, threat model, sources register, learning notes.
@@ -72,3 +74,20 @@ Found and fixed during verification:
 * On a fresh stack EPSS ran before NVD stored any CVE and wouldn't run again for 24 h. EPSS now
   polls every 6 h with a conditional GET and, when the file is unchanged, scores newly tracked CVEs
   from the archived copy.
+
+## Phase 3 log
+- 2026-10-10: provider docs and terms checked (AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, RIPEstat, IANA RDAP bootstrap, Cloudflare DoH, crt.sh), live keyless responses recorded as fixtures; `SafeHttp` gained response headers, accepted 4xx statuses and form posts; enricher framework, quota store (memory/Redis), v0 verdict, enrichment service, migration 0004 (`enrichments`), `/api/v1/lookup`, `/api/v1/enrich`, `/api/v1/enrichers`, worker `enrich_backlog` (every 30 min), CLI `lookup` / `enrich-backlog`, UI indicator enrichment panel and map geo from enrichment.
+- Found and fixed during testing: concurrent first lookups raced to insert the enricher `sources` rows (UNIQUE violation on a fresh database); `/sources` reported key status from process settings instead of the app's.
+- Note: a forked agent briefly wrote `enrich/service.py` in parallel; its version was reviewed and kept.
+
+### Live check (2026-10-10, Docker stack, real providers, no enrichment keys)
+| Check | Result |
+|---|---|
+| `GET /lookup/ipv4-addr/162.243.103.246` (Feodo C2), cold | `malicious` 70 → `block`, 1.27 s; RDAP (DigitalOcean), RIPEstat AS14061 Secaucus US, GreyNoise not observed, urlscan no scans; AbuseIPDB/VT `skipped: no_api_key`, `partial: true` |
+| same, cache hit | **51 ms** end to end (acceptance: < 2 s) |
+| `71.6.199.23` (Shodan) | `benign` → `no_action`: GreyNoise "known benign scanner: Shodan.io" |
+| `domain-name/crawhyderabad.in` | RDAP: 860 days old; crt.sh `error` (service down, 502/404 all day): reported, rest returned |
+| `?active=true&enrichers=dns` | A 72.61.230.175, Cloudflare NS; `enrich.active` audit row written |
+| `POST /enrich` with an EDR alert text + `10.1.2.3` | 4 observables extracted and deduplicated, private IP rejected with reason, worst first, budget spent 3 |
+| `.	l enrich-backlog --limit 40` | 40 IP indicators enriched in the container; dashboard map 5 → 46 located IPs |
+| Integration tests on Postgres/Redis | 8/8 incl. `alembic check` (0004 matches the models), Redis quota store, enrichment pipeline on Postgres |

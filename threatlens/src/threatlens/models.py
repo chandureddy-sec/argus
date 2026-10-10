@@ -471,3 +471,44 @@ class AttackChange(Base):
     details: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
 
     __table_args__ = (Index("ix_attack_changes_release", "release_id", "change"),)
+
+
+# ── enrichment (Phase 3) ─────────────────────────────────────────────────────
+
+
+class Enrichment(Base):
+    """The latest answer one enricher gave about one observable, with its
+    provenance. It doubles as the enrichment cache: a row is fresh until
+    ``expires_at``. Errors and skips are not stored (they are transient)."""
+
+    __tablename__ = "enrichments"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    enricher: Mapped[str] = mapped_column(String(64))
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("sources.id", ondelete="SET NULL"))
+    # Values looked up ad hoc need not be indicators yet: the canonical key is
+    # the identity, the observable link is filled in when one exists.
+    canonical_key: Mapped[str] = mapped_column(Text)
+    observable_id: Mapped[int | None] = mapped_column(ForeignKey("observables.id", ondelete="SET NULL"))
+    type: Mapped[str] = mapped_column(String(32))
+    value: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16))  # ok | not_found
+    mode: Mapped[str] = mapped_column(String(8))  # passive | active
+    summary: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    raw: Mapped[Any] = mapped_column(JSONType, nullable=True)  # upstream answer, size-capped
+    query: Mapped[str] = mapped_column(Text, default="")  # what was asked (never holds a key)
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    cost: Mapped[int] = mapped_column(Integer, default=0)  # metered quota units spent
+    requested_by: Mapped[str] = mapped_column(String(100), default="")
+    fetched_at: Mapped[datetime] = _ts(default=utcnow)
+    expires_at: Mapped[datetime] = _ts()
+    times_fetched: Mapped[int] = mapped_column(Integer, default=1)
+
+    __table_args__ = (
+        UniqueConstraint("enricher", "canonical_key"),
+        Index("ix_enrichments_canonical_key", "canonical_key"),
+        Index("ix_enrichments_observable", "observable_id"),
+        CheckConstraint("status IN ('ok','not_found')", name="status"),
+        CheckConstraint("mode IN ('passive','active')", name="mode"),
+    )

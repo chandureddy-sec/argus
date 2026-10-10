@@ -237,3 +237,6 @@ dl.kv dd { margin: 0; word-break: break-word; }
   .search { width: 100%; }
   .topbar { flex-wrap: wrap; }
 }
+
+/* enrichment panel */
+form.inline { display: inline; margin-left: auto; }
