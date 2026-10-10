@@ -161,7 +161,7 @@ platform) about every host and IP a scan finds:
 
 ```bash
 export RECONX_THREATLENS_URL=http://127.0.0.1:8000
-reconx keys set threatlens            # an analyst key: in threatlens/, run  tl key reconx analyst
+reconx keys set threatlens            # an analyst key: in threatlens/, run  tl key reconx analyst TLP:GREEN
 reconx scan example.com --threatlens                      # verdicts for hosts and IPs (TLP:GREEN)
 reconx scan example.com --threatlens --threatlens-assets  # also import as YOUR OWN assets
 ```

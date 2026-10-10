@@ -49,7 +49,7 @@ var Supported = []Key{
 	},
 	{
 		Name: "threatlens", Env: "RECONX_THREATLENS_API_KEY", Service: "ThreatLens (threat intel server)",
-		Effect: "Needed for --threatlens: an analyst key from the ThreatLens server. Keys are made on that server with: tl key reconx analyst. Set the server with --threatlens=<url> or RECONX_THREATLENS_URL.",
+		Effect: "Needed for --threatlens: an analyst key from the ThreatLens server. Keys are made on that server with: tl key reconx analyst TLP:GREEN (reports may be shared, so read GREEN at most). Set the server with --threatlens=<url> or RECONX_THREATLENS_URL.",
 		GetURL: "http://127.0.0.1:8000" + threatlensKeyPage,
 	},
 }
