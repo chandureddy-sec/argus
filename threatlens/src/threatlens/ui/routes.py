@@ -24,12 +24,13 @@ from threatlens import __version__, assets
 from threatlens.api import assets as assets_api
 from threatlens.api import kb as kb_api
 from threatlens.api import v1 as v1_api
-from threatlens.auth import Principal, authenticate
+from threatlens.auth import Principal
 from threatlens.connectors.base import clip
 from threatlens.ioc.extract import defang_text
 from threatlens.ioc.types import IOCType
 from threatlens.ioc.types import Observable as IocObservable
 from threatlens.kb import graph
+from threatlens.logs import get_logger
 from threatlens.models import (
     Enrichment,
     Entity,
@@ -42,11 +43,13 @@ from threatlens.models import (
 from threatlens.models import Observable as ObsRow
 from threatlens.settings import Settings, get_settings
 from threatlens.ui import charts, data, session
+from threatlens.users import authenticate_user, login_key
 
 HERE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(HERE / "templates"))
 templates.env.globals.update(charts=charts, version=__version__)
 router = APIRouter(prefix="/ui", include_in_schema=False)
+log = get_logger("threatlens.ui")
 Status = Literal["new", "active", "expired", "revoked", "false_positive"]
 STATUSES: dict[str, Status] = {s: s for s in get_args(Status)}
 
@@ -140,36 +143,36 @@ def _target(nxt: str) -> str:
 async def login_form(
     request: Request, next_: Annotated[str, Query(alias="next", max_length=500)] = "/ui"
 ) -> HTMLResponse:
-    return page(request, "login.html", {"next": _target(next_), "error": None})
+    return page(request, "login.html", {"next": _target(next_), "username": "", "error": None})
 
 
 @router.post("/login", response_model=None)
 async def login(
     request: Request,
-    key: Annotated[str, Form(max_length=200)],
+    username: Annotated[str, Form(max_length=200)],
+    password: Annotated[str, Form(max_length=1000)],
     next_: Annotated[str, Form(alias="next", max_length=500)] = "/ui",
 ) -> Response:
     target = _target(next_)
     if not _same_origin(request):
         raise HTTPException(403, "cross-site login refused")
     client = request.client.host if request.client else "unknown"
-    if await request.app.state.limiter.hit(f"login:{client}", 10):
-        return page(
-            request, "login.html", {"next": target, "error": "Too many attempts; wait a minute."}, 429
-        )
-    async with _sm(request)() as s:
-        p = await authenticate(s, key.strip())
-    if p is None:
-        return page(
-            request,
-            "login.html",
-            {"next": target, "error": "That key is not valid, expired or revoked."},
-            401,
-        )
+    form = {"next": target, "username": username[:100]}
+    limiter = request.app.state.limiter
+    # Per address and per account, so guessing one password from many addresses is slow too.
+    if await limiter.hit(f"login:{client}", 10) or await limiter.hit(f"login-user:{login_key(username)}", 10):
+        return page(request, "login.html", {**form, "error": "Too many attempts; wait a minute."}, 429)
+    async with _sm(request)() as s, s.begin():
+        user = await authenticate_user(s, username, password)
+        tag = session.password_tag(user.password_hash) if user else ""
+        uid = user.id if user else 0
+    if user is None:
+        log.warning("ui.login_failed", user=username[:100], client=client)
+        return page(request, "login.html", {**form, "error": "Wrong username or password."}, 401)
     resp = RedirectResponse(target, status_code=303)
     resp.set_cookie(
         session.COOKIE,
-        session.issue(_settings(request), p.key_id),
+        session.issue(_settings(request), uid, tag),
         max_age=session.LIFETIME_S,
         httponly=True,
         samesite="strict",

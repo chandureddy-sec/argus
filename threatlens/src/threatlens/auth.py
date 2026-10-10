@@ -41,9 +41,10 @@ def hash_key(key: str) -> str:
 
 @dataclass(frozen=True)
 class Principal:
-    key_id: int
+    key_id: int  # the API key's id, or the user's id when kind == "user"
     name: str
     role: str
+    kind: str = "key"  # "key" (API, programs) or "user" (UI sign-in, see threatlens.users)
 
     def can(self, role: str) -> bool:
         return ROLE_RANK[self.role] >= ROLE_RANK[role]

@@ -6,9 +6,11 @@ ThreatLens stack helper for Windows. Run it through tl.cmd from the threatlens f
     .\tl down      stop everything (data is kept)
     .\tl status    containers and readiness
     .\tl logs      follow worker and API logs (Ctrl+C to stop)
-    .\tl key NAME [viewer|analyst|admin]   create an API key
+    .\tl user NAME [viewer|analyst|admin]   create a sign-in account (asks for the password)
+    .\tl passwd NAME                       change an account's password
+    .\tl key NAME [viewer|analyst|admin]    create an API key for a program (e.g. ReconX)
     .\tl <anything else>   runs the threatlens CLI inside the stack,
-                           e.g.  .\tl sources   .\tl collect nvd   .\tl keys list
+                           e.g.  .\tl sources   .\tl collect nvd   .\tl users list
 
 It finds docker.exe even when the terminal was opened before Docker was
 installed (stale PATH), and creates .env with a random database password on
@@ -20,6 +22,7 @@ param(
 )
 
 $Root = Split-Path -Parent $PSScriptRoot
+$env:DOCKER_CLI_HINTS = 'false'   # no "What's next" adverts after docker commands
 Set-Location $Root
 $DesktopExe = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
 
@@ -90,6 +93,22 @@ function Show-Ready {
     }
 }
 
+function Read-NewPassword {
+    $a = Read-Host 'Password' -AsSecureString
+    $b = Read-Host 'Repeat password' -AsSecureString
+    $pa = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($a))
+    $pb = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($b))
+    if ($pa -cne $pb) { Write-Host "The passwords don't match." -ForegroundColor Red; exit 2 }
+    return $pa
+}
+
+# Runs a threatlens CLI command in the worker with the password on stdin (never on the command line).
+function Invoke-WithPassword([string]$Docker, [string[]]$Arguments, [string]$Password) {
+    $OutputEncoding = New-Object System.Text.UTF8Encoding $false
+    $Password | & $Docker compose exec -T worker threatlens @Arguments --password-stdin
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
 function Invoke-Compose([string]$Docker, [string[]]$Arguments) {
     & $Docker compose @Arguments
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -110,7 +129,7 @@ switch ($Command) {
         Invoke-Compose $docker (@('--progress', 'quiet', 'up', '-d', '--wait', '--wait-timeout', '300') + $build)
         Invoke-Compose $docker @('ps', '--format', 'table {{.Service}}\t{{.Status}}')
         Show-Ready
-        Write-Host "Next: .\tl key me analyst   (prints an API key to sign in with)   .\tl sources   .\tl logs"
+        Write-Host "Next: .\tl user YOURNAME admin   (creates your sign-in)   .\tl sources   .\tl logs"
     }
     'down' {
         $docker = Find-Docker
@@ -127,6 +146,17 @@ switch ($Command) {
         $docker = Find-Docker
         $services = if ($Rest.Count) { $Rest } else { @('worker', 'api') }
         & $docker compose logs -f --tail 50 @services
+    }
+    'user' {
+        $docker = Find-Docker
+        if (-not $Rest.Count) { Write-Host 'usage: .\tl user NAME [viewer|analyst|admin]   (quote names with spaces)'; exit 2 }
+        $role = if ($Rest.Count -ge 2) { $Rest[1] } else { 'viewer' }
+        Invoke-WithPassword $docker @('users', 'create', $Rest[0], '--role', $role) (Read-NewPassword)
+    }
+    'passwd' {
+        $docker = Find-Docker
+        if (-not $Rest.Count) { Write-Host 'usage: .\tl passwd NAME'; exit 2 }
+        Invoke-WithPassword $docker @('users', 'passwd', $Rest[0]) (Read-NewPassword)
     }
     'key' {
         $docker = Find-Docker

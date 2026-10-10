@@ -37,6 +37,7 @@ from threatlens.models import Asset, AssetProduct, AuditLog, Vulnerability, Vuln
 from threatlens.net.http import SafeHttp
 from threatlens.rawstore import RawStore
 from threatlens.settings import Settings
+from threatlens.users import create_user
 
 SM = async_sessionmaker[AsyncSession]
 MakeHttp = Callable[[Callable[[httpx.Request], httpx.Response]], SafeHttp]
@@ -286,9 +287,11 @@ async def test_lookup_of_an_own_asset_says_investigate(api: Api) -> None:
 
 async def test_assets_page(api: Api) -> None:
     async with api.sm() as s, s.begin():
-        _, key = await create_key(s, "ui", "analyst")
+        await create_user(s, "ui", "ui-password", "analyst")
     r = await api.client.post(
-        "/ui/login", data={"key": key, "next": "/ui/assets"}, headers={"Sec-Fetch-Site": "same-origin"}
+        "/ui/login",
+        data={"username": "ui", "password": "ui-password", "next": "/ui/assets"},
+        headers={"Sec-Fetch-Site": "same-origin"},
     )
     assert r.status_code == 303
     empty = await api.client.get("/ui/assets")

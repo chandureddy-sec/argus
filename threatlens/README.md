@@ -14,7 +14,7 @@ From the `threatlens` folder, in PowerShell (`.\tl …`) or Command Prompt (`tl 
 
 ```powershell
 .\tl up              # starts Docker Desktop if needed, creates .env, starts the stack
-.\tl key me admin    # prints an API key (shown once)
+.\tl user "your name" admin   # creates your sign-in (asks for a password)
 .\tl sources         # source health; any threatlens CLI command works: .\tl collect nvd
 .\tl status          # containers and readiness
 .\tl logs            # follow worker + API logs
@@ -22,7 +22,9 @@ From the `threatlens` folder, in PowerShell (`.\tl …`) or Command Prompt (`tl 
 ```
 
 `tl` finds Docker even in a terminal opened before Docker was installed. Analyst UI:
-http://127.0.0.1:8000/ui. After changing code, `.\tl up --build`.
+http://127.0.0.1:8000/ui (sign in with that username and password). Manage accounts with
+`.\tl passwd NAME` and `.\tl users list|role|disable|enable`. API keys (`.\tl key NAME analyst`)
+are for programs such as ReconX, not for signing in. After changing code, `.\tl up --build`.
 
 ## Quickstart (any OS)
 

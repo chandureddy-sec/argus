@@ -262,6 +262,30 @@ class ApiKey(Base):
     __table_args__ = (CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),)
 
 
+class User(Base):
+    """A person who signs in to the analyst UI with a username and password.
+
+    ``login`` is the case-folded username used for lookups (unique); ``name``
+    keeps it as typed for display. Only a salted scrypt hash of the password
+    is stored (see ``threatlens.users``). API keys stay separate: they are for
+    programs such as ReconX, not for people.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    login: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(100))
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    password_changed_at: Mapped[datetime] = _ts(default=utcnow)
+    last_login_at: Mapped[datetime | None] = _ts()
+    disabled_at: Mapped[datetime | None] = _ts()
+
+    __table_args__ = (CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),)
+
+
 class AuditLog(Base):
     """Append-only record of security-relevant changes."""
 

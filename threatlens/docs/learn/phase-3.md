@@ -53,7 +53,7 @@ Two properties matter as much as the data:
   an analyst-only "Enrich now" button.
 
 ## Hands-on exercise
-With the stack up (`.\tl up`) and an analyst key (`.\tl key me analyst`):
+With the stack up (`.\tl up`), an analyst account for the UI (`.\tl user NAME analyst`) and an analyst API key for the API calls (`.\tl key NAME analyst`):
 
 1. `.\tl lookup 162.243.103.246`, then run it again. Compare the time and the statuses (`ok` vs
    `cached`). Where in Postgres is the answer stored, and what does its `query` column say?

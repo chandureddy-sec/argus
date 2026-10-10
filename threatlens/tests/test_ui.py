@@ -9,35 +9,41 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.test_enrich import Upstream
 from tests.test_kb import build_graph
 from threatlens.api.app import create_app
-from threatlens.auth import MemoryRateLimiter, create_key, revoke_key
+from threatlens.auth import MemoryRateLimiter, create_key
 from threatlens.enrich.quota import MemoryQuotaStore
 from threatlens.enrich.service import EnrichmentService
-from threatlens.models import ApiKey, Indicator, Observable
+from threatlens.models import Indicator, Observable
 from threatlens.net.http import SafeHttp
 from threatlens.settings import Settings
 from threatlens.ui import session
 from threatlens.ui.routes import _target, ago, plain, safe_url
+from threatlens.users import create_user, set_disabled, set_password
 
 SM = async_sessionmaker[AsyncSession]
 MakeHttp = Callable[[Callable[[httpx.Request], httpx.Response]], SafeHttp]
 SETTINGS = Settings(secret_key="test-secret-key-0123456789")  # type: ignore[arg-type]  # noqa: S106
 
 
+PASSWORD = "correct horse battery"  # noqa: S105  # test account
+NEW_PASSWORD = "a brand new password"  # noqa: S105
+
+
 class Ui:
-    def __init__(self, client: httpx.AsyncClient, key: str, sm: SM) -> None:
+    def __init__(self, client: httpx.AsyncClient, sm: SM) -> None:
         self.client = client
-        self.key = key
         self.sm = sm
 
-    async def login(self, key: str | None = None, nxt: str = "/ui", **headers: str) -> httpx.Response:
+    async def login(
+        self, user: str = "Alice", password: str = PASSWORD, nxt: str = "/ui", **headers: str
+    ) -> httpx.Response:
         return await self.client.post(
-            "/ui/login", data={"key": key or self.key, "next": nxt}, headers=headers
+            "/ui/login", data={"username": user, "password": password, "next": nxt}, headers=headers
         )
 
 
@@ -45,7 +51,7 @@ class Ui:
 async def ui(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> AsyncIterator[Ui]:
     await build_graph(sm, mock_http, tmp_path)
     async with sm() as s, s.begin():
-        _, key = await create_key(s, "alice", "analyst")
+        await create_user(s, "Alice", PASSWORD, "analyst")
     upstream = mock_http(Upstream())  # every enrichment provider, from recorded answers
     svc = EnrichmentService(sm, upstream, MemoryQuotaStore(), SETTINGS)
     app = create_app(SETTINGS, checks={}, sessionmaker=sm, limiter=MemoryRateLimiter(), enrich=svc)
@@ -53,7 +59,7 @@ async def ui(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> AsyncIterator[Ui]:
         app.router.lifespan_context(app),
         httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c,
     ):
-        yield Ui(c, key, sm)
+        yield Ui(c, sm)
 
 
 # ── sign-in ──────────────────────────────────────────────────────────────────
@@ -78,15 +84,32 @@ async def test_login_sets_a_strict_session_cookie(ui: Ui) -> None:
     assert cookie.startswith(f"{session.COOKIE}=")
     assert "HttpOnly" in cookie
     assert "SameSite=strict" in cookie
-    assert ui.key not in cookie  # only a signed key id, never the key
+    assert PASSWORD.split()[0] not in cookie  # a signed user id, never the password
     assert (await ui.client.get("/ui/sources")).status_code == 200
+    page = (await ui.client.get("/ui/sources")).text
+    assert "<b>Alice</b>" in page
+    assert "analyst" in page
 
 
-async def test_bad_key_is_refused(ui: Ui) -> None:
-    r = await ui.login("tl_not-a-real-key")
-    assert r.status_code == 401
-    assert "not valid" in r.text
+async def test_username_is_case_and_space_insensitive(ui: Ui) -> None:
+    assert (await ui.login("  ALICE ")).status_code == 303
+
+
+@pytest.mark.parametrize(("user", "password"), [("Alice", "wrong password"), ("mallory", PASSWORD), ("", "")])
+async def test_wrong_username_or_password_is_refused(ui: Ui, user: str, password: str) -> None:
+    r = await ui.login(user, password)
+    assert r.status_code in (401, 422)
     assert "set-cookie" not in r.headers
+    if r.status_code == 401:
+        assert "Wrong username or password." in r.text  # same message: no username probing
+
+
+async def test_api_keys_no_longer_sign_in_to_the_ui(ui: Ui) -> None:
+    async with ui.sm() as s, s.begin():
+        _, key = await create_key(s, "reconx", "admin")
+    r = await ui.client.post("/ui/login", data={"key": key}, headers={"Sec-Fetch-Site": "same-origin"})
+    assert r.status_code == 422
+    assert (await ui.login("reconx", key)).status_code == 401
 
 
 async def test_cross_site_login_and_logout_are_refused(ui: Ui) -> None:
@@ -117,8 +140,8 @@ def test_post_login_target_stays_inside_the_ui(nxt: str, ok: bool) -> None:
 
 async def test_login_is_rate_limited(ui: Ui) -> None:
     for _ in range(10):
-        assert (await ui.login("tl_wrong")).status_code == 401
-    r = await ui.login()  # even the right key, once the bucket is full
+        assert (await ui.login("Alice", "wrong-password")).status_code == 401
+    r = await ui.login()  # even the right password, once the bucket is full
     assert r.status_code == 429
     assert "set-cookie" not in r.headers
 
@@ -131,30 +154,34 @@ async def test_logout_ends_the_session(ui: Ui) -> None:
     assert (await ui.client.get("/ui")).status_code == 303
 
 
-async def test_revoking_or_expiring_the_key_ends_its_sessions(ui: Ui) -> None:
+async def test_disabling_the_account_or_changing_its_password_ends_its_sessions(ui: Ui) -> None:
     await ui.login()
     assert (await ui.client.get("/ui")).status_code == 200
     async with ui.sm() as s, s.begin():
-        await s.execute(update(ApiKey).values(expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        await set_disabled(s, "alice", True)
     assert (await ui.client.get("/ui")).status_code == 303
+    assert (await ui.login()).status_code == 401  # disabled accounts can't sign in either
     async with ui.sm() as s, s.begin():
-        await s.execute(update(ApiKey).values(expires_at=None))
-    assert (await ui.client.get("/ui")).status_code == 200
+        await set_disabled(s, "alice", False)
+    assert (await ui.client.get("/ui")).status_code == 200  # the old session is valid again
     async with ui.sm() as s, s.begin():
-        assert await revoke_key(s, "alice")
+        await set_password(s, "alice", NEW_PASSWORD)
     assert (await ui.client.get("/ui")).status_code == 303
+    assert (await ui.login()).status_code == 401
+    assert (await ui.login("Alice", NEW_PASSWORD)).status_code == 303
 
 
 def test_session_tokens_are_signed_and_expire() -> None:
-    tok = session.issue(SETTINGS, 7, now=1000.0)
-    assert session.parse(SETTINGS, tok, now=1001.0) == 7
+    tok = session.issue(SETTINGS, 7, "abc123", now=1000.0)
+    assert session.parse(SETTINGS, tok, now=1001.0) == (7, "abc123")
     assert session.parse(SETTINGS, tok, now=1000.0 + session.LIFETIME_S + 1) is None
-    key_id, exp, sig = tok.split(".")
-    assert session.parse(SETTINGS, f"8.{exp}.{sig}", now=1001.0) is None  # forged id
-    assert session.parse(SETTINGS, f"{key_id}.{int(exp) + 10**6}.{sig}", now=1001.0) is None
+    _, uid, exp, tag, sig = tok.split(".")
+    assert session.parse(SETTINGS, f"u.8.{exp}.{tag}.{sig}", now=1001.0) is None  # forged id
+    assert session.parse(SETTINGS, f"u.{uid}.{int(exp) + 10**6}.{tag}.{sig}", now=1001.0) is None
+    assert session.parse(SETTINGS, f"u.{uid}.{exp}.zzz.{sig}", now=1001.0) is None
     other = Settings(secret_key="another-secret-key-987654321")  # type: ignore[arg-type]  # noqa: S106
     assert session.parse(other, tok, now=1001.0) is None
-    for junk in ("", "a.b.c", "1.2", "1.2.3.4", "1.2." + "f" * 300):
+    for junk in ("", "a.b.c", "1.2", "1.2.3.4", f"7.{exp}.{sig}", "u.1.2.t." + "f" * 300):
         assert session.parse(SETTINGS, junk) is None
 
 
@@ -266,8 +293,8 @@ async def test_indicator_enrichment_panel(ui: Ui) -> None:
 
 async def test_viewers_cannot_trigger_enrichment(ui: Ui) -> None:
     async with ui.sm() as s, s.begin():
-        _, key = await create_key(s, "vic", "viewer")
-    await ui.login(key)
+        await create_user(s, "vic", "viewer-password", "viewer")
+    await ui.login("vic", "viewer-password")
     r = await ui.client.post("/ui/indicators/1/enrich", headers={"Sec-Fetch-Site": "same-origin"})
     assert r.status_code == 403
     assert "Enrich now" not in (await ui.client.get("/ui/indicators/1")).text

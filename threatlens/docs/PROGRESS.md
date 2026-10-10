@@ -92,6 +92,10 @@ Found and fixed during verification:
 | `.\tl enrich-backlog --limit 40` | 40 IP indicators enriched in the container; dashboard map 5 → 46 located IPs |
 | Integration tests on Postgres/Redis | 8/8 incl. `alembic check` (0004 matches the models), Redis quota store, enrichment pipeline on Postgres |
 
+## UI accounts (2026-10-10, ADR 0007)
+- The owner asked for a username and password on the sign-in page instead of pasting an API key. Migration 0006 (`users`), `threatlens.users` (scrypt hashing, case-insensitive usernames), `threatlens users create|passwd|role|disable|enable|list`, `.\tl user` / `.\tl passwd` (password typed twice, sent on stdin). Sessions are bound to the password; sign-in is rate-limited per address and per account. API keys remain for `/api/v1` and ReconX only.
+- Also removed: the Swagger `/docs` page and its links (owner request), and Docker's "What's next" hints in `tl` output.
+
 ## Phase 3b log
 - 2026-10-10: ReconX: `internal/threatlens` client (batches of 100, TLP, budget, clear errors), `ScanReport.threat_intel`, scan flags `--threatlens[=url]`, `--threatlens-tlp`, `--threatlens-budget`, `--threatlens-assets`, key-store entry + key test, HTML/Markdown sections, dashboard tab and scan option, `RunScanPipeline` option, monitor runs include ThreatLens when configured, rule `threat_intel_flagged`. Contract fixture recorded from the live API.
 - ThreatLens: migration 0005 (`asset_imports`, `assets`, `asset_products`), `assets.py` importer and read side, `/api/v1/assets` (import, list, products, imports), CLI `import-reconx`, Assets UI page, own-asset context in lookups, observed stack in PIR-2 and NVD scope.

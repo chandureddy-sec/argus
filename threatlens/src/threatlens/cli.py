@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import json
 import sys
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
@@ -27,9 +28,10 @@ from threatlens.ioc.normalize import guess, normalize
 from threatlens.ioc.types import IOCType, Observable, Rejected
 from threatlens.jobs import collect_due, open_collector, refresh_allowlists
 from threatlens.kb import KB_REGISTRY
-from threatlens.models import TLP_LEVELS, ApiKey, AuditLog, Source
+from threatlens.models import TLP_LEVELS, ApiKey, AuditLog, Source, User
 from threatlens.profile import ProfileError, load_pirs, load_profile
 from threatlens.settings import get_settings
+from threatlens.users import UserError, create_user, set_disabled, set_password, set_role
 
 # Indicator feeds and knowledge sources (ATT&CK, NVD, EPSS, OSV).
 ALL_SOURCES = sorted({*REGISTRY, *KB_REGISTRY})
@@ -310,6 +312,55 @@ async def _keys(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── UI accounts ─────────────────────────────────────────────────────────────
+
+
+def _read_password(from_stdin: bool) -> str:
+    """One line from stdin (used by ``tl user``), else an interactive prompt typed twice."""
+    if from_stdin:
+        return sys.stdin.readline().lstrip("\ufeff").rstrip("\r\n")
+    first = getpass.getpass("Password: ")
+    if getpass.getpass("Repeat password: ") != first:
+        raise UserError("the passwords don't match")
+    return first
+
+
+async def _users(args: argparse.Namespace) -> int:
+    if args.action != "list" and not args.name:
+        print(f"users {args.action} needs a NAME", file=sys.stderr)
+        return 2
+    if args.action == "role" and not args.role:
+        print("users role needs --role viewer|analyst|admin", file=sys.stderr)
+        return 2
+    try:
+        password = _read_password(args.password_stdin) if args.action in ("create", "passwd") else ""
+        async with _session() as s, s.begin():
+            if args.action == "create":
+                row = await create_user(s, args.name, password, args.role or "viewer")
+                print(f"created {row.name} ({row.role}); sign in at /ui/login")
+            elif args.action == "passwd":
+                row = await set_password(s, args.name, password)
+                print(f"password changed for {row.name}; their other sessions are signed out")
+            elif args.action == "role":
+                row = await set_role(s, args.name, args.role)
+                print(f"{row.name} is now {row.role}")
+            elif args.action in ("disable", "enable"):
+                row = await set_disabled(s, args.name, args.action == "disable")
+                print(f"{row.name} {args.action}d")
+            else:
+                rows = (await s.scalars(select(User).order_by(User.login))).all()
+                print(f"{'name':<24} {'role':<8} {'created':<17} {'last sign-in':<17} state")
+                for u in rows:
+                    print(
+                        f"{u.name:<24} {u.role:<8} {_when(u.created_at):<17} "
+                        f"{_when(u.last_login_at):<17} {'disabled' if u.disabled_at else 'active'}"
+                    )
+    except UserError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    return 0
+
+
 # ── extraction ──────────────────────────────────────────────────────────────
 
 
@@ -368,12 +419,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     al.set_defaults(func=_run(_allowlist_refresh))
 
-    k = sub.add_parser("keys", help="manage API keys")
+    k = sub.add_parser("keys", help="manage API keys (for programs such as ReconX)")
     k.add_argument("action", choices=["create", "list", "revoke"])
     k.add_argument("name", nargs="?")
     k.add_argument("--role", choices=list(ROLE_RANK), default="viewer")
     k.add_argument("--expires-days", type=int)
     k.set_defaults(func=_run(_keys))
+
+    us = sub.add_parser("users", help="manage analyst UI accounts (username + password)")
+    us.add_argument("action", choices=["create", "passwd", "role", "disable", "enable", "list"])
+    us.add_argument("name", nargs="?", help='username; quote it if it has spaces: "chandu reddy"')
+    us.add_argument("--role", choices=list(ROLE_RANK), help="create: default viewer; role: required")
+    us.add_argument("--password-stdin", action="store_true", help="read the password from stdin")
+    us.set_defaults(func=_run(_users))
 
     ir = sub.add_parser("import-reconx", help="import ReconX scan reports (JSON) as own assets")
     ir.add_argument("files", nargs="+", help="reports/recon_<target>_<time>.json from ReconX")

@@ -26,7 +26,7 @@ erDiagram
 ```
 
 Dotted lines are references by STIX id, with no foreign key (see "Graph" below).
-`allowlist_entries`, `api_keys`, `audit_log` and `app_meta` stand alone.
+`allowlist_entries`, `api_keys`, `users`, `audit_log` and `app_meta` stand alone.
 
 ## Collection
 
@@ -110,7 +110,8 @@ enable/disable and provenance; the collector never schedules them.
 | Table | Key columns | Notes |
 |---|---|---|
 | `api_keys` | `name` (unique), `prefix` (first 10 chars, for identification), `key_hash` (SHA-256, unique), `role`, `expires_at`, `revoked_at`, `last_used_at` | The plaintext key is shown once and never stored. `last_used_at` is updated at most every 5 minutes. |
-| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call), `assets.import`. |
+| `users` | `login` (case-folded, unique), `name` (as typed), `password_hash` (scrypt, salted), `role`, `password_changed_at`, `last_login_at`, `disabled_at` | UI accounts (ADR 0007). API keys are for programs; people sign in with these. |
+| `audit_log` | `at`, `actor`, `action`, `target`, `details` | Append-only. Actions so far: `user.create/login/password/role/disable/enable`, `api_key.create/revoke`, `source.run/enable/disable`, `allowlist.add/delete`, `enrich.active` (every active enrichment call), `assets.import`. |
 
 ## Indexes worth knowing
 * `observables (type, last_seen)`: the indicator list and type filter.
