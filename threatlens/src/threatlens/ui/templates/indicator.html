@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ ind.defanged | truncate(40, True) }}{% endblock %}
+{% block crumb %}Intelligence / Indicators / <b>#{{ ind.id }}</b>{% endblock %}
 {% block heading %}Indicator{% endblock %}
 {% block content %}
 <section class="panel">
@@ -18,6 +19,21 @@
     <div class="fact"><b>{{ ind.first_seen.strftime("%Y-%m-%d") }}</b><span>first seen</span></div>
     <div class="fact"><b>{{ ind.last_seen | ago }}</b><span>last seen</span></div>
   </div>
+  {% if blockable %}
+  <div class="blockbar">
+    {% if block %}
+    <span class="pill {{ 'red' if block_state == 'enforce' else 'yellow' if block_state == 'pending' else 'cyan' }}">blocked · {{ "awaiting approval" if block_state == "pending" else block_state }}</span>
+    <span class="muted">by {{ block.created_by }} {{ block.created_at | ago }} · expires {{ block.expires_at | ago }}</span>
+    <a class="more" href="/ui/blocklist?view=all&amp;q={{ ind.defanged | quote }}#block-{{ block.id }}">Blocklist →</a>
+    {% elif me.can("analyst") %}
+    <form class="formrow" method="post" action="/ui/blocklist">
+      <input type="hidden" name="values" value="{{ ind.defanged }}"><input type="hidden" name="origin" value="indicator"><input type="hidden" name="next" value="/ui/indicators/{{ ind.id }}">
+      <label class="field">Block note<input name="note" maxlength="500" placeholder="why (optional)"></label>
+      <button class="danger" type="submit">Block (monitor)</button>
+    </form>
+    {% else %}<span class="muted">Not blocked.</span>{% endif %}
+  </div>
+  {% endif %}
   {% if ind.labels %}<div class="tags">{% for l in ind.labels %}<span class="tag">{{ l }}</span>{% endfor %}</div>{% endif %}
   {% if ind.pattern %}<p class="note">STIX pattern: <code>{{ ind.pattern | defang_text }}</code></p>{% endif %}
 </section>
@@ -65,10 +81,11 @@
   {% endif %}
 </section>
 
-<section class="grid-side">
+<section class="grid-wide">
   <article class="panel">
-    <header class="panel-head"><h2>Sightings</h2><span class="hint">who reported it, and what they said</span></header>
-    <table class="data"><thead><tr><th>Source</th><th>Reported</th><th class="num">Times</th><th>Context</th></tr></thead><tbody>
+    <header class="panel-head"><h2>Sightings over time</h2><span class="hint">first to last report per source</span></header>
+    {{ charts.timeline(timeline, now=now) }}
+    <table class="data spaced-top"><thead><tr><th>Source</th><th>Reported</th><th class="num">Times</th><th>Context</th></tr></thead><tbody>
     {% for sg in ind.sightings %}
       <tr><td><b>{{ sg.source }}</b><small>confidence {{ sg.confidence }}</small></td>
         <td>{{ sg.first_seen.strftime("%Y-%m-%d") }}<small>last {{ sg.last_seen | ago }}</small></td>
@@ -78,14 +95,47 @@
     </tbody></table>
   </article>
   <article class="panel">
-    <header class="panel-head"><h2>Linked to</h2></header>
+    <header class="panel-head"><h2 class="warm">Relationships</h2><span class="hint">click a node to pivot</span></header>
+    {{ charts.radial_graph(ind.defanged, nodes) }}
     {% for r in related %}
-      <p><b>{{ r.edge.rel_type }}</b> →
-        {% if r.node.kind == "vulnerability" %}<a href="/ui/vulnerabilities/{{ r.node.label }}">{{ r.node.label }}</a>
-        {% elif r.node.kind == "entity" %}<a href="/ui/entities/{{ (r.node.external_id or r.node.ref) | quote }}">{{ r.node.label }}</a> <span class="tag">{{ r.node.type }}</span>
-        {% else %}{{ r.node.label }}{% endif %}
-        <br><span class="evidence">via {{ r.edge.source or r.edge.origin }}{% if r.edge.provenance.field %} · field “{{ r.edge.provenance.field }}”{% endif %}</span></p>
+      <p class="evidence"><b>{{ r.edge.rel_type }}</b> {{ r.node.label }} <span class="tag">{{ r.node.type }}</span> via {{ r.edge.source or r.edge.origin }}{% if r.edge.provenance.field %} · field “{{ r.edge.provenance.field }}”{% endif %}</p>
     {% else %}<p class="empty">No links yet. Feeds that name malware (Feodo, ThreatFox, OTX) create them.</p>{% endfor %}
+  </article>
+</section>
+
+<section class="grid-wide">
+  <article class="panel" id="notes">
+    <header class="panel-head"><h2 class="lime">Notes</h2><span class="hint">visible to everyone who can read this indicator</span></header>
+    <div class="notes">
+    {% for n in notes %}<div class="notecard"><header>{{ n.author }} · {{ n.created_at | ago }}</header><p>{{ n.body }}</p></div>
+    {% else %}<p class="empty">No notes yet.</p>{% endfor %}
+    </div>
+    {% if me.can("analyst") %}
+    <form class="stack spaced-top" method="post" action="/ui/indicators/{{ ind.id }}/notes">
+      <label class="field" for="nbody">Add a note</label>
+      <textarea class="big small" id="nbody" name="body" required maxlength="5000" placeholder="What you found, what you did"></textarea>
+      <button type="submit">Add note</button>
+    </form>
+    {% endif %}
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2>Cases</h2><span class="hint">file this indicator as evidence</span></header>
+    {% if me.can("analyst") %}
+      {% if cases %}
+      <form class="addcase" method="post" action="/ui/cases/add">
+        <input type="hidden" name="values" value="{{ ind.defanged }}">
+        <label class="field">Case<select name="case">{% for c, n in cases %}<option value="{{ c.id }}">#{{ c.id }} {{ c.title | truncate(46, True) }}</option>{% endfor %}</select></label>
+        <label class="field">Note<input name="note" maxlength="500" placeholder="why it matters"></label>
+        <button class="primary" type="submit">Add to case</button>
+      </form>
+      {% endif %}
+      <form class="stack spaced-top" method="post" action="/ui/cases">
+        <input type="hidden" name="indicator_id" value="{{ ind.id }}">
+        <label class="field">Or open a new case with it<input name="title" required maxlength="200" value="Investigate {{ ind.defanged | truncate(60, True) }}"></label>
+        <input type="hidden" name="tlp" value="{{ 'TLP:AMBER' if ind.tlp in ('TLP:CLEAR', 'TLP:GREEN', 'TLP:AMBER') else ind.tlp }}">
+        <button type="submit">Open case</button>
+      </form>
+    {% else %}<p class="empty">Analysts can file this indicator into a case.</p>{% endif %}
   </article>
 </section>
 
@@ -95,15 +145,16 @@
     {% if me.can("analyst") %}<form method="post" action="/ui/indicators/{{ ind.id }}/enrich" class="inline"><button class="btn" type="submit">Enrich now</button></form>{% endif %}
   </header>
   {% if enrichments %}
-  <table class="data"><thead><tr><th>Enricher</th><th>Answer</th><th>Findings</th><th>Details</th></tr></thead><tbody>
+  <div class="cards-auto">
   {% for e in enrichments %}
-    <tr><td><b>{{ e.enricher }}</b><small>{{ e.mode }} · {{ e.fetched_at | ago }}{% if e.expires_at.replace(tzinfo=now.tzinfo) < now %} · <span class="pill gray">stale</span>{% endif %}</small></td>
-      <td>{% if e.status == "ok" %}<span class="pill green">found</span>{% else %}<span class="pill gray">not found</span>{% endif %}</td>
-      <td>{% for ev in e.evidence %}<p class="evidence">{% if ev.kind == "malicious" %}<span class="pill red">malicious {{ ev.weight }}</span>{% elif ev.kind == "suspicious" %}<span class="pill yellow">suspicious {{ ev.weight }}</span>{% elif ev.kind == "benign" %}<span class="pill green">benign {{ ev.weight }}</span>{% endif %}
-        {{ ev.text | defang_text }}{% if ev.ref | safe_url %} <a href="{{ ev.ref | safe_url }}" rel="noopener noreferrer nofollow" target="_blank">source ↗</a>{% endif %}</p>{% else %}<small>—</small>{% endfor %}</td>
-      <td><dl class="kv">{% for k, v in e.summary.items() if v not in (none, "", [], {}) and k not in ("scans", "raw") %}<dt>{{ k }}</dt><dd>{{ v | string | defang_text | truncate(140, True) }}</dd>{% endfor %}</dl></td></tr>
+    <div class="ecard">
+      <header><b>{{ e.enricher }}</b>{% if e.status == "ok" %}<span class="pill green">found</span>{% else %}<span class="pill gray">not found</span>{% endif %}{% if e.expires_at.replace(tzinfo=now.tzinfo) < now %}<span class="pill gray">stale</span>{% endif %}<small>{{ e.mode }} · {{ e.fetched_at | ago }}</small></header>
+      {% for ev in e.evidence %}<p class="evidence">{% if ev.kind == "malicious" %}<span class="pill red">malicious {{ ev.weight }}</span>{% elif ev.kind == "suspicious" %}<span class="pill yellow">suspicious {{ ev.weight }}</span>{% elif ev.kind == "benign" %}<span class="pill green">benign {{ ev.weight }}</span>{% endif %}
+        {{ ev.text | defang_text }}{% if ev.ref | safe_url %} <a href="{{ ev.ref | safe_url }}" rel="noopener noreferrer nofollow" target="_blank">source ↗</a>{% endif %}</p>{% endfor %}
+      <dl class="kv">{% for k, v in e.summary.items() if v not in (none, "", [], {}) and k not in ("scans", "raw") %}<dt>{{ k }}</dt><dd>{{ v | string | defang_text | truncate(120, True) }}</dd>{% endfor %}</dl>
+    </div>
   {% endfor %}
-  </tbody></table>
+  </div>
   {% else %}<p class="empty">Not enriched yet.{% if me.can("analyst") %} Use “Enrich now”, or <code>GET /api/v1/lookup/{{ ind.type }}/…</code>.{% endif %}</p>{% endif %}
 </section>
 

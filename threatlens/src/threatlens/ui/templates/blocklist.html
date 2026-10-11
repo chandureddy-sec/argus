@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Blocklist{% endblock %}
+{% block crumb %}Response / <b>Blocklist</b>{% endblock %}
+{% block heading %}Blocklist{% endblock %}
+{% block subheading %}<p class="sub">What we fence off. A block starts in <b>monitor</b> (recorded only); <b>enforce</b> entries are published to your firewalls through the <a href="/ui/settings#export">feed export</a>. Every block expires and can be lifted.</p>{% endblock %}
+{% block actions %}<div class="formrow noprint"><a class="btn" href="/ui/settings#policy">Policy</a><a class="btn primary" href="/ui/settings#export">Feed export</a></div>{% endblock %}
+{% block content %}
+<section class="tiles" aria-label="Blocklist figures">
+  <a class="tile t-pink" href="/ui/blocklist?view=enforce"><span>Enforced</span><b>{{ "{:,}".format(counts.enforce) }}</b><small>published to firewalls</small></a>
+  <a class="tile t-cyan" href="/ui/blocklist?view=monitor"><span>Monitor</span><b>{{ "{:,}".format(counts.monitor) }}</b><small>dry run, recorded only</small></a>
+  <a class="tile t-amber" href="/ui/blocklist?view=pending"><span>Awaiting approval</span><b>{{ "{:,}".format(counts.pending) }}</b><small>{{ "a second admin approves" if policy.require_second_approver else "any admin enforces" }}</small></a>
+  <a class="tile t-red" href="/ui/blocklist?view=live"><span>Expiring in 24 h</span><b>{{ "{:,}".format(counts.expiring) }}</b><small>extend to keep them</small></a>
+  <a class="tile t-lime" href="/ui/blocklist?view=lifted"><span>Lifted</span><b>{{ "{:,}".format(counts.lifted) }}</b><small>ended early, kept for history</small></a>
+</section>
+
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+{% if outcome %}
+<section class="panel outcome" aria-live="polite">
+  <p><b>{{ outcome.created | length }} blocked</b> in monitor mode{% if outcome.refused %}, <b>{{ outcome.refused | length }} refused</b>{% endif %}.
+  {% if outcome.created %}Request <i>enforce</i> on a row to publish it.{% endif %}</p>
+  {% if outcome.refused %}<ul class="refused">{% for raw, why in outcome.refused %}<li>{{ why | defang_text }}</li>{% endfor %}</ul>{% endif %}
+</section>
+{% endif %}
+
+<section class="grid-side">
+  <article class="panel">
+    <header class="panel-head"><h2>Blocks</h2>
+      <nav class="seg" aria-label="Which blocks">
+        {% for v, label in [("live", "Live"), ("enforce", "Enforced"), ("monitor", "Monitor"), ("pending", "Awaiting approval"), ("expired", "Expired"), ("lifted", "Lifted"), ("all", "All")] %}
+        <a href="/ui/blocklist?view={{ v }}{% if q %}&amp;q={{ q | quote }}{% endif %}"{% if v == view %} class="on" aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav></header>
+    <form class="filters" method="get" action="/ui/blocklist">
+      <input type="hidden" name="view" value="{{ view }}">
+      <label>Value or note<input name="q" value="{{ q }}" maxlength="200" placeholder="e.g. 203.0.113 or phishing"></label>
+      <button type="submit">Filter</button>
+    </form>
+    <div class="scroll"><table class="data blocks">
+      <thead><tr><th>Value</th><th>State</th><th class="num">Score</th><th>Why</th><th class="num">Expires</th><th class="num">Actions</th></tr></thead>
+      <tbody>
+      {% for b in rows %}{% set st = state(b) %}
+        <tr id="block-{{ b.id }}">
+          <td><span class="val mono">{{ b.value | defang_text }}</span><small>{{ b.kind }} · #{{ b.id }} · {{ b.tlp }} · by {{ b.created_by }} {{ b.created_at | ago }}</small></td>
+          <td><span class="pill {{ {'enforce': 'red', 'monitor': 'cyan', 'pending': 'yellow', 'expired': 'gray', 'lifted': 'gray'}[st] }}">{{ "awaiting approval" if st == "pending" else st }}</span>
+            {% if st == "pending" %}<small>asked by {{ b.requested_by }}</small>{% elif st == "enforce" and b.approved_by %}<small>approved by {{ b.approved_by }}</small>{% elif st == "lifted" %}<small>by {{ b.lifted_by }}{% if b.lift_note %}: {{ b.lift_note | truncate(60, True) }}{% endif %}</small>{% endif %}</td>
+          <td class="num">{% if b.score is not none %}<b class="{{ 's-mal' if b.score >= 60 else 's-sus' if b.score >= 30 else 's-low' }}">{{ "%.0f" | format(b.score) }}</b>{% else %}<span class="muted">-</span>{% endif %}</td>
+          <td>{{ {"known_bad": "known bad", "suspect": "suspect", "manual": "manual"}[b.reason] }}{% if b.indicator_id %} · <a href="/ui/indicators/{{ b.indicator_id }}">indicator</a>{% endif %}{% if b.note %}<small>{{ b.note | defang_text | truncate(70, True) }}</small>{% endif %}</td>
+          <td class="num muted" title="{{ b.expires_at.strftime('%Y-%m-%d %H:%M') }} UTC">{{ b.expires_at | ago }}</td>
+          <td class="num">
+            {% if st in ("monitor", "pending", "enforce") and me.can("analyst") %}
+            <div class="rowacts">
+              {% if st == "monitor" %}
+              <form method="post" action="/ui/blocklist/{{ b.id }}/request"><input type="hidden" name="view" value="{{ view }}"><button class="btn small" type="submit">{{ "Enforce" if me.can("admin") and not policy.require_second_approver else "Request enforce" }}</button></form>
+              {% elif st == "pending" %}
+                {% if me.can("admin") and (b.requested_by != me.name or not policy.require_second_approver) %}
+                <form method="post" action="/ui/blocklist/{{ b.id }}/approve"><input type="hidden" name="view" value="{{ view }}"><button class="btn small primary" type="submit">Approve</button></form>
+                {% endif %}
+                {% if me.can("admin") or b.requested_by == me.name %}
+                <form method="post" action="/ui/blocklist/{{ b.id }}/decline"><input type="hidden" name="view" value="{{ view }}"><button class="btn small ghost" type="submit">{{ "Withdraw" if b.requested_by == me.name else "Decline" }}</button></form>
+                {% endif %}
+              {% endif %}
+              <form method="post" action="/ui/blocklist/{{ b.id }}/extend"><input type="hidden" name="view" value="{{ view }}"><input type="hidden" name="days" value="7"><button class="btn small ghost" type="submit" title="Push the expiry out by 7 days">+7 d</button></form>
+              <form method="post" action="/ui/blocklist/{{ b.id }}/lift"><input type="hidden" name="view" value="{{ view }}"><button class="btn small danger" type="submit">Lift</button></form>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}<tr><td colspan="6" class="empty">No blocks here.{% if view == "live" %} Block a value with the form, from an indicator page, or from a bulk lookup.{% endif %}</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% if pages > 1 %}
+    <div class="pager">
+      {% if page_no > 1 %}<a class="btn" href="/ui/blocklist?view={{ view }}&amp;q={{ q | quote }}&amp;page={{ page_no - 1 }}">← Prev</a>{% endif %}
+      <span>page {{ page_no }} of {{ pages }} · {{ "{:,}".format(total) }} blocks</span>
+      {% if page_no < pages %}<a class="btn" href="/ui/blocklist?view={{ view }}&amp;q={{ q | quote }}&amp;page={{ page_no + 1 }}">Next →</a>{% endif %}
+    </div>
+    {% endif %}
+  </article>
+
+  <div class="stack-col">
+    {% if me.can("analyst") %}
+    <article class="panel">
+      <header class="panel-head"><h2 class="warm">Block now</h2></header>
+      <form class="stack" method="post" action="/ui/blocklist">
+        <label class="field">IPs, ranges, domains or URLs<textarea name="text" rows="5" maxlength="200000" required placeholder="one per line; defanged is fine, e.g. 203.0.113[.]24"></textarea></label>
+        <label class="field">Note<input name="note" maxlength="500" placeholder="why: ticket, alert, case"></label>
+        <button class="primary" type="submit">Block (monitor)</button>
+      </form>
+      <p class="note">Known-bad values (an active indicator scoring {{ "%.0f" | format(policy.known_bad_score) }}+) are blocked for {{ policy.known_bad_days }} days, values you type in for {{ policy.manual_days }}, everything else for {{ policy.suspect_days }}. <a href="/ui/settings#policy">Change</a></p>
+    </article>
+    {% endif %}
+    <article class="panel">
+      <header class="panel-head"><h2 class="lime">How blocking works</h2></header>
+      <ol class="steps">
+        <li><b>Monitor.</b> A new block is recorded only. Nothing pulls it.</li>
+        <li><b>Enforce.</b> {% if policy.require_second_approver %}Someone requests it; a <i>different</i> admin approves.{% else %}An admin enforces it.{% endif %} It then appears in the feed your firewall pulls.</li>
+        <li><b>Expire or lift.</b> Every block ends on its own; lifting ends it now and the firewall drops it on its next pull.</li>
+      </ol>
+      <p class="note">Checked twice, when you block and on every export: our own IPs and domains, ReconX assets, private and reserved ranges, public DNS resolvers, CDN edges and popular domains are never blocked.</p>
+    </article>
+  </div>
+</section>
+
+<section class="panel" id="never">
+  <header class="panel-head"><h2 class="lime">Never block</h2><span class="hint">checked on every block and every export</span></header>
+  <div class="grid-2">
+    <div>
+      <h3 class="subhead">Built in</h3>
+      <ul class="plain">
+        <li>Private, loopback, link-local, CGNAT, multicast and documentation addresses (anything not globally routable)</li>
+        <li>Ranges broader than /16 (IPv4) or /32 (IPv6)</li>
+        <li>Public DNS resolvers: <span class="mono">{{ never.resolvers | join(", ") }}</span></li>
+        <li>{{ never.assets.get("ip", 0) }} IPs and {{ never.assets.get("host", 0) + never.assets.get("domain", 0) }} hosts from <a href="/ui/assets">our assets</a> (ReconX)</li>
+        <li>{{ "{:,}".format(never.by_origin.get("tranco", 0)) }} popular domains (Tranco), {{ never.by_origin.get("cloudflare", 0) + never.by_origin.get("fastly", 0) }} CDN edge ranges (Cloudflare, Fastly)</li>
+      </ul>
+      {% if never.own %}
+      <h3 class="subhead">Our domains and ranges <span class="hint">config/org_profile.yaml</span></h3>
+      <ul class="plain">{% for e in never.own %}<li><span class="mono">{{ e.value }}</span> <span class="muted">{{ e.reason }}</span></li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+    <div>
+      <h3 class="subhead">Added here</h3>
+      <table class="list"><tbody>
+      {% for e in never.manual %}
+        <tr><td><span class="mono">{{ e.value }}</span><small>{{ e.reason }} · by {{ e.created_by }} {{ e.created_at | ago }}</small></td>
+          <td class="num">{% if me.can("admin") %}<form method="post" action="/ui/blocklist/never/{{ e.id }}/delete"><button class="btn small ghost" type="submit">Remove</button></form>{% endif %}</td></tr>
+      {% else %}<tr><td class="empty">None yet.</td></tr>{% endfor %}
+      </tbody></table>
+      {% if me.can("admin") %}
+      <form class="formrow spaced-top" method="post" action="/ui/blocklist/never">
+        <label class="field">IP, range or domain<input name="value" required maxlength="300" placeholder="e.g. 198.51.100.7 or 198.51.100.0/24"></label>
+        <label class="field">Why it is ours<input name="reason" required minlength="3" maxlength="300" placeholder="e.g. office egress (ISP)"></label>
+        <button type="submit">Never block</button>
+      </form>
+      <p class="note">An entry here keeps indicators on it visible but labelled, so a compromise of our own host is still noticed; it just can never be blocked.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -20,7 +20,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from threatlens import __version__, assets
+from threatlens import __version__, assets, blocking
+from threatlens import cases as case_store
 from threatlens import tlp as tlp_rules
 from threatlens.api import assets as assets_api
 from threatlens.api import kb as kb_api
@@ -56,11 +57,15 @@ Status = Literal["new", "active", "expired", "revoked", "false_positive"]
 STATUSES: dict[str, Status] = {s: s for s in get_args(Status)}
 
 UI_CSP = (
-    "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; "
+    "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; "
+    "font-src 'self'; "
     "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
 _CITATION = re.compile(r"\(Citation:[^)]*\)")
 _MD_LINK = re.compile(r"\[([^\]]+)\]\((https?://[^)]+)\)")
+
+
+BLOCKABLE = frozenset({"ipv4-addr", "ipv6-addr", "ipv4-net", "ipv6-net", "domain-name", "url"})
 
 
 def plain(text: str | None, n: int = 2000) -> str:
@@ -102,7 +107,10 @@ def _settings(request: Request) -> Settings:
 
 
 def page(request: Request, name: str, ctx: dict[str, Any], status: int = 200) -> HTMLResponse:
-    resp = templates.TemplateResponse(request, name, {"path": request.url.path, **ctx}, status_code=status)
+    here = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    resp = templates.TemplateResponse(
+        request, name, {"path": request.url.path, "here": here, **ctx}, status_code=status
+    )
     resp.headers["Content-Security-Policy"] = UI_CSP
     resp.headers["Referrer-Policy"] = "same-origin"  # never sent to other sites
     return resp
@@ -202,31 +210,16 @@ async def _stack(request: Request, s: AsyncSession) -> list[tuple[str, str]]:
 
 
 @router.get("", response_class=HTMLResponse)
-async def overview(request: Request) -> HTMLResponse:
+async def overview(
+    request: Request, month: Annotated[str | None, Query(max_length=16)] = None
+) -> HTMLResponse:
     me = await who(request)
+    now = datetime.now(UTC)
     async with _sm(request)() as s:
-        d = await data.overview(s, datetime.now(UTC), await _stack(request, s), me.clearance)
+        d = await data.overview(s, now, await _stack(request, s), me.clearance, _settings(request))
+        d["activity"] = await data.activity(s, now, me.clearance)
+        d["calendar"] = await data.month_calendar(s, now, me.clearance, data.parse_month(month))
     return page(request, "overview.html", {"me": me, "d": d})
-
-
-@router.get("/search", response_model=None)
-async def search(request: Request, q: Annotated[str, Query(max_length=300)] = "") -> Response:
-    me = await who(request)
-    q = q.strip()
-    if not q:
-        return RedirectResponse("/ui", status_code=303)
-    async with _sm(request)() as s:
-        node = await graph.resolve(s, q, clearance=me.clearance)
-        ind_id = None
-        if node is not None and node.kind == "indicator":
-            ind_id = node.extra.get("id")
-    if node is None:
-        return RedirectResponse(f"/ui/indicators?q={quote(q)}", status_code=303)
-    if node.kind == "vulnerability":
-        return RedirectResponse(f"/ui/vulnerabilities/{quote(node.label)}", status_code=303)
-    if node.kind == "indicator":
-        return RedirectResponse(f"/ui/indicators/{ind_id}", status_code=303)
-    return RedirectResponse(f"/ui/entities/{quote(node.external_id or node.ref)}", status_code=303)
 
 
 @router.get("/indicators", response_class=HTMLResponse)
@@ -297,12 +290,33 @@ async def indicator(request: Request, indicator_id: int) -> HTMLResponse:
                 .order_by(Enrichment.enricher)
             )
         ).all()
+        notes = await case_store.notes_for(s, indicator_id)
+        open_cases = await case_store.list_cases(s, me.clearance, status="open", limit=50)
+        block = await blocking.live_block(s, f"{ind.type}|{ind.value}")
+    timeline = [(sg.source, _utc(sg.first_seen), _utc(sg.last_seen)) for sg in ind.sightings]
+    nodes = [
+        (r["node"]["label"], r["node"]["type"], r["edge"]["rel_type"], _href(r["node"])) for r in related
+    ]
     return page(
         request,
         "indicator.html",
         {"me": me, "ind": ind, "related": related, "techniques": techniques[:60],
-         "enrichments": enrichments, "now": datetime.now(UTC)},
+         "enrichments": enrichments, "now": datetime.now(UTC), "notes": notes, "cases": open_cases,
+         "timeline": timeline, "nodes": nodes, "block": block,
+         "blockable": ind.type in BLOCKABLE, "block_state": blocking.state(block) if block else None},
     )  # fmt: skip
+
+
+def _utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _href(node: dict[str, Any]) -> str:
+    if node["kind"] == "vulnerability":
+        return f"/ui/vulnerabilities/{quote(node['label'])}"
+    if node["kind"] == "indicator":
+        return f"/ui/indicators/{node.get('extra', {}).get('id', '')}"
+    return f"/ui/entities/{quote(node.get('external_id') or node['ref'], safe='')}"
 
 
 @router.post("/indicators/{indicator_id}/enrich", response_model=None)
@@ -364,9 +378,13 @@ async def vulnerabilities(
     q: Annotated[str | None, Query(max_length=200)] = None,
     sort: Annotated[str, Query(max_length=16)] = "epss",
     page_no: Annotated[int, Query(alias="page", ge=1, le=10_000)] = 1,
+    patch: Annotated[str | None, Query(max_length=2)] = None,
 ) -> HTMLResponse:
     me = await who(request)
     stmt = select(Vulnerability)
+    tier = patch if patch in ("P1", "P2", "P3", "P4") else None
+    if tier:
+        stmt = stmt.where(Vulnerability.patch_priority == tier)
     async with _sm(request)() as s:
         if stack:
             stmt = stmt.where(Vulnerability.id.in_(await data.stack_cve_ids(s, await _stack(request, s))))
@@ -411,7 +429,8 @@ async def vulnerabilities(
         request,
         "vulnerabilities.html",
         {"me": me, "rows": rows, "total": total, "prods": prods, "page_no": page_no,
-         "f": {"kev": "" if kev is None else str(kev).lower(), "stack": stack, "q": q or "", "sort": sort}},
+         "f": {"kev": "" if kev is None else str(kev).lower(), "stack": stack, "q": q or "", "sort": sort,
+               "patch": tier or ""}},
     )  # fmt: skip
 
 

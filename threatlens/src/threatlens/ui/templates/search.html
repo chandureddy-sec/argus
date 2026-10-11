@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block crumb %}Work / <b>Search</b>{% endblock %}
+{% block heading %}{% if q %}Results for “{{ q | defang_text | truncate(60, True) }}”{% else %}Search{% endif %}{% endblock %}
+{% block subheading %}<p class="sub">Indicator values, tags (<code>tag:emotet</code>), malware, actors, ATT&amp;CK ids, CVEs and cases. An exact match opens its page.</p>{% endblock %}
+{% block content %}
+<section class="panel">
+  <form class="filters" action="/ui/search" method="get" role="search">
+    <label>Search<input name="q" value="{{ q }}" maxlength="300" placeholder="e.g. 185.220, tag:qakbot, Emotet, T1566, CVE-2024"></label>
+    <input type="hidden" name="show" value="all">
+    <button class="primary" type="submit">Search</button>
+  </form>
+</section>
+
+{% if q %}
+<section class="grid-side">
+  <div class="stack">
+    <article class="panel">
+      <header class="panel-head"><h2>Indicators</h2><span class="hint">{{ "{:,}".format(res.indicators_total or 0) }} match{{ "" if res.indicators_total == 1 else "es" }}{% if not tag and res.indicators_total %} · <a href="/ui/indicators?q={{ q | quote }}&amp;sort=priority">all in the list →</a>{% endif %}</span></header>
+      {% if res.indicators %}
+      <div class="scroll"><table class="queue"><thead><tr><th>Score</th><th>Indicator</th><th>Status</th><th>Labels</th></tr></thead><tbody>
+      {% for ind, obs in res.indicators %}{% set p = ind.priority_score or 0 %}
+        <tr><td class="num"><b class="{{ 's-mal' if p >= 60 else 's-sus' if p >= 30 else 's-low' }}">{{ "%.0f" | format(p) if ind.priority_score is not none else "–" }}</b></td>
+          <td><a class="val" href="/ui/indicators/{{ ind.id }}">{{ obs.defanged }}</a><span class="tag">{{ types.get(obs.type, obs.type) }}</span></td>
+          <td><span class="pill {{ 'green' if ind.status == 'active' else 'gray' }}">{{ ind.status.replace("_", " ") }}</span></td>
+          <td>{% for l in (ind.labels or [])[:3] %}<a class="tag" href="/ui/search?q={{ ('tag:' ~ l) | quote }}">{{ l | truncate(22, True) }}</a> {% endfor %}</td></tr>
+      {% endfor %}</tbody></table></div>
+      {% else %}<p class="empty">No indicator matches{% if tag %} the tag “{{ tag }}”{% endif %}.</p>{% endif %}
+    </article>
+    {% if not tag %}
+    <article class="panel">
+      <header class="panel-head"><h2 class="warm">Vulnerabilities</h2></header>
+      {% if res.cves %}<table class="list"><tbody>
+      {% for v in res.cves %}<tr><td><a class="mono" href="/ui/vulnerabilities/{{ v.cve_id }}">{{ v.cve_id }}</a><small>{{ v.kev_name or v.description | truncate(110, True) }}</small></td>
+        <td class="num">{% if v.patch_priority %}<span class="pill {{ 'red' if v.patch_priority == 'P1' else 'yellow' if v.patch_priority == 'P2' else 'gray' }}">{{ v.patch_priority }}</span>{% endif %}{% if v.kev %}<span class="pill red">KEV</span>{% endif %}</td></tr>{% endfor %}
+      </tbody></table>{% else %}<p class="empty">No CVE matches.</p>{% endif %}
+    </article>
+    {% endif %}
+  </div>
+  <div class="stack">
+    {% if not tag %}
+    <article class="panel">
+      <header class="panel-head"><h2 class="lime">Malware, actors, techniques</h2></header>
+      {% if res.entities %}<table class="list"><tbody>
+      {% for e in res.entities %}<tr><td><a href="/ui/entities/{{ (e.external_id or e.stix_id) | quote }}">{{ e.name }}</a><small>{{ e.type }}{% if e.external_id %} · {{ e.external_id }}{% endif %}</small></td></tr>{% endfor %}
+      </tbody></table>{% else %}<p class="empty">No entity matches.</p>{% endif %}
+    </article>
+    <article class="panel">
+      <header class="panel-head"><h2>Cases</h2></header>
+      {% if res.cases %}<table class="list"><tbody>
+      {% for c, n in res.cases %}<tr><td><a href="/ui/cases/{{ c.id }}">{{ c.title }}</a><small>{{ c.status }} · {{ n }} item{{ "s" if n != 1 }} · {{ c.tlp }}</small></td></tr>{% endfor %}
+      </tbody></table>{% else %}<p class="empty">No case matches.</p>{% endif %}
+    </article>
+    {% endif %}
+    <article class="panel noprint">
+      <header class="panel-head"><h2 class="warm">Save this search</h2></header>
+      <form class="formrow" method="post" action="/ui/searches">
+        <label class="field">Name<input name="name" maxlength="100" required value="{{ q | truncate(40, True) }}"></label>
+        <input type="hidden" name="query" value="{{ here }}">
+        <button type="submit">Save</button>
+      </form>
+    </article>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel" id="saved">
+  <header class="panel-head"><h2>Saved searches</h2><span class="hint">yours only · any filtered list can be saved from its page</span></header>
+  {% if saved %}
+  <table class="list"><tbody>
+  {% for sv in saved %}
+    <tr><td><a href="{{ sv.query }}">{{ sv.name }}</a><small class="mono">{{ sv.query | truncate(90, True) }}</small></td>
+      <td class="num"><form method="post" action="/ui/searches/{{ sv.id }}/delete"><button class="ghost" type="submit" aria-label="Delete saved search {{ sv.name }}">Delete</button></form></td></tr>
+  {% endfor %}
+  </tbody></table>
+  {% else %}<p class="empty">Nothing saved yet. Search, filter a list, then “Save”.</p>{% endif %}
+</section>
+{% endblock %}

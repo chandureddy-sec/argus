@@ -17,6 +17,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens import __version__
 from threatlens.api.assets import router as assets_router
+from threatlens.api.blocks import feeds_router
+from threatlens.api.blocks import router as blocks_router
+from threatlens.api.cases import router as cases_router
 from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
@@ -27,8 +30,11 @@ from threatlens.enrich.service import EnrichmentService, enrichment_http
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import Environment, Settings, get_settings
+from threatlens.ui.investigate import router as investigate_router
+from threatlens.ui.respond import router as respond_router
 from threatlens.ui.routes import HERE as UI_DIR
 from threatlens.ui.routes import router as ui_router
+from threatlens.ui.work import router as work_router
 
 log = get_logger("threatlens.api")
 UI_STATIC = UI_DIR / "static"
@@ -36,6 +42,7 @@ UI_STATIC = UI_DIR / "static"
 # A caller-supplied request ID is echoed only if it is short and boring;
 # otherwise it could inject content into logs or response headers.
 _SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+_FEED_TOKEN = re.compile(r"^/feeds/[^/]+")  # feed tokens travel in the path: never log them
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -126,7 +133,13 @@ def create_app(
     app.include_router(kb_router)
     app.include_router(enrich_router)
     app.include_router(assets_router)
+    app.include_router(cases_router)
+    app.include_router(blocks_router)
+    app.include_router(feeds_router)
     app.include_router(ui_router)
+    app.include_router(work_router)
+    app.include_router(respond_router)
+    app.include_router(investigate_router)
     app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
     app.state.settings = settings
 
@@ -151,7 +164,7 @@ def create_app(
         log.info(
             "http.request",
             method=request.method,
-            path=request.url.path,
+            path=_FEED_TOKEN.sub("/feeds/<token>", request.url.path),
             status=response.status_code,
             duration_ms=round((time.perf_counter() - start) * 1000, 1),
         )

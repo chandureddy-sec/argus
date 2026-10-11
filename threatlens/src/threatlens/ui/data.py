@@ -1,21 +1,24 @@
 """Read-side queries for the analyst UI (dashboard aggregates and page data).
 
 Everything is computed from stored data; nothing is estimated or invented.
-Where a panel depends on data the platform doesn't collect yet (Phase 4
-priority scores), it says so.
+Every indicator figure respects the viewer's TLP clearance (ADR 0008).
 """
 
 from __future__ import annotations
 
+import calendar as cal
+import math
 from collections import Counter, defaultdict
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
+from urllib.parse import quote
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import String, and_, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from threatlens import tlp as tlp_rules
 from threatlens.models import (
+    Case,
     ConnectorRun,
     Enrichment,
     Entity,
@@ -27,6 +30,8 @@ from threatlens.models import (
     Vulnerability,
     VulnerabilityProduct,
 )
+from threatlens.profile import ProfileError, load_pirs, load_profile
+from threatlens.settings import Settings
 
 # Enterprise matrix order (TA0112 "Defense Impairment" and TA0005 "Stealth" are ATT&CK v19 tactics).
 TACTIC_ORDER = [
@@ -96,7 +101,11 @@ def _buckets(
 
 
 async def overview(
-    s: AsyncSession, now: datetime, stack: list[tuple[str, str]], clearance: str
+    s: AsyncSession,
+    now: datetime,
+    stack: list[tuple[str, str]],
+    clearance: str,
+    settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Dashboard figures. Indicators above the viewer's TLP clearance are left
     out of every count, list and map (ADR 0008)."""
@@ -354,6 +363,38 @@ async def overview(
 
     runs_by_name = await last_runs(s)
 
+    # ── Phase 5 panels ──────────────────────────────────────────────────────
+    new_high = (
+        await s.scalar(
+            select(func.count())
+            .select_from(Indicator)
+            .where(Indicator.created_at >= day_ago, Indicator.priority_score >= 60, vis)
+        )
+        or 0
+    )
+    queue = await priority_queue(s, clearance)
+    feed_rates = await feed_success(s, now)
+    tactic_rows = await _tactic_counts(s, list(tech_ents.values()))
+    patch_rows = dict(
+        (
+            await s.execute(
+                select(Vulnerability.patch_priority, func.count()).group_by(Vulnerability.patch_priority)
+            )
+        ).all()
+    )
+    p1_stack = (
+        await s.scalars(
+            select(Vulnerability)
+            .where(
+                Vulnerability.patch_priority == "P1",
+                cast(Vulnerability.patch_breakdown, String).like("%affects our stack%"),
+            )
+            .order_by(Vulnerability.patch_score.desc(), Vulnerability.kev_date_added.desc().nulls_last())
+            .limit(5)
+        )
+    ).all()
+    pirs = await pir_status(s, settings, vis, stack_kev, len(p1_stack))
+
     return {
         "kpis": [
             {
@@ -415,6 +456,20 @@ async def overview(
         "sources": sources,
         "last_runs": {x.id: runs_by_name[x.name] for x in sources if x.name in runs_by_name},
         "stack": stack,
+        "active": int(active),
+        "new_24h": int(new_24h),
+        "new_high": int(new_high),
+        "queue": queue,
+        "feed_rates": feed_rates,
+        "tactics": tactic_rows,
+        "patch": [(t, int(patch_rows.get(t, 0) or 0)) for t in ("P1", "P2", "P3", "P4")],
+        "p1_stack": p1_stack,
+        "pirs": pirs,
+        "stack_kev": int(stack_kev),
+        "families_all": [(name, n) for name, n, _, _ in families],
+        "healthy": healthy,
+        "collecting": enabled,
+        "unhealthy": [x for x in sources if x.enabled and x.health not in ("ok",) and x.kind != "enricher"],
     }
 
 
@@ -505,3 +560,306 @@ async def attack_matrix(s: AsyncSession, family_refs: list[str] | None = None) -
         columns.append({"tactic": tactics[tid], "cells": cells, "hits": sum(1 for _, n in cells if n)})
     peak = max((n for c in columns for _, n in c["cells"]), default=0)
     return {"columns": columns, "peak": peak, "families": len(family_refs)}
+
+
+# ── Phase 5 dashboard helpers ────────────────────────────────────────────────
+
+ACTIONS = {"malicious": "block", "suspicious": "investigate", "benign": "no_action", "unknown": "monitor"}
+
+
+def why(breakdown: dict[str, Any] | None) -> str:
+    """One line on what drives a score, from its stored breakdown."""
+    if not breakdown or breakdown.get("model") != "v1":
+        return ""
+    if breakdown.get("suppressed"):
+        return str(breakdown["suppressed"])
+    parts = []
+    base = breakdown.get("base") or {}
+    sigs = breakdown.get("signals") or []
+    top = sigs[0] if sigs else {}
+    if base.get("source"):
+        parts.append(str(top.get("text") or f"listed by {base['source']}"))
+    corr = breakdown.get("corroboration") or {}
+    if corr.get("upstreams"):
+        parts.append("also " + ", ".join(corr["upstreams"]))
+    rel = breakdown.get("relevance") or {}
+    if rel.get("applied") and rel.get("hits"):
+        parts.append(f"+{rel['value']:g} " + ", ".join(h["kind"].replace("_", " ") for h in rel["hits"]))
+    pen = breakdown.get("penalty") or {}
+    if pen.get("items"):
+        parts.append(f"-{pen['value']:g} " + ", ".join(h["kind"].replace("_", " ") for h in pen["items"]))
+    return " · ".join(parts)
+
+
+async def priority_queue(s: AsyncSession, clearance: str, limit: int = 8) -> list[dict[str, Any]]:
+    """The highest-priority active indicators, at most two per (type, source)
+    so one bulk feed doesn't fill the whole queue."""
+    rows = (
+        await s.execute(
+            select(Indicator, Observable)
+            .join(Observable, Observable.id == Indicator.observable_id)
+            .where(
+                Indicator.status == "active",
+                Indicator.priority_score.is_not(None),
+                Observable.type != "vulnerability",
+                Indicator.tlp.in_(tlp_rules.readable(clearance)),
+            )
+            .order_by(Indicator.priority_score.desc(), Observable.last_seen.desc())
+            .limit(400)
+        )
+    ).all()
+    seen: Counter[tuple[str, str]] = Counter()
+    out: list[dict[str, Any]] = []
+    for ind, obs in rows:
+        bd = ind.score_breakdown or {}
+        src = str((bd.get("base") or {}).get("source") or "")
+        if seen[(obs.type, src)] >= 2:
+            continue
+        seen[(obs.type, src)] += 1
+        verdict = str(bd.get("verdict") or "unknown")
+        out.append(
+            {
+                "id": ind.id,
+                "type": TYPE_LABELS.get(obs.type, obs.type),
+                "value": obs.defanged,
+                "score": ind.priority_score or 0.0,
+                "verdict": verdict,
+                "action": ACTIONS.get(verdict, "monitor"),
+                "source": src,
+                "why": why(bd),
+                "last_seen": aware(obs.last_seen),
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+async def feed_success(s: AsyncSession, now: datetime, days: int = 7) -> list[dict[str, Any]]:
+    """Per collecting source: share of runs in the last ``days`` that worked."""
+    ok = ("success", "not_modified", "unchanged")
+    rows = (
+        await s.execute(
+            select(Source.name, Source.health, Source.kind, ConnectorRun.status, func.count())
+            .join(ConnectorRun, ConnectorRun.source_id == Source.id)
+            .where(ConnectorRun.started_at >= now - timedelta(days=days), Source.kind != "enricher")
+            .group_by(Source.name, Source.health, Source.kind, ConnectorRun.status)
+        )
+    ).all()
+    agg: dict[str, dict[str, Any]] = {}
+    for name, health, kind, status, n in rows:
+        a = agg.setdefault(name, {"name": name, "health": health, "kind": kind, "ok": 0, "runs": 0})
+        a["runs"] += int(n)
+        if status in ok:
+            a["ok"] += int(n)
+    out = []
+    for a in sorted(agg.values(), key=lambda x: x["name"]):
+        pct = 100 * a["ok"] / a["runs"] if a["runs"] else 0.0
+        out.append({**a, "pct": pct, "palette": "lime" if pct >= 90 else "amber" if pct >= 50 else "pink"})
+    return out
+
+
+async def activity(s: AsyncSession, now: datetime, clearance: str, limit: int = 6) -> list[dict[str, Any]]:
+    """What happened in the last 7 days, newest first: cases opened and closed
+    (within the viewer's clearance), each feed's latest run that brought new
+    indicators or failed, and CISA KEV additions."""
+    since = now - timedelta(days=7)
+    events: list[dict[str, Any]] = []
+    for c in (
+        await s.scalars(
+            select(Case)
+            .where(
+                Case.tlp.in_(tlp_rules.readable(clearance)),
+                or_(Case.created_at >= since, Case.closed_at >= since),
+            )
+            .order_by(Case.updated_at.desc())
+            .limit(limit)
+        )
+    ).all():
+        href, meta = f"/ui/cases/{c.id}", f"{c.severity} · {c.tlp}"
+        if (opened := aware(c.created_at)) and opened >= since:
+            events.append({"at": opened, "tone": "pink", "kind": "Case opened", "title": c.title,
+                           "detail": f"{meta} · by {c.created_by}", "href": href})  # fmt: skip
+        if (closed := aware(c.closed_at)) and closed >= since:
+            events.append({"at": closed, "tone": "lime", "kind": "Case closed", "title": c.title,
+                           "detail": meta, "href": href})  # fmt: skip
+
+    latest: dict[str, tuple[ConnectorRun, str]] = {}
+    for run, name in (
+        await s.execute(
+            select(ConnectorRun, Source.name)
+            .join(Source, Source.id == ConnectorRun.source_id)
+            .where(
+                ConnectorRun.started_at >= since,
+                Source.kind != "enricher",
+                or_(ConnectorRun.items_new > 0, ConnectorRun.status == "failed"),
+            )
+            .order_by(ConnectorRun.started_at.desc())
+        )
+    ).all():
+        latest.setdefault(name, (run, name))  # one line per feed: its latest noteworthy run
+    for run, name in latest.values():
+        at = aware(run.finished_at or run.started_at) or now
+        if run.status == "failed":
+            why = f"HTTP {run.http_status}" if run.http_status else "see Sources"
+            events.append({"at": at, "tone": "red", "kind": "Feed failed", "title": name,
+                           "detail": why, "href": "/ui/sources"})  # fmt: skip
+        else:
+            events.append({"at": at, "tone": "cyan", "kind": "Collected", "title": name,
+                           "detail": f"+{run.items_new:,} new of {run.items_total:,}",
+                           "href": f"/ui/indicators?source={quote(name, safe='')}"})  # fmt: skip
+
+    for v in (
+        await s.scalars(
+            select(Vulnerability)
+            .where(Vulnerability.kev.is_(True), Vulnerability.kev_date_added >= since.date())
+            .order_by(Vulnerability.kev_date_added.desc(), Vulnerability.cve_id.desc())
+            .limit(limit)
+        )
+    ).all():
+        events.append({"at": datetime.combine(v.kev_date_added or since.date(), time(), UTC), "tone": "amber",
+                       "kind": "Added to KEV", "title": v.cve_id, "detail": v.kev_name or "",
+                       "href": f"/ui/vulnerabilities/{v.cve_id}"})  # fmt: skip
+
+    events.sort(key=lambda e: e["at"], reverse=True)
+    # Feeds run hourly; cap routine collections so cases, failures and KEV keep a place.
+    collected = [e for e in events if e["kind"] == "Collected"][:3]
+    return [e for e in events if e["kind"] != "Collected" or e in collected][:limit]
+
+
+def parse_month(value: str | None) -> date | None:
+    """``YYYY-MM`` to the first of that month; None when absent or invalid."""
+    try:
+        y, m = (int(x) for x in (value or "").split("-"))
+        return date(y, m, 1) if 2000 <= y <= 2100 else None
+    except ValueError:
+        return None
+
+
+async def month_calendar(
+    s: AsyncSession, now: datetime, clearance: str, month: date | None = None
+) -> dict[str, Any]:
+    """One month as a Sunday-first grid: indicators first seen each day (within
+    the viewer's clearance) and KEV additions. Months after the current one
+    are clamped to it."""
+    this = now.date().replace(day=1)
+    first = min((month or this).replace(day=1), this)
+    nxt = (first + timedelta(days=32)).replace(day=1)
+    start, end = datetime.combine(first, time(), UTC), datetime.combine(nxt, time(), UTC)
+    day = func.date(Indicator.created_at)
+    new: dict[str, int] = {
+        str(d)[:10]: int(n)
+        for d, n in (
+            await s.execute(
+                select(day, func.count())
+                .where(Indicator.created_at >= start, Indicator.created_at < end,
+                       Indicator.tlp.in_(tlp_rules.readable(clearance)))
+                .group_by(day)
+            )
+        ).all()
+        if d
+    }  # fmt: skip
+    kev: dict[str, int] = {
+        str(d)[:10]: int(n)
+        for d, n in (
+            await s.execute(
+                select(Vulnerability.kev_date_added, func.count())
+                .where(Vulnerability.kev.is_(True), Vulnerability.kev_date_added >= first,
+                       Vulnerability.kev_date_added < nxt)
+                .group_by(Vulnerability.kev_date_added)
+            )
+        ).all()
+        if d
+    }  # fmt: skip
+    peak = max(new.values(), default=0)
+    today = now.date()
+    cells: list[dict[str, Any] | None] = [None] * ((first.weekday() + 1) % 7)
+    for n in range(1, cal.monthrange(first.year, first.month)[1] + 1):
+        d = first.replace(day=n)
+        key = d.isoformat()
+        count = new.get(key, 0)
+        level = 0 if not count else 1 + min(3, int(3 * math.log1p(count) / math.log1p(peak)))
+        cells.append({"day": n, "date": d, "new": count, "kev": kev.get(key, 0), "level": level,
+                      "today": d == today, "future": d > today})  # fmt: skip
+    cells += [None] * (-len(cells) % 7)
+    prev = (first - timedelta(days=1)).replace(day=1)
+    return {
+        "label": first.strftime("%B %Y"),
+        "weeks": [cells[i : i + 7] for i in range(0, len(cells), 7)],
+        "prev": prev.strftime("%Y-%m"),
+        "next": nxt.strftime("%Y-%m") if nxt <= this else None,
+        "new_total": sum(new.values()),
+        "kev_total": sum(kev.values()),
+    }
+
+
+async def _tactic_counts(s: AsyncSession, techniques: list[Entity]) -> list[tuple[str, int]]:
+    """Enterprise tactics in matrix order with how many of the given
+    techniques fall under each; empty until ATT&CK is loaded."""
+    tactics = {
+        e.external_id: e
+        for e in (
+            await s.scalars(select(Entity).where(Entity.type == "x-mitre-tactic", Entity.revoked.is_(False)))
+        ).all()
+        if e.external_id and "enterprise-attack" in (e.domains or [])
+    }
+    if not tactics:
+        return []
+    counts: Counter[str] = Counter()
+    for t in techniques:
+        for short in t.tactics or []:
+            counts[short] += 1
+    order = [t for t in TACTIC_ORDER if t in tactics]
+    return [(tactics[t].name, counts.get((tactics[t].aliases or [""])[0], 0)) for t in order]
+
+
+async def pir_status(
+    s: AsyncSession, settings: Settings | None, vis: Any, stack_kev: int, p1_in_stack: int
+) -> list[dict[str, Any]]:
+    """Each PIR with how much currently matches it (from score relevance hits
+    and the vulnerability model)."""
+    if settings is None:
+        return []
+    try:
+        profile = load_profile(settings.profile_path)
+        pirs = load_pirs(settings.pirs_path, profile)
+    except (ProfileError, OSError):
+        return []
+
+    async def hits(kind: str) -> int:
+        return int(
+            await s.scalar(
+                select(func.count())
+                .select_from(Indicator)
+                .where(
+                    Indicator.status == "active",
+                    vis,
+                    cast(Indicator.score_breakdown, String).like(f'%"kind": "{kind}"%'),
+                )
+            )
+            or 0
+        )
+
+    out = []
+    for p in pirs.pirs:
+        w = p.watch
+        if "tech_stack" in w.match:
+            n, unit = stack_kev, "known-exploited CVEs affect the stack"
+            if p1_in_stack:
+                unit += f" · {p1_in_stack}+ at P1"
+            state = "action" if p1_in_stack else "active" if n else "quiet"
+        else:
+            kinds = []
+            if w.techniques:
+                kinds.append("technique")
+            if "domains" in w.match or "brands" in w.match:
+                kinds.append("impersonation")
+            if w.sectors:
+                kinds.append("sector")
+            if w.geography:
+                kinds.append("geography")
+            n = sum([await hits(k) for k in kinds])
+            unit = "active indicators match (" + ", ".join(kinds or ["no automatic match"]) + ")"
+            state = "active" if n else "quiet"
+        out.append({"id": p.id, "question": p.question, "n": n, "unit": unit, "state": state})
+    return out

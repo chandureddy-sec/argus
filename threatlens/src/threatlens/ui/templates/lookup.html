@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% import "_bulk.html" as bulk %}
+{% block title %}Bulk check{% endblock %}
+{% block crumb %}Intelligence / <b>Bulk check</b>{% endblock %}
+{% block heading %}Bulk check{% endblock %}
+{% block subheading %}<p class="sub">Paste an alert, a log excerpt or a list, or upload files: every IP, domain, URL, hash and email in them gets a verdict (up to 500 at once; defanged is fine). Results stream in as each one is checked.</p>{% endblock %}
+{% block actions %}<div class="formrow noprint"><a class="btn" href="/ui/verify">Verify one</a><a class="btn" href="/ui/blocklist">Blocklist</a></div>{% endblock %}
+{% block content %}
+<section class="panel">
+  <form class="stack" id="bulk-form" method="post" action="/ui/lookup" enctype="multipart/form-data" data-bulk-check>
+    <label class="field" for="text">Text to analyse</label>
+    <textarea class="big" id="text" name="text" maxlength="1000000" placeholder="e.g. paste the body of an EDR alert or a list of IOCs, one per line">{{ text }}</textarea>
+    <div class="formrow">
+      <label class="field">Or upload files<input type="file" name="files" multiple accept=".txt,.csv,.log,.json,.ioc,.tsv,text/*"></label>
+      <label class="field">Marking of this input<select name="tlp">
+        {% for lv in ["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED"] %}<option value="{{ lv }}"{% if tlp == lv %} selected{% endif %}>{{ lv }}</option>{% endfor %}
+      </select></label>
+    </div>
+    <div class="formrow">
+      <label class="check"><input type="checkbox" name="providers" value="true"{% if providers %} checked{% endif %}> Also check unknowns with outside providers (uses quota; TLP still applies)</label>
+      {% if me.can("analyst") %}<label class="check danger-text"><input type="checkbox" name="autoblock" value="true"{% if autoblock %} checked{% endif %}> Auto-block malicious (monitor mode)</label>{% endif %}
+      <span class="spacer"></span>
+      <button class="primary" type="submit" name="format" value="html">Check</button>
+      <button type="submit" name="format" value="csv">Download CSV</button>
+    </div>
+  </form>
+  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+</section>
+
+{% if results %}
+{{ bulk.results(results | length, counts, cases, me, notes, autoblock, tlp=tlp, rows=results, blocks=blocks, finished=true, spent=spent, providers=providers, blocked=blocked, refused=refused) }}
+{% else %}
+<section id="bulk-results" hidden></section>
+{% endif %}
+{% endblock %}

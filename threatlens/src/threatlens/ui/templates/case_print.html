@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="same-origin">
+<title>Case {{ c.id }} · {{ c.tlp }} · ThreatLens</title>
+<link rel="stylesheet" href="/ui/static/app.css?v={{ version }}">
+</head>
+<body class="print">
+<div class="printpage">
+  <p class="marking">{{ c.tlp }}</p>
+  <h1>Case {{ c.id }}: {{ c.title }}</h1>
+  <p class="meta">{{ c.status }} · severity {{ c.severity }} · opened by {{ c.created_by }} on {{ c.created_at.strftime("%Y-%m-%d %H:%M") }} UTC · printed by {{ me.name }} on {{ now.strftime("%Y-%m-%d %H:%M") }} UTC</p>
+  <p class="noprint hint">Use your browser's Print (Ctrl+P) and choose “Save as PDF”. <a href="/ui/cases/{{ c.id }}">Back to the case</a></p>
+  <h2>Summary</h2>
+  <p class="prose">{{ c.summary or "—" }}</p>
+  <h2>Conclusion</h2>
+  <p class="prose">{{ c.conclusion or "—" }}</p>
+  <h2>Evidence</h2>
+  <table>
+    <thead><tr><th>#</th><th>Kind</th><th>Value (defanged)</th><th>What ThreatLens said</th><th>Note</th><th>Added</th></tr></thead>
+    <tbody>
+    {% for i in c.items if i.kind != "note" %}
+      <tr><td>{{ loop.index }}</td><td>{{ i.kind }}</td><td class="mono">{{ i.label }}</td><td>{{ summary(i) }}</td><td>{{ i.note }}</td><td>{{ i.added_by }}, {{ i.added_at.strftime("%Y-%m-%d %H:%M") }}</td></tr>
+    {% else %}<tr><td colspan="6">No evidence.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% set notes = c.items | selectattr("kind", "equalto", "note") | list %}
+  {% if notes %}
+  <h2>Notes</h2>
+  <ul>{% for i in notes %}<li><b>{{ i.added_by }}</b>, {{ i.added_at.strftime("%Y-%m-%d %H:%M") }} UTC: {{ i.note }}</li>{% endfor %}</ul>
+  {% endif %}
+  <p class="marking">{{ c.tlp }} · values are defanged</p>
+</div>
+</body>
+</html>

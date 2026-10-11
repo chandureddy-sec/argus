@@ -1,0 +1,66 @@
+{# Bulk check results: rendered whole by POST /ui/lookup, or opened empty by the stream and filled row by row. #}
+{% from "_verify.html" import bulk_row %}
+
+{% macro counts(c, total) -%}
+{% set done = c.values() | sum %}
+<span id="bulk-counts" class="bcounts" role="status">
+  <b class="s-mal">{{ c.malicious }} malicious</b> · <b class="s-sus">{{ c.suspicious }} suspicious</b> · <b class="s-low">{{ c.unknown }} unknown</b> · <b class="s-ok">{{ c.benign }} clean</b>
+  <span class="muted">· {{ done }} of {{ total }} checked</span>
+</span>
+{%- endmacro %}
+
+{% macro summary(total, c, spent, providers, blocked, refused) -%}
+<div id="bulk-summary" class="bsummary">
+  <p><b>Done.</b> {{ total }} indicator{{ "s" if total != 1 }} checked · {{ "%d provider calls" | format(spent) if providers else "local knowledge and cached answers only (no provider asked)" }}.
+  {% if blocked %}<br><b class="s-mal">{{ blocked | length }} auto-blocked</b> in monitor mode: <span class="mono">{{ blocked[:10] | join(", ") }}{% if blocked | length > 10 %} …{% endif %}</span> · <a href="/ui/blocklist?view=monitor">review on the blocklist</a>{% endif %}
+  {% if refused %}<br><span class="muted">Not auto-blocked: {{ refused[:5] | join("; ") | defang_text }}</span>{% endif %}</p>
+</div>
+{%- endmacro %}
+
+{% macro results(total, c, cases, me, notes, autoblock, tlp="TLP:GREEN", rows=[], blocks={}, finished=false, spent=0, providers=false, blocked=[], refused=[]) -%}
+<section id="bulk-results" class="panel bulk" data-tlp="{{ tlp }}">
+  <header class="panel-head"><h2>Results</h2>{{ counts(c, total) }}</header>
+  <progress id="bulk-progress" max="{{ total }}" value="{{ c.values() | sum }}" aria-label="Checked so far"></progress>
+  {% for n in notes %}<p class="note">{{ n }}</p>{% endfor %}
+  <div class="bulk-tools js-only">
+    <span class="hint">Select:</span>
+    <button class="btn small" type="button" data-select="threats">Threats</button>
+    <button class="btn small" type="button" data-select="malicious">Malicious</button>
+    <button class="btn small ghost" type="button" data-select="none">Clear</button>
+    <label class="hint filter-label">Show <select data-filter aria-label="Show">
+      <option value="all">all</option><option value="threats">threats (malicious + suspicious)</option>
+      <option value="malicious">malicious</option><option value="suspicious">suspicious</option>
+      <option value="unknown">unknown</option><option value="benign">clean</option></select></label>
+    <span class="hint spacer-left">Click a row for its full analysis.</span>
+  </div>
+  <div class="bulk-split">
+  <form id="bulk-actions" method="post" action="/ui/blocklist">
+      <div class="scroll"><table class="queue bulk-table">
+        <thead><tr><th><span class="skip">Select</span></th><th>Indicator</th><th>Verdict</th><th class="num">Score</th><th>Source</th><th>Country</th><th>Signals</th><th>Env</th></tr></thead>
+        <tbody id="bulk-rows">{% for r in rows %}{{ bulk_row(r, blocks.get(r.query.canonical_key), me) }}{% endfor %}</tbody>
+      </table></div>
+    {% if me.can("analyst") %}
+    <div class="formrow noprint bulk-acts">
+      <input type="hidden" name="origin" value="lookup">
+      <input type="hidden" name="tlp" value="{{ tlp }}">
+      <button class="danger" type="submit" formaction="/ui/blocklist" title="Blocklist, monitor mode">Block selected</button>
+      <button type="submit" formaction="/ui/verify/flag" name="verdict" value="tp">Flag malicious</button>
+      <button class="ghost" type="submit" formaction="/ui/verify/flag" name="verdict" value="fp">Not malicious</button>
+      {% if cases %}
+      <span class="spacer-left"></span>
+      <label class="field">Case<select name="case">{% for cs, n in cases %}<option value="{{ cs.id }}">#{{ cs.id }} {{ cs.title | truncate(40, True) }}</option>{% endfor %}</select></label>
+      <label class="field">Note<input name="note" maxlength="500" value="from bulk check"></label>
+      <button type="submit" formaction="/ui/cases/add">Add selected to case</button>
+      {% endif %}
+    </div>
+    <p class="note" data-outcome role="status"></p>
+    {% endif %}
+  </form>
+  <aside class="pane js-only" aria-label="Analysis of the selected row">
+    <a class="more" id="pane-full" href="/ui/verify" hidden>Open full verify ↗</a>
+    <div id="verify-body" class="pane-empty"><p class="muted">Click a row to see everything we and the providers know about it, and act on it.</p></div>
+  </aside>
+  </div>
+  {% if finished %}{{ summary(total, c, spent, providers, blocked, refused) }}{% else %}<div id="bulk-summary"></div>{% endif %}
+</section>
+{%- endmacro %}

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.conftest import FIXTURES
 from tests.test_collect import Clock, collector, feed_handler
 from tests.test_enrich import Upstream
+from tests.uihelp import only_our_script
 from threatlens.api.app import create_app
 from threatlens.assets import (
     ImportFormatError,
@@ -324,7 +325,7 @@ async def test_assets_page(api: Api) -> None:
     assert "162.243.103.246" in html
     assert "listed" in html
     assert "http server" in html  # observed stack panel
-    assert "<script" not in html
+    assert only_our_script(html)
 
 
 def test_cli_import(

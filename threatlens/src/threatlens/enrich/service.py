@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import AsyncIterator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -341,6 +341,7 @@ class EnrichmentService:
         budget: Budget | None,
         observable_id: int | None,
         actor: str,
+        offline: bool = False,
     ) -> dict[str, Any]:
         cls = self.registry[name]
         info = cls.info
@@ -356,6 +357,8 @@ class EnrichmentService:
 
         if fresh and not refresh and cached is not None:
             return {**base, **_row_out(cached, "cached")}
+        if offline:
+            return skipped("not_requested")  # local knowledge only (bulk lookups)
         if not self._enabled.get(name, True):
             return skipped("disabled")
         if info.mode == "active" and not active:
@@ -486,9 +489,39 @@ class EnrichmentService:
         only: Iterable[str] | None = None,
         budget: Budget | None = None,
         clearance: str,
+        providers: bool = True,
     ) -> dict[str, Any]:
         """``clearance``: the caller's TLP clearance (``tlp.RED`` for the
-        platform itself). Local knowledge above it is not used or returned."""
+        platform itself). Local knowledge above it is not used or returned.
+        ``providers=False`` asks no provider: cached answers and local
+        knowledge only."""
+        final: dict[str, Any] | None = None
+        async for kind, data in self.lookup_stream(
+            obs, actor=actor, active=active, refresh=refresh, tlp=tlp, only=only, budget=budget,
+            clearance=clearance, providers=providers,
+        ):  # fmt: skip
+            if kind == "done":
+                final = data
+        assert final is not None  # the stream always ends with "done"
+        return final
+
+    async def lookup_stream(
+        self,
+        obs: Observable,
+        *,
+        actor: str,
+        active: bool = False,
+        refresh: bool = False,
+        tlp: str | None = None,
+        only: Iterable[str] | None = None,
+        budget: Budget | None = None,
+        clearance: str,
+        providers: bool = True,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """The same lookup, as it happens: ``("start", local knowledge and the
+        providers about to be asked)``, then ``("enricher", result)`` as each
+        provider answers, then ``("done", the full lookup)``. Closing the
+        stream early cancels the providers still running."""
         started = time.perf_counter()
         await self._ensure_synced()
         async with self.sm() as s:
@@ -502,15 +535,41 @@ class EnrichmentService:
             known, related, sightings = None, [], []
         reply_tlp = stricter_tlp(tlp, known["tlp"] if known else None)
         names = self.applicable(obs.type, only)
-        results = await asyncio.gather(
-            *(
+        query = {
+            "type": obs.type.value,
+            "value": obs.value,
+            "defanged": defang(obs.value, obs.type),
+            "canonical_key": obs.key,
+        }
+        allow_out = {
+            "effect": verdict_al.effect,
+            "reasons": list(verdict_al.reasons),
+            "labels": list(verdict_al.labels),
+        }
+        pending = [{"enricher": n, "title": self.registry[n].info.title} for n in names]
+        yield "start", {
+            "query": query, "known": known, "related": related, "asset": own, "allowlist": allow_out,
+            "tlp": reply_tlp, "pending": pending,
+        }  # fmt: skip
+        tasks = [
+            asyncio.ensure_future(
                 self._run_one(
                     n, obs, cached=cached.get(n), active=active, refresh=refresh, tlp=eff_tlp,
-                    budget=budget, observable_id=observable_id, actor=actor,
+                    budget=budget, observable_id=observable_id, actor=actor, offline=not providers,
                 )
-                for n in names
             )
-        )  # fmt: skip
+            for n in names
+        ]  # fmt: skip
+        results: list[dict[str, Any]] = []
+        try:
+            for fut in asyncio.as_completed(tasks):
+                r = await fut
+                results.append(r)
+                yield "enricher", r
+        finally:  # the reader went away: stop asking providers
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
         sc = await self._score(obs, known, related, sightings, results, verdict_al)
         local = {sg.source.name for sg in sightings} | {"analyst"}
         mine = [r for r in sc.signals if r["source"] in local]
@@ -540,37 +599,36 @@ class EnrichmentService:
             sc.breakdown["own_asset"] = "block becomes investigate"
         partial = any(
             r["status"] in ("error", "stale")
-            or (r["status"] == "skipped" and r["skipped_reason"] != "active_not_requested")
+            or (
+                r["status"] == "skipped"
+                and r["skipped_reason"] not in ("active_not_requested", "not_requested")
+            )
             for r in results
         )
-        return {
-            "query": {
-                "type": obs.type.value,
-                "value": obs.value,
-                "defanged": defang(obs.value, obs.type),
-                "canonical_key": obs.key,
+        yield (
+            "done",
+            {
+                "query": query,
+                "verdict": sc.verdict,
+                "score": round(sc.priority),
+                "priority": sc.priority,
+                "score_model": sc.breakdown["model"],
+                "score_breakdown": sc.breakdown,
+                "recommended_action": action,
+                "recommended_action_text": action_text,
+                "tlp": reply_tlp,
+                "known": known,
+                "asset": own,
+                "allowlist": allow_out,
+                "evidence": [
+                    e.as_dict() for e in sorted(evidence, key=lambda e: (e.kind == "info", -e.weight))
+                ],
+                "related": related,
+                "enrichments": sorted(results, key=lambda r: r["enricher"]),
+                "partial": partial,
+                "took_ms": round((time.perf_counter() - started) * 1000, 1),
             },
-            "verdict": sc.verdict,
-            "score": round(sc.priority),
-            "priority": sc.priority,
-            "score_model": sc.breakdown["model"],
-            "score_breakdown": sc.breakdown,
-            "recommended_action": action,
-            "recommended_action_text": action_text,
-            "tlp": reply_tlp,
-            "known": known,
-            "asset": own,
-            "allowlist": {
-                "effect": verdict_al.effect,
-                "reasons": list(verdict_al.reasons),
-                "labels": list(verdict_al.labels),
-            },
-            "evidence": [e.as_dict() for e in sorted(evidence, key=lambda e: (e.kind == "info", -e.weight))],
-            "related": related,
-            "enrichments": sorted(results, key=lambda r: r["enricher"]),
-            "partial": partial,
-            "took_ms": round((time.perf_counter() - started) * 1000, 1),
-        }
+        )
 
     async def _score(
         self,
@@ -629,6 +687,7 @@ class EnrichmentService:
         budget: int | None = None,
         concurrency: int = 4,
         clearance: str,
+        providers: bool = True,
     ) -> tuple[list[dict[str, Any]], int]:
         """Look up several observables (deduplicated, order kept) sharing one
         metered-call budget; returns (results, units spent)."""
@@ -640,8 +699,9 @@ class EnrichmentService:
         async def one(o: Observable) -> dict[str, Any]:
             async with sem:
                 return await self.lookup(
-                    o, actor=actor, active=active, refresh=refresh, tlp=tlp, budget=b, clearance=clearance
-                )
+                    o, actor=actor, active=active, refresh=refresh, tlp=tlp, budget=b, clearance=clearance,
+                    providers=providers,
+                )  # fmt: skip
 
         results = await asyncio.gather(*(one(o) for o in uniq))
         return list(results), start - b.left

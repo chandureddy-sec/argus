@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.test_enrich import Upstream
 from tests.test_kb import build_graph
+from tests.uihelp import only_our_script
 from threatlens.api.app import create_app
 from threatlens.auth import MemoryRateLimiter, create_key
 from threatlens.enrich.quota import MemoryQuotaStore
@@ -54,7 +55,9 @@ async def ui(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> AsyncIterator[Ui]:
         await create_user(s, "Alice", PASSWORD, "analyst")
     upstream = mock_http(Upstream())  # every enrichment provider, from recorded answers
     svc = EnrichmentService(sm, upstream, MemoryQuotaStore(), SETTINGS)
-    app = create_app(SETTINGS, checks={}, sessionmaker=sm, limiter=MemoryRateLimiter(), enrich=svc)
+    # A frozen clock: a test's requests must not straddle a rate-limit window (that reset the count).
+    limiter = MemoryRateLimiter(clock=lambda: 1_000.0)
+    app = create_app(SETTINGS, checks={}, sessionmaker=sm, limiter=limiter, enrich=svc)
     async with (
         app.router.lifespan_context(app),
         httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c,
@@ -72,7 +75,7 @@ async def test_pages_redirect_to_login_keeping_the_target(ui: Ui) -> None:
     form = await ui.client.get("/ui/login?next=/ui/indicators")
     assert form.status_code == 200
     assert 'name="next" value="/ui/indicators"' in form.text
-    assert "script-src" not in form.headers["content-security-policy"]  # default-src 'none' covers it
+    assert "script-src 'self'" in form.headers["content-security-policy"]  # our app.js only
     assert "default-src 'none'" in form.headers["content-security-policy"]
 
 
@@ -209,7 +212,7 @@ async def test_every_page_renders(ui: Ui) -> None:
         r = await ui.client.get(path)
         assert r.status_code == 200, path
         assert r.headers["content-security-policy"].startswith("default-src 'none'"), path
-        assert "<script" not in r.text, path
+        assert only_our_script(r.text), path
     assert "Emotet" in (await ui.client.get("/ui/entities/S0367")).text
     assert (await ui.client.get("/ui/entities/S9999")).status_code == 404
     assert (await ui.client.get("/ui/vulnerabilities/CVE-1999-0001")).status_code == 404
@@ -237,15 +240,20 @@ async def test_indicators_are_shown_defanged(ui: Ui) -> None:
 async def test_search_routes_to_the_right_page(ui: Ui) -> None:
     await ui.login()
     cases = {
-        "": "/ui",
         "CVE-2026-88779": "/ui/vulnerabilities/CVE-2026-88779",
         "Emotet": "/ui/entities/S0367",
-        "no such thing at all": "/ui/indicators?q=no%20such%20thing%20at%20all",
     }
     for q, where in cases.items():
         r = await ui.client.get("/ui/search", params={"q": q})
         assert r.status_code == 303, q
         assert r.headers["location"] == where, q
+    # No exact hit: a results page (indicators, tags, entities, CVEs, cases) instead.
+    for q in ("", "no such thing at all", "emot"):
+        r = await ui.client.get("/ui/search", params={"q": q})
+        assert r.status_code == 200, q
+    listing = await ui.client.get("/ui/search", params={"q": "Emotet", "show": "all"})
+    assert "Malware, actors, techniques" in listing.text
+    assert "S0367" in listing.text
 
 
 async def test_static_files_and_root_redirect(ui: Ui) -> None:
@@ -285,7 +293,7 @@ async def test_indicator_enrichment_panel(ui: Ui) -> None:
     assert "DIGITALOCEAN-162-243-0-0" in html  # RDAP network name
     assert "Secaucus" in html  # RIPEstat location
     assert "162.243.103.246" not in html  # provider text is defanged too
-    assert "<script" not in html
+    assert only_our_script(html)
     assert (
         await ui.client.post("/ui/indicators/999999/enrich", headers={"Sec-Fetch-Site": "same-origin"})
     ).status_code == 404

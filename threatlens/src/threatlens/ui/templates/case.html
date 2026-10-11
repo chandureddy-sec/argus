@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Case {{ c.id }}{% endblock %}
+{% block crumb %}Work / Cases / <b>#{{ c.id }}</b>{% endblock %}
+{% block heading %}{{ c.title }}{% endblock %}
+{% block subheading %}<p class="sub">opened by {{ c.created_by }} {{ c.created_at | ago }} · updated {{ c.updated_at | ago }}{% if c.closed_at %} · closed {{ c.closed_at | ago }}{% endif %}</p>{% endblock %}
+{% block actions %}
+<div class="formrow noprint">
+  <a class="btn" href="/ui/cases/{{ c.id }}/export.md">Export Markdown</a>
+  <a class="btn" href="/ui/cases/{{ c.id }}/print">Print / PDF</a>
+  {% if me.can("analyst") %}
+  <form method="post" action="/ui/cases/{{ c.id }}">
+    {% if c.status == "open" %}<button class="primary" type="submit" name="status" value="closed">Close case</button>
+    {% else %}<button type="submit" name="status" value="open">Reopen</button>{% endif %}
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="hero">
+    <span class="pill {{ 'green' if c.status == 'open' else 'gray' }}">{{ c.status }}</span>
+    <span class="pill {{ 'red' if c.severity == 'critical' else 'pink' if c.severity == 'high' else 'yellow' if c.severity == 'medium' else 'gray' }}">{{ c.severity }}</span>
+    <span class="tag mono">{{ c.tlp }}</span>
+  </div>
+  <div class="grid-2 spaced-top">
+    <form class="stack" method="post" action="/ui/cases/{{ c.id }}">
+      <label class="field" for="summary">Summary</label>
+      <textarea class="big small" id="summary" name="summary" maxlength="20000"{% if not me.can("analyst") %} readonly{% endif %}>{{ c.summary }}</textarea>
+      {% if me.can("analyst") %}<div class="formrow"><button type="submit">Save summary</button></div>{% endif %}
+    </form>
+    <form class="stack" method="post" action="/ui/cases/{{ c.id }}">
+      <label class="field" for="conclusion">Conclusion (the documented verdict)</label>
+      <textarea class="big small" id="conclusion" name="conclusion" maxlength="20000" placeholder="e.g. True positive: host-17 beaconed to a live QakBot C2. Blocked at the firewall, host reimaged."{% if not me.can("analyst") %} readonly{% endif %}>{{ c.conclusion }}</textarea>
+      {% if me.can("analyst") %}<div class="formrow"><button class="primary" type="submit">Save conclusion</button></div>{% endif %}
+    </form>
+  </div>
+</section>
+
+<section class="grid-side">
+  <article class="panel">
+    <header class="panel-head"><h2>Evidence</h2><span class="hint">what ThreatLens said when each item was added</span></header>
+    {% set evidence = c.items | rejectattr("kind", "equalto", "note") | list %}
+    <div class="scroll"><table class="data">
+      <thead><tr><th>Item</th><th>Then</th><th>Note</th><th class="num">Added</th><th></th></tr></thead>
+      <tbody>
+      {% for i in evidence %}
+        <tr><td>{% if i.kind == "indicator" %}<a class="mono" href="/ui/indicators/{{ i.ref }}">{{ i.label | truncate(70, True) }}</a>
+              {% elif i.kind == "vulnerability" %}<a class="mono" href="/ui/vulnerabilities/{{ i.ref }}">{{ i.label }}</a>
+              {% elif i.kind == "entity" %}<a href="/ui/entities/{{ i.ref | quote }}">{{ i.label }}</a>
+              {% else %}<span class="mono">{{ i.label | truncate(70, True) }}</span>{% endif %}
+            <small>{{ i.kind }} · {{ i.tlp }}</small></td>
+          <td class="muted">{{ summary(i) }}{% if i.snapshot.formula %}<small class="mono">{{ i.snapshot.formula }}</small>{% endif %}</td>
+          <td>{{ i.note }}</td>
+          <td class="num muted">{{ i.added_by }}<small>{{ i.added_at | ago }}</small></td>
+          <td class="num">{% if me.can("analyst") and c.status == "open" %}<form method="post" action="/ui/cases/{{ c.id }}/items/{{ i.id }}/delete"><button class="ghost" type="submit" aria-label="Remove {{ i.label }}">Remove</button></form>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No evidence yet: add it from an indicator page, a CVE, or bulk lookup results.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% if me.can("analyst") and c.status == "open" %}
+    <form class="formrow spaced-top" method="post" action="/ui/cases/{{ c.id }}/items">
+      <label class="field">Add indicators by value<input name="values" maxlength="300" placeholder="IP, domain, URL or hash (defanged is fine)"></label>
+      <label class="field">Note<input name="note" maxlength="500"></label>
+      <button type="submit">Add</button>
+    </form>
+    {% endif %}
+  </article>
+  <article class="panel">
+    <header class="panel-head"><h2 class="lime">Notes</h2></header>
+    <div class="notes">
+    {% for i in c.items if i.kind == "note" %}
+      <div class="notecard"><header>{{ i.added_by }} · {{ i.added_at | ago }}</header><p>{{ i.note }}</p></div>
+    {% else %}<p class="empty">No notes.</p>{% endfor %}
+    </div>
+    {% if me.can("analyst") and c.status == "open" %}
+    <form class="stack spaced-top" method="post" action="/ui/cases/{{ c.id }}/items">
+      <input type="hidden" name="kind" value="note">
+      <label class="field" for="note">Add a note</label>
+      <textarea class="big small" id="note" name="note" required maxlength="5000"></textarea>
+      <button type="submit">Add note</button>
+    </form>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

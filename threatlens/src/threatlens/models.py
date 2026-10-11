@@ -47,6 +47,7 @@ INDICATOR_STATUSES = ("new", "active", "expired", "revoked", "false_positive")
 ROLES = ("admin", "analyst", "viewer")
 TLP_LEVELS = ("TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED")
 _CLEARANCE_CHECK = "tlp_clearance IN ('TLP:CLEAR','TLP:GREEN','TLP:AMBER','TLP:AMBER+STRICT','TLP:RED')"
+_TLP_CHECK = "tlp IN ('TLP:CLEAR','TLP:GREEN','TLP:AMBER','TLP:AMBER+STRICT','TLP:RED')"
 
 
 class AppMeta(Base):
@@ -328,6 +329,96 @@ class Verdict(Base):
         CheckConstraint("verdict IN ('tp','fp','reset')", name="verdict"),
         Index("ix_verdicts_indicator_created", "indicator_id", "created_at"),
     )
+
+
+class Note(Base):
+    """An analyst's note on an indicator (Phase 5). Shown to whoever may read
+    the indicator; the note carries no TLP of its own."""
+
+    __tablename__ = "notes"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    indicator_id: Mapped[int] = mapped_column(ForeignKey("indicators.id", ondelete="CASCADE"))
+    author: Mapped[str] = mapped_column(String(100))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (Index("ix_notes_indicator_created", "indicator_id", "created_at"),)
+
+
+CASE_STATUSES = ("open", "closed")
+CASE_SEVERITIES = ("low", "medium", "high", "critical")
+CASE_ITEM_KINDS = ("indicator", "vulnerability", "entity", "observable", "note")
+
+
+class Case(Base):
+    """An investigation: evidence items, notes and a documented conclusion
+    (Phase 5). Its TLP is at least as strict as its strictest item."""
+
+    __tablename__ = "cases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(16), default="open")
+    severity: Mapped[str] = mapped_column(String(16), default="medium")
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:AMBER")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    conclusion: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    updated_at: Mapped[datetime] = _ts(default=utcnow)
+    closed_at: Mapped[datetime | None] = _ts()
+
+    items: Mapped[list[CaseItem]] = relationship(
+        back_populates="case", cascade="all, delete-orphan", order_by="CaseItem.id"
+    )
+
+    __table_args__ = (
+        CheckConstraint("status IN ('open','closed')", name="status"),
+        CheckConstraint("severity IN ('low','medium','high','critical')", name="severity"),
+        CheckConstraint(_TLP_CHECK, name="tlp"),
+        Index("ix_cases_status_updated", "status", "updated_at"),
+    )
+
+
+class CaseItem(Base):
+    """One piece of evidence in a case, with a snapshot of what the platform
+    said about it when it was added (so the case reads the same later)."""
+
+    __tablename__ = "case_items"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("cases.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16))
+    ref: Mapped[str] = mapped_column(String(200), default="")
+    label: Mapped[str] = mapped_column(Text, default="")
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    note: Mapped[str] = mapped_column(Text, default="")
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:CLEAR")
+    added_by: Mapped[str] = mapped_column(String(100))
+    added_at: Mapped[datetime] = _ts(default=utcnow)
+
+    case: Mapped[Case] = relationship(back_populates="items")
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('indicator','vulnerability','entity','observable','note')", name="kind"),
+        CheckConstraint(_TLP_CHECK, name="tlp"),
+        Index("ix_case_items_case_added", "case_id", "added_at"),
+    )
+
+
+class SavedSearch(Base):
+    """A named UI view (search or filtered list) saved by one account."""
+
+    __tablename__ = "saved_searches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner: Mapped[str] = mapped_column(String(120))  # "user:<id>" or "key:<id>"
+    name: Mapped[str] = mapped_column(String(100))
+    query: Mapped[str] = mapped_column(Text)  # a path under /ui with its query string
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (UniqueConstraint("owner", "name"),)
 
 
 class AuditLog(Base):
@@ -654,3 +745,75 @@ class AssetProduct(Base):
         UniqueConstraint("asset_id", "cpe"),
         Index("ix_asset_products_vendor_product", "vendor", "product"),
     )
+
+
+# ── response: blocklist and feed export (ADR 0010) ───────────────────────────
+
+BLOCK_KINDS = ("ip", "cidr", "domain", "url")
+BLOCK_MODES = ("monitor", "enforce")
+BLOCK_REASONS = ("known_bad", "suspect", "manual")
+
+
+class Block(Base):
+    """A value we want fenced off. ``monitor`` is a dry run (recorded only);
+    ``enforce`` entries are what firewalls pull from the feed export. Every
+    block expires; lifting one ends it early. Neither row is ever deleted."""
+
+    __tablename__ = "blocks"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8))
+    value: Mapped[str] = mapped_column(Text)  # canonical: IP, CIDR, domain or URL
+    canonical_key: Mapped[str] = mapped_column(Text)  # same key as observables
+    indicator_id: Mapped[int | None] = mapped_column(ForeignKey("indicators.id", ondelete="SET NULL"))
+    mode: Mapped[str] = mapped_column(String(8), default="monitor")
+    reason: Mapped[str] = mapped_column(String(16))
+    score: Mapped[float | None] = mapped_column(Float)  # the indicator's priority when blocked
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:CLEAR")
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    expires_at: Mapped[datetime] = _ts()
+    requested_by: Mapped[str | None] = mapped_column(String(100))  # asked for enforce
+    requested_at: Mapped[datetime | None] = _ts()
+    approved_by: Mapped[str | None] = mapped_column(String(100))  # made it enforce
+    approved_at: Mapped[datetime | None] = _ts()
+    lifted_by: Mapped[str | None] = mapped_column(String(100))
+    lifted_at: Mapped[datetime | None] = _ts()
+    lift_note: Mapped[str] = mapped_column(Text, default="")
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('ip','cidr','domain','url')", name="kind"),
+        CheckConstraint("mode IN ('monitor','enforce')", name="mode"),
+        CheckConstraint("reason IN ('known_bad','suspect','manual')", name="reason"),
+        CheckConstraint(_TLP_CHECK, name="tlp"),
+        Index("ix_blocks_key", "canonical_key"),
+        Index("ix_blocks_live", "lifted_at", "expires_at"),
+    )
+
+
+class AppSetting(Base):
+    """Policy an admin edits in the UI (one JSON document per key)."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    updated_by: Mapped[str] = mapped_column(String(100), default="system")
+    updated_at: Mapped[datetime] = _ts(default=utcnow)
+
+
+class FeedToken(Base):
+    """A secret that lets a firewall or another tool pull the feed export.
+    Only a SHA-256 of the token is stored; the token is shown once."""
+
+    __tablename__ = "feed_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    prefix: Mapped[str] = mapped_column(String(8))
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    last_used_at: Mapped[datetime | None] = _ts()
+    revoked_at: Mapped[datetime | None] = _ts()

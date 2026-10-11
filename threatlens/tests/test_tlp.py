@@ -230,7 +230,9 @@ async def test_ui_pages_respect_clearance(app: App) -> None:
     assert "162[.]243[.]103[.]246" not in listing.text
     assert (await app.client.get(f"/ui/indicators/{ids[AMBER_IP]}")).status_code == 404
     search = await app.client.get(f"/ui/search?q={AMBER_IP}")
-    assert search.headers["location"].startswith("/ui/indicators?q=")  # not found, not a direct hit
+    assert search.status_code == 200  # not a direct hit: a results page...
+    assert f"/ui/indicators/{ids[AMBER_IP]}" not in search.text  # ...that doesn't list it either
+    assert "No indicator matches" in search.text
     for page in ("/ui", "/ui/assets", "/ui/entities/Emotet", "/ui/attack"):
         r = await app.client.get(page)
         assert r.status_code == 200, page

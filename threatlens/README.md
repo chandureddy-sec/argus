@@ -74,9 +74,23 @@ adjust each feed's weight. Nobody sees anything above their TLP clearance.
 curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/indicators?sort=priority&min_score=60"
 curl -H "X-API-Key: tl_..." -H "content-type: application/json" -d '{"verdict": "fp", "note": "our scanner"}'      http://127.0.0.1:8000/api/v1/indicators/<id>/feedback          # analyst: tp | fp | reset
 curl -H "X-API-Key: tl_..." "http://127.0.0.1:8000/api/v1/vulnerabilities?patch_priority=P1&sort=patch"
-.	l rescore                                                     # the daily job, now: weights, P1-P4, decay, expiry
-.	l keys create reconx --role analyst --clearance TLP:GREEN     # a key that reads CLEAR/GREEN only
-.	l users clearance "name" --clearance TLP:RED                  # or --role-default
+.\tl rescore                                                     # the daily job, now: weights, P1-P4, decay, expiry
+.\tl keys create reconx --role analyst --clearance TLP:GREEN     # a key that reads CLEAR/GREEN only
+.\tl users clearance "name" --clearance TLP:RED                  # or --role-default
+```
+
+Blocklist and feed export (ADR 0010). **Response → Blocklist** in the UI, the **Block** button on
+an indicator page, or **Block selected** on bulk-lookup results put values on the blocklist in
+*monitor* mode (recorded only). Request *enforce*, and a second admin approves it. Enforced blocks
+are published at a token URL that a firewall External Dynamic List can pull. Our own IPs and
+domains, ReconX assets, private ranges, DNS resolvers and CDN edges are never blocked, checked
+again on every export. Every block expires.
+
+```bash
+curl -H "X-API-Key: tl_..." -H "content-type: application/json" -d '{"value": "203.0.113[.]24", "note": "alert 77"}' http://127.0.0.1:8000/api/v1/blocks
+curl -X POST -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/blocks/<id>/request-enforce   # analyst asks
+curl -X POST -H "X-API-Key: tl_admin..." http://127.0.0.1:8000/api/v1/blocks/<id>/approve      # another admin approves
+curl http://127.0.0.1:8000/feeds/tlf_.../ip.txt     # token from Platform → Settings → Feed export; also domain.txt, url.txt, blocks.csv, blocks.json, stix.json
 ```
 
 Own assets from ReconX (scans of your own domains only; ADR 0006):

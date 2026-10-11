@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block crumb %}Platform / <b>Settings</b>{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block subheading %}<p class="sub">Blocking policy and the feed export your firewalls pull. {% if not me.can("admin") %}Read only: changes need the admin role.{% endif %}</p>{% endblock %}
+{% block actions %}<div class="formrow noprint"><a class="btn" href="/ui/blocklist">Blocklist</a><a class="btn" href="/ui/sources">Sources</a></div>{% endblock %}
+{% block content %}
+{% set admin = me.can("admin") %}
+{% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+
+{% if new_token %}
+<section class="panel secret" aria-live="polite">
+  <header class="panel-head"><h2 class="warm">Token for {{ new_token[0] }}</h2><span class="hint">shown once: copy it now</span></header>
+  <p><span class="mono select">{{ new_token[1] }}</span></p>
+  <p class="hint">Feed URLs for this token:</p>
+  <ul class="plain mono small">{% for f in formats %}<li class="select">{{ base }}/feeds/{{ new_token[1] }}/{{ f }}</li>{% endfor %}</ul>
+  <p class="note">Only a hash is stored. If it is lost, revoke it and make a new one.</p>
+</section>
+{% endif %}
+
+<section class="grid-2">
+  <article class="panel" id="policy">
+    <header class="panel-head"><h2>Blocking policy</h2></header>
+    <form class="stack" method="post" action="/ui/settings">
+      <fieldset class="formgrid"{% if not admin %} disabled{% endif %}>
+        <label class="field">Known-bad block (days)<input type="number" name="known_bad_days" min="1" max="365" required value="{{ policy.known_bad_days }}"></label>
+        <label class="field">Suspect block (days)<input type="number" name="suspect_days" min="1" max="365" required value="{{ policy.suspect_days }}"></label>
+        <label class="field">Manual block (days)<input type="number" name="manual_days" min="1" max="365" required value="{{ policy.manual_days }}"></label>
+        <label class="field">Known-bad from score<input type="number" name="known_bad_score" min="0" max="100" step="1" required value="{{ '%.0f' | format(policy.known_bad_score) }}"></label>
+        <label class="field">Export up to<select name="export_max_tlp">{% for lv in export_tlps %}<option value="{{ lv }}"{% if lv == policy.export_max_tlp %} selected{% endif %}>{{ lv }}</option>{% endfor %}</select></label>
+        <label class="check"><input type="checkbox" name="require_second_approver" value="true"{% if policy.require_second_approver %} checked{% endif %}> Enforcing needs a second admin</label>
+      </fieldset>
+      {% if admin %}<button class="primary" type="submit">Save policy</button>{% endif %}
+    </form>
+    <ul class="plain note">
+      <li><b>Known bad</b>: an active indicator at or above the score. <b>Manual</b>: typed into the blocklist. <b>Suspect</b>: everything else (an unknown value from a lookup, a low-scoring indicator).</li>
+      <li><b>Second admin</b>: the person who asks for <i>enforce</i> can't approve it. Turn off only if you are the sole admin.</li>
+      <li><b>Export up to</b>: blocks marked above this never reach a device. TLP:RED is never exported.</li>
+    </ul>
+  </article>
+
+  <article class="panel" id="export">
+    <header class="panel-head"><h2 class="lime">Feed export</h2><span class="hint">{{ exported.get("ip", 0) + exported.get("cidr", 0) }} IPs/ranges · {{ exported.get("domain", 0) }} domains · {{ exported.get("url", 0) }} URLs published now</span></header>
+    <p>Point a firewall External Dynamic List (Palo Alto, Fortinet, Check Point…) or another tool at one of these, replacing <span class="mono">&lt;token&gt;</span>. Only <b>enforced</b>, unexpired blocks are published, after a second never-block check.</p>
+    <table class="list"><tbody>
+      {% for f, what in [("ip.txt", "IPs and CIDR ranges, one per line (EDL: IP list)"), ("domain.txt", "domains (EDL: domain list)"), ("url.txt", "URLs without scheme (EDL: URL list)"), ("blocks.csv", "every field, for spreadsheets and SIEM lookups"), ("blocks.json", "every field, for scripts"), ("stix.json", "STIX 2.1 bundle of indicators, TLP-marked")] %}
+      <tr><td><span class="mono small">{{ base }}/feeds/&lt;token&gt;/{{ f }}</span><small>{{ what }}</small></td></tr>
+      {% endfor %}
+    </tbody></table>
+    <h3 class="subhead spaced-top">Tokens</h3>
+    <table class="list"><tbody>
+    {% for t in tokens %}
+      <tr><td><b>{{ t.name }}</b> <span class="mono muted">{{ t.prefix }}…</span><small>made by {{ t.created_by }} {{ t.created_at | ago }} · last pull {{ t.last_used_at | ago }}{% if t.revoked_at %} · revoked {{ t.revoked_at | ago }}{% endif %}</small></td>
+        <td class="num">{% if t.revoked_at %}<span class="pill gray">revoked</span>{% elif admin %}<form method="post" action="/ui/settings/tokens/{{ t.id }}/revoke"><button class="btn small danger" type="submit">Revoke</button></form>{% else %}<span class="pill green">active</span>{% endif %}</td></tr>
+    {% else %}<tr><td class="empty">No tokens yet: nothing can pull the feed.</td></tr>{% endfor %}
+    </tbody></table>
+    {% if admin %}
+    <form class="formrow spaced-top" method="post" action="/ui/settings/tokens">
+      <label class="field">New token for<input name="name" required maxlength="64" placeholder="e.g. hq-palo-alto"></label>
+      <button class="primary" type="submit">Create token</button>
+    </form>
+    {% endif %}
+    <p class="note">One token per device, so you can revoke one without touching the others. Pulls are rate-limited per address; a wrong or revoked token gets a plain 404.</p>
+  </article>
+</section>
+{% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import save_view %}
 {% block title %}Vulnerabilities{% endblock %}
 {% block heading %}Vulnerabilities{% endblock %}
 {% block subheading %}<p class="sub">{{ "{:,}".format(total) }} CVEs · CVSS says how bad, KEV says it's being exploited, EPSS says how likely exploitation is</p>{% endblock %}
@@ -9,12 +10,15 @@
     <label>Known exploited<select name="kev"><option value="">Any</option>
       <option value="true"{% if f.kev == "true" %} selected{% endif %}>Yes (CISA KEV)</option>
       <option value="false"{% if f.kev == "false" %} selected{% endif %}>No</option></select></label>
+    <label>Patch priority<select name="patch"><option value="">Any</option>
+      {% for t in ["P1", "P2", "P3", "P4"] %}<option value="{{ t }}"{% if f.patch == t %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
     <label>Sort by<select name="sort">
       {% for k, v in [("patch", "Patch priority"), ("epss", "Exploit probability (EPSS)"), ("cvss", "Severity (CVSS)"), ("kev_date", "Date added to KEV"), ("published", "Published")] %}
       <option value="{{ k }}"{% if f.sort == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
     <label class="check"><input type="checkbox" name="stack" value="true"{% if f.stack %} checked{% endif %}> Only our tech stack</label>
     <button class="primary" type="submit">Apply</button>
   </form>
+  <div class="spaced-top">{{ save_view(here) }}</div>
 </section>
 <section class="panel">
   <table class="data">
@@ -37,7 +41,7 @@
   </table>
   {% set last = ((total - 1) // 50) + 1 %}
   <div class="pager">
-    {% set qs = "q=" ~ (f.q | quote) ~ "&kev=" ~ f.kev ~ "&sort=" ~ f.sort ~ ("&stack=true" if f.stack else "") %}
+    {% set qs = "q=" ~ (f.q | quote) ~ "&kev=" ~ f.kev ~ "&sort=" ~ f.sort ~ "&patch=" ~ f.patch ~ ("&stack=true" if f.stack else "") %}
     {% if page_no > 1 %}<a class="btn" href="?{{ qs }}&amp;page={{ page_no - 1 }}">← Previous</a>{% endif %}
     <span>Page {{ page_no }} of {{ last }}</span>
     {% if page_no < last %}<a class="btn" href="?{{ qs }}&amp;page={{ page_no + 1 }}">Next →</a>{% endif %}

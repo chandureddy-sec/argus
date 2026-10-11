@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Cases{% endblock %}
+{% block crumb %}Work / <b>Cases</b>{% endblock %}
+{% block heading %}Cases{% endblock %}
+{% block subheading %}<p class="sub">Investigations: evidence with what ThreatLens said at the time, notes, a documented conclusion, and Markdown/PDF export.</p>{% endblock %}
+{% block content %}
+<section class="grid-side">
+  <article class="panel">
+    <header class="panel-head"><h2>{{ "Open" if status == "open" else "Closed" if status == "closed" else "All" }} cases</h2>
+      <span class="hint">{% for st in ["open", "closed", "all"] %}<a href="/ui/cases?status={{ st }}">{{ st }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</span></header>
+    <form class="filters" method="get" action="/ui/cases">
+      <input type="hidden" name="status" value="{{ status }}">
+      <label>Title<input name="q" value="{{ q }}" maxlength="200"></label>
+      <button type="submit">Filter</button>
+    </form>
+    <div class="scroll"><table class="data">
+      <thead><tr><th>Case</th><th>Severity</th><th>Marking</th><th class="num">Evidence</th><th class="num">Updated</th></tr></thead>
+      <tbody>
+      {% for c, n in rows %}
+        <tr><td><a href="/ui/cases/{{ c.id }}"><span class="mono">#{{ c.id }}</span> {{ c.title }}</a><small>{{ c.status }} · opened by {{ c.created_by }}</small></td>
+          <td><span class="pill {{ 'red' if c.severity == 'critical' else 'pink' if c.severity == 'high' else 'yellow' if c.severity == 'medium' else 'gray' }}">{{ c.severity }}</span></td>
+          <td><span class="tag mono">{{ c.tlp }}</span></td>
+          <td class="num">{{ n }}</td>
+          <td class="num muted">{{ c.updated_at | ago }}</td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No cases here yet.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </article>
+  {% if me.can("analyst") %}
+  <article class="panel">
+    <header class="panel-head"><h2 class="warm">New case</h2></header>
+    <form class="stack" method="post" action="/ui/cases">
+      <label class="field">Title<input name="title" required maxlength="200" placeholder="e.g. Beacon from host-17 to a QakBot C2"></label>
+      <div class="formrow">
+        <label class="field">Severity<select name="severity">{% for sv in ["low", "medium", "high", "critical"] %}<option value="{{ sv }}"{% if sv == "medium" %} selected{% endif %}>{{ sv }}</option>{% endfor %}</select></label>
+        <label class="field">Marking<select name="tlp">{% for lv in ["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT", "TLP:RED"] %}<option value="{{ lv }}"{% if lv == "TLP:AMBER" %} selected{% endif %}>{{ lv }}</option>{% endfor %}</select></label>
+      </div>
+      <label class="field">Summary<textarea name="summary" rows="4" maxlength="20000" placeholder="What happened, what triggered it"></textarea></label>
+      <button class="primary" type="submit">Open case</button>
+    </form>
+    <p class="note">A case is at least as restricted as its strictest evidence: adding an AMBER indicator makes it AMBER.</p>
+  </article>
+  {% endif %}
+</section>
+{% endblock %}

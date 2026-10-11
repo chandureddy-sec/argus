@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import save_view %}
 {% block title %}Indicators{% endblock %}
 {% block heading %}Indicators{% endblock %}
 {% block subheading %}<p class="sub">{{ "{:,}".format(res.total) }} matching · values are shown defanged</p>{% endblock %}
@@ -16,6 +17,7 @@
     <button class="primary" type="submit">Filter</button>
     {% if f.q or f.type or f.status or f.source or f.sort == "priority" %}<a class="btn" href="/ui/indicators">Clear</a>{% endif %}
   </form>
+  <div class="spaced-top">{{ save_view(here) }}</div>
 </section>
 <section class="panel">
   <table class="data">
