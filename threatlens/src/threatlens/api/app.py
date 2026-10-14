@@ -37,6 +37,8 @@ from threatlens.ui.respond import router as respond_router
 from threatlens.ui.routes import HERE as UI_DIR
 from threatlens.ui.routes import router as ui_router
 from threatlens.ui.work import router as work_router
+from threatlens.webapp import api as webapp_api
+from threatlens.webapp import router as webapp_router
 
 log = get_logger("threatlens.api")
 UI_STATIC = UI_DIR / "static"
@@ -144,12 +146,14 @@ def create_app(
     app.include_router(respond_router)
     app.include_router(investigate_router)
     app.include_router(feeds_ui_router)
+    app.include_router(webapp_api)  # before the app's catch-all route
+    app.include_router(webapp_router)
     app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
     app.state.settings = settings
 
     @app.get("/", include_in_schema=False)
     async def root() -> RedirectResponse:
-        return RedirectResponse("/ui", status_code=307)
+        return RedirectResponse("/app/", status_code=307)  # Argus; the classic UI stays at /ui
 
     @app.middleware("http")
     async def request_context(

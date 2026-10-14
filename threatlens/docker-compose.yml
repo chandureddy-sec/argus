@@ -5,7 +5,11 @@
 name: threatlens
 
 x-app: &app
-  build: .
+  build:
+    context: .
+    # The Argus front end lives next to this folder (../web); the image builds it.
+    additional_contexts:
+      webapp-src: ../web
   image: threatlens:dev
   env_file: .env
   environment:

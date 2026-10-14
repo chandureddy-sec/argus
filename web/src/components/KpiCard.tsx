@@ -1,10 +1,8 @@
-import { AlertTriangle, Radar, Server, Timer, type LucideIcon } from "lucide-react";
-import type { Kpi } from "../data/sample";
-import { Change } from "./ui";
+import { AlertTriangle, Database, Radar, Server, type LucideIcon } from "lucide-react";
+import type { Kpi } from "../lib/api";
+import { Change, compact } from "./ui";
 
-const ICONS: Record<Kpi["icon"], LucideIcon> = { radar: Radar, server: Server, alert: AlertTriangle, timer: Timer };
-// Fewer exposures and a shorter time to verify are good news.
-const LOWER_IS_BETTER = new Set<Kpi["icon"]>(["alert", "timer"]);
+const ICONS: Record<Kpi["icon"], LucideIcon> = { radar: Radar, server: Server, alert: AlertTriangle, feed: Database };
 
 export default function KpiCard({ kpi, first }: { kpi: Kpi; first?: boolean }) {
   const Icon = ICONS[kpi.icon];
@@ -17,8 +15,11 @@ export default function KpiCard({ kpi, first }: { kpi: Kpi; first?: boolean }) {
         <span className="label">{kpi.label}</span>
       </div>
       <div className="flex items-end gap-2.5">
-        <span className="text-[28px] font-bold leading-none tracking-tight text-ink tabular-nums">{kpi.value}</span>
-        <Change value={kpi.change} invert={LOWER_IS_BETTER.has(kpi.icon)} />
+        <span className="text-[28px] font-bold leading-none tracking-tight text-ink tabular-nums" title={kpi.value.toLocaleString()}>
+          {compact(kpi.value)}
+          {kpi.of !== undefined && <span className="text-[18px] font-semibold text-ink-faint"> / {kpi.of}</span>}
+        </span>
+        {kpi.change !== null && <Change value={kpi.change} />}
       </div>
       <span className="text-[12px] text-ink-faint">{kpi.hint}</span>
     </div>

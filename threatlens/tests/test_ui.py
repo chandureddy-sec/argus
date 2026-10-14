@@ -260,7 +260,7 @@ async def test_static_files_and_root_redirect(ui: Ui) -> None:
     assert (await ui.client.get("/ui/static/app.css")).status_code == 200
     r = await ui.client.get("/")
     assert r.status_code == 307
-    assert r.headers["location"] == "/ui"
+    assert r.headers["location"] == "/app/"  # Argus is the front door; the classic UI stays at /ui
 
 
 def test_template_filters() -> None:

@@ -1,5 +1,4 @@
 import {
-  Activity,
   BookOpen,
   ChevronDown,
   Crosshair,
@@ -11,70 +10,105 @@ import {
   Settings,
   ShieldBan,
   ShieldCheck,
-  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
+import type { Me } from "../lib/api";
 import { Avatar, Logo, PRODUCT } from "./ui";
 
 interface Item {
   label: string;
   icon: LucideIcon;
-  children?: { label: string; active?: boolean; badge?: string }[];
-  badge?: string;
+  href?: string;
+  children?: { label: string; href: string; active?: boolean; soon?: boolean }[];
 }
 
+// Pages not yet rebuilt in Argus open the classic ThreatLens screens (/ui) until they are;
+// "soon" marks the ReconX pages that arrive with the engine (step 2).
 const NAV: Item[] = [
   {
     label: "Home",
     icon: Home,
-    children: [{ label: "Overview" }, { label: "Reports", active: true }, { label: "Assets" }, { label: "Cases", badge: "3" }],
+    children: [
+      { label: "Overview", href: "/ui" },
+      { label: "Reports", href: "/app/", active: true },
+      { label: "Assets", href: "/ui/assets" },
+      { label: "Cases", href: "/ui/cases" },
+    ],
   },
-  { label: "Attack surface", icon: Radar, children: [{ label: "New scan" }, { label: "Scans" }, { label: "Compare" }, { label: "Monitors" }] },
-  { label: "Threat intel", icon: Crosshair, children: [{ label: "Verify" }, { label: "Bulk check" }, { label: "Indicators" }, { label: "ATT&CK" }] },
-  { label: "Vulnerabilities", icon: Gauge },
-  { label: "Blocklist", icon: ShieldBan, badge: "12" },
-  { label: "Feed catalog", icon: Database },
-  { label: "Activity log", icon: Activity },
-  { label: "Users", icon: Users },
-  { label: "Settings", icon: Settings },
-  { label: "Documentation", icon: BookOpen },
+  {
+    label: "Attack surface",
+    icon: Radar,
+    children: [
+      { label: "New scan", href: "#", soon: true },
+      { label: "Scans", href: "#", soon: true },
+      { label: "Compare", href: "#", soon: true },
+      { label: "Monitors", href: "#", soon: true },
+    ],
+  },
+  {
+    label: "Threat intel",
+    icon: Crosshair,
+    children: [
+      { label: "Verify", href: "/ui/verify" },
+      { label: "Bulk check", href: "/ui/lookup" },
+      { label: "Indicators", href: "/ui/indicators" },
+      { label: "ATT&CK", href: "/ui/attack" },
+    ],
+  },
+  { label: "Vulnerabilities", icon: Gauge, href: "/ui/vulnerabilities" },
+  { label: "Blocklist", icon: ShieldBan, href: "/ui/blocklist" },
+  { label: "Feed catalog", icon: Database, href: "/ui/sources" },
+  { label: "Search", icon: Search, href: "/ui/search" },
+  { label: "Settings", icon: Settings, href: "/ui/settings" },
+  { label: "Sources & licences", icon: BookOpen, href: "/ui/sources#feeds" },
 ];
 
 function Group({ item }: { item: Item }) {
   const hasActive = item.children?.some((c) => c.active) ?? false;
   const [open, setOpen] = useState(hasActive);
   const Icon = item.icon;
+  const cls = `group flex h-10 w-full items-center gap-3 rounded-ctl px-3 text-[14px] font-medium transition-colors ${
+    hasActive ? "text-ink" : "text-ink-muted hover:bg-card-2 hover:text-ink"
+  }`;
+  const inner = (
+    <>
+      <Icon className={`h-[18px] w-[18px] ${hasActive ? "text-accent" : "text-ink-muted group-hover:text-ink"}`} />
+      <span className="flex-1 text-left">{item.label}</span>
+      {item.children && <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />}
+    </>
+  );
   return (
     <li>
-      <button
-        onClick={() => item.children && setOpen(!open)}
-        aria-expanded={item.children ? open : undefined}
-        className={`group flex h-10 w-full items-center gap-3 rounded-ctl px-3 text-[14px] font-medium transition-colors ${
-          hasActive ? "text-ink" : "text-ink-muted hover:bg-card-2 hover:text-ink"
-        }`}
-      >
-        <Icon className={`h-[18px] w-[18px] ${hasActive ? "text-accent" : "text-ink-muted group-hover:text-ink"}`} />
-        <span className="flex-1 text-left">{item.label}</span>
-        {item.badge && <span className="rounded-full bg-accent/15 px-2 text-[11px] font-semibold text-accent-soft">{item.badge}</span>}
-        {item.children && <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />}
-      </button>
+      {item.children ? (
+        <button onClick={() => setOpen(!open)} aria-expanded={open} className={cls}>
+          {inner}
+        </button>
+      ) : (
+        <a href={item.href} className={cls}>
+          {inner}
+        </a>
+      )}
       {item.children && open && (
         <ul className="relative mb-1 ml-[21px] mt-0.5 space-y-0.5 border-l border-line pl-3">
           {item.children.map((c) => (
             <li key={c.label}>
               <a
-                href="#"
+                href={c.href}
                 aria-current={c.active ? "page" : undefined}
+                aria-disabled={c.soon || undefined}
+                onClick={(e) => c.soon && e.preventDefault()}
                 className={`relative flex h-9 items-center justify-between rounded-ctl px-3 text-[13.5px] transition-colors ${
                   c.active
                     ? "bg-accent/10 font-medium text-ink before:absolute before:-left-[13px] before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-accent"
-                    : "text-ink-muted hover:bg-card-2 hover:text-ink"
+                    : c.soon
+                      ? "cursor-default text-ink-faint"
+                      : "text-ink-muted hover:bg-card-2 hover:text-ink"
                 }`}
               >
                 {c.label}
-                {c.badge && <span className="rounded-full bg-down/15 px-1.5 text-[11px] font-semibold text-down">{c.badge}</span>}
+                {c.soon && <span className="rounded-full border border-line px-1.5 text-[10.5px] text-ink-faint">soon</span>}
               </a>
             </li>
           ))}
@@ -84,7 +118,7 @@ function Group({ item }: { item: Item }) {
   );
 }
 
-export default function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function Sidebar({ open, onClose, me }: { open: boolean; onClose: () => void; me?: Me }) {
   return (
     <>
       {/* mobile backdrop */}
@@ -110,16 +144,13 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
           </button>
         </div>
 
-        <div className="px-4 pb-3">
+        <form className="px-4 pb-3" method="get" action="/ui/search" role="search">
           <label className="relative block">
             <span className="sr-only">Search</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <input className="ctl w-full pl-9" placeholder="Search IOC, asset, scan…" />
-            <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-line px-1.5 text-[10px] text-ink-faint">
-              /
-            </kbd>
+            <input name="q" className="ctl w-full pl-9" placeholder="Search IOC, CVE, malware…" maxLength={200} />
           </label>
-        </div>
+        </form>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
           <ul className="space-y-0.5">
@@ -131,19 +162,25 @@ export default function Sidebar({ open, onClose }: { open: boolean; onClose: () 
 
         <div className="border-t border-line p-4">
           <div className="mb-3 flex items-center gap-3">
-            <Avatar initials="CR" />
-            <div className="min-w-0">
-              <p className="truncate text-[14px] font-semibold">Chandu Reddy</p>
-              <a href="#" className="text-[12px] text-ink-muted hover:text-accent-soft">
-                Account settings
-              </a>
+            <Avatar initials={me?.initials ?? "…"} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-semibold" title={me?.name}>
+                {me?.name ?? "Signed in"}
+              </p>
+              <p className="flex items-center gap-1 truncate text-[12px] text-ink-muted" title={me ? `Reads up to ${me.clearance}` : undefined}>
+                {me && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-up" />}
+                <span className="capitalize">{me?.role ?? ""}</span>
+                <span className="text-ink-faint">·</span>
+                <a href="/ui/settings" className="hover:text-accent-soft">
+                  Account
+                </a>
+              </p>
             </div>
-            <ShieldCheck className="ml-auto h-4 w-4 text-up" aria-label="Admin" />
           </div>
-          <button className="btn-primary h-10 w-full">
-            <Radar className="h-4 w-4" />
-            New scan
-          </button>
+          <a className="btn-primary h-10 w-full" href="/ui/verify">
+            <Crosshair className="h-4 w-4" />
+            Verify an indicator
+          </a>
         </div>
       </aside>
     </>

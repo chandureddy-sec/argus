@@ -156,7 +156,7 @@ def _same_origin(request: Request) -> bool:
 
 def _target(nxt: str) -> str:
     """Only paths inside the UI are valid post-login redirects (no open redirect)."""
-    ok = nxt.startswith("/ui") and "//" not in nxt and "\\" not in nxt
+    ok = nxt.startswith(("/ui", "/app/")) and "//" not in nxt and "\\" not in nxt
     return nxt if ok else "/ui"
 
 

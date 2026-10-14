@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Raw feed documents are stored here, content-addressed and gzipped.
     data_dir: Path = Path("data")
 
+    # The built Argus front end (web/dist), served at /app. The image puts it in
+    # /app/webapp; for a native run point it at web/dist.
+    web_dist: Path = Path("webapp")
+
     # Third-party keys (free tiers). A connector whose key is missing is
     # recorded as "skipped", never as an error.
     abusech_auth_key: SecretStr | None = None  # ThreatFox (required), URLhaus (optional)

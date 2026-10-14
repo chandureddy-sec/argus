@@ -1,27 +1,36 @@
-import { useState } from "react";
 import AreaChartCard from "../components/AreaChartCard";
 import BarChartCard from "../components/BarChartCard";
 import DataTable from "../components/DataTable";
 import DonutCard from "../components/DonutCard";
 import KpiCard from "../components/KpiCard";
-import { Card, CardHead, Select } from "../components/ui";
-import { indicators, kpis } from "../data/sample";
+import { Failed, Skeleton } from "../components/states";
+import { Card, CardHead } from "../components/ui";
+import { useApi, type Kpi } from "../lib/api";
 
 export default function Reports() {
-  const [scope, setScope] = useState("All reports");
-  const [period, setPeriod] = useState("2025-2026");
+  const kpis = useApi<Kpi[]>("kpis");
   return (
     <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       <Card>
         <CardHead title="Security report" sub="Attack surface and threat activity across everything you own">
-          <Select value={scope} options={["All reports", "Attack surface", "Threat intel", "Response"]} onChange={setScope} label="Report" />
-          <Select value={period} options={["2025-2026", "2024-2025", "Last 90 days"]} onChange={setPeriod} label="Period" />
+          <button className="btn-ghost h-8 text-[13px]" onClick={kpis.reload} disabled={kpis.loading}>
+            Refresh
+          </button>
         </CardHead>
-        <div className="grid grid-cols-1 divide-y divide-line border-t border-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
-          {kpis.map((k, i) => (
-            <KpiCard key={k.label} kpi={k} first={i === 0} />
-          ))}
-        </div>
+        {kpis.error && !kpis.data ? (
+          <Failed error={kpis.error} onRetry={kpis.reload} />
+        ) : (
+          <div className="grid grid-cols-1 divide-y divide-line border-t border-line sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
+            {kpis.data
+              ? kpis.data.map((k, i) => <KpiCard key={k.key} kpi={k} first={i === 0} />)
+              : Array.from({ length: 4 }, (_, i) => (
+                  <div key={i} className="space-y-3 py-4 sm:px-5">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-7 w-24" />
+                  </div>
+                ))}
+          </div>
+        )}
       </Card>
 
       <AreaChartCard />
@@ -31,7 +40,7 @@ export default function Reports() {
         <BarChartCard />
       </div>
 
-      <DataTable rows={indicators} />
+      <DataTable />
     </div>
   );
 }
