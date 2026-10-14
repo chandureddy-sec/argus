@@ -20,6 +20,7 @@ from threatlens.api.assets import router as assets_router
 from threatlens.api.blocks import feeds_router
 from threatlens.api.blocks import router as blocks_router
 from threatlens.api.cases import router as cases_router
+from threatlens.api.catalog import router as catalog_router
 from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
@@ -30,6 +31,7 @@ from threatlens.enrich.service import EnrichmentService, enrichment_http
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger
 from threatlens.settings import Environment, Settings, get_settings
+from threatlens.ui.feeds import router as feeds_ui_router
 from threatlens.ui.investigate import router as investigate_router
 from threatlens.ui.respond import router as respond_router
 from threatlens.ui.routes import HERE as UI_DIR
@@ -129,6 +131,7 @@ def create_app(
         redoc_url=None,
         openapi_url="/openapi.json" if dev else None,
     )
+    app.include_router(catalog_router)  # before v1: /sources/sync must not match /sources/{name}
     app.include_router(v1_router)
     app.include_router(kb_router)
     app.include_router(enrich_router)
@@ -140,6 +143,7 @@ def create_app(
     app.include_router(work_router)
     app.include_router(respond_router)
     app.include_router(investigate_router)
+    app.include_router(feeds_ui_router)
     app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
     app.state.settings = settings
 

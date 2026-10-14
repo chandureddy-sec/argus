@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
+from threatlens import catalog
 from threatlens import tlp as tlp_rules
 from threatlens.auth import Principal, require
 from threatlens.collect import reapply_allowlist
@@ -78,6 +79,7 @@ class SourceOut(BaseModel):
     last_success_at: datetime | None
     next_run_at: datetime | None
     last_error: str | None
+    custom: bool = Field(default=False, description="added in the feed catalog (ADR 0012)")
 
 
 class RunOut(BaseModel):
@@ -215,8 +217,9 @@ def _key_configured(name: str, settings: Settings) -> bool:
 
 def _source_out(s: Source, settings: Settings) -> SourceOut:
     return SourceOut(
-        **{k: getattr(s, k) for k in SourceOut.model_fields if k != "key_configured"},
-        key_configured=_key_configured(s.name, settings),
+        **{k: getattr(s, k) for k in SourceOut.model_fields if k not in ("key_configured", "custom")},
+        key_configured=_key_configured(s.name, settings) or (s.kind.startswith("custom") and s.requires_key),
+        custom=s.kind.startswith("custom"),
     )
 
 
@@ -251,7 +254,10 @@ async def source_runs(
 async def trigger_run(
     who: Admin, request: Request, name: Annotated[str, Path(max_length=64)], force: bool = False
 ) -> dict[str, Any]:
-    if name not in REGISTRY:
+    async with _sm(request)() as s:
+        src = await s.scalar(select(Source).where(Source.name == name))
+        custom = await catalog.custom_names(s)
+    if src is None or not catalog.collectable(src, custom):
         raise HTTPException(404, "unknown source")
     queued = await request.app.state.enqueue(name, force)
     async with _sm(request)() as s, s.begin():

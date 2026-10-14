@@ -655,3 +655,25 @@ body.print { display: block; background: #fff; color: #111; }
 .printpage .prose { color: #222; }
 .printpage .hint a { color: #0050c0; }
 @media (max-width: 1100px) { .cards.cards-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Feed catalog (ADR 0012) */
+.notice { background: rgba(46, 230, 240, .08); border: 1px solid rgba(46, 230, 240, .3); color: #bff7fb; padding: 10px 12px; border-radius: 8px; margin: 0 0 14px; }
+.warn-text { color: var(--amber); }
+a.strong { font-weight: 600; color: var(--text); }
+a.strong:hover { color: var(--pink); }
+.tile.on { border-color: var(--tone, var(--line-2)); box-shadow: 0 0 0 1px var(--tone, var(--line-2)) inset; }
+table.catalog tr.off td { color: var(--faint); }
+table.catalog tr.off a.strong { color: var(--muted); }
+.switch { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px 3px 4px; border-radius: 999px; border: 1px solid var(--line-2); background: #120c24; color: var(--muted); font: 600 12px var(--font); cursor: pointer; }
+.switch i { position: relative; width: 28px; height: 16px; border-radius: 999px; background: #2a2148; transition: background .15s; }
+.switch i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--faint); transition: transform .15s, background .15s; }
+.switch.on { color: var(--lime); border-color: rgba(181, 242, 61, .4); }
+.switch.on i { background: rgba(181, 242, 61, .28); }
+.switch.on i::after { transform: translateX(12px); background: var(--lime); }
+.switch:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+.formgrid legend { grid-column: 1 / -1; padding: 0; margin-bottom: 2px; color: var(--text); font-size: 13px; font-weight: 600; }
+.formgrid + .formgrid { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.field.wide { grid-column: 1 / -1; }
+.field small { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--faint); font-size: 11.5px; }
+.danger-zone { border-color: rgba(255, 79, 123, .3); }
+@media (max-width: 700px) { .formgrid { grid-template-columns: 1fr; } }

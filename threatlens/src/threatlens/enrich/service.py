@@ -66,6 +66,7 @@ log = get_logger("threatlens.enrich")
 
 ALLOWLIST_TTL_S = 300
 CONTEXT_TTL_S = 300
+ENABLED_TTL_S = 30
 
 
 def utcnow() -> datetime:
@@ -144,6 +145,7 @@ class EnrichmentService:
         self._source_ids: dict[str, int] = {}
         self._enabled: dict[str, bool] = {}
         self._synced = False
+        self._enabled_at = 0.0
         self._sync_lock = asyncio.Lock()  # concurrent first lookups must not race the inserts
         self._allowlist: tuple[float, Allowlist] | None = None
         self._context: tuple[float, Context] | None = None
@@ -190,13 +192,34 @@ class EnrichmentService:
                 self._source_ids[name] = row.id
                 self._enabled[name] = row.enabled
         self._synced = True
+        self._enabled_at = time.monotonic()
 
     async def _ensure_synced(self) -> None:
         if self._synced:
+            if time.monotonic() - self._enabled_at > ENABLED_TTL_S:
+                await self._refresh_enabled()
             return
         async with self._sync_lock:
             if not self._synced:
                 await self.sync_sources()
+
+    async def ensure_sources(self) -> None:
+        """Create the providers' source rows if no lookup has yet."""
+        await self._ensure_synced()
+
+    def forget_enabled(self) -> None:
+        """Re-read the on/off switches on the next lookup (after a toggle here)."""
+        self._enabled_at = 0.0
+
+    async def _refresh_enabled(self) -> None:
+        """Pick up providers switched on or off in the feed catalog (in this
+        process and in the worker) without a restart."""
+        self._enabled_at = time.monotonic()
+        async with self.sm() as s:
+            rows = (
+                await s.execute(select(Source.name, Source.enabled).where(Source.kind == "enricher"))
+            ).all()
+        self._enabled.update({str(n): bool(e) for n, e in rows})
 
     async def allowlist(self) -> Allowlist:
         from threatlens.collect import load_allowlist  # heavy module; only needed here

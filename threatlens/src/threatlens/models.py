@@ -817,3 +817,37 @@ class FeedToken(Base):
     created_at: Mapped[datetime] = _ts(default=utcnow)
     last_used_at: Mapped[datetime | None] = _ts()
     revoked_at: Mapped[datetime | None] = _ts()
+
+
+class CustomFeed(Base):
+    """A feed an admin added in the UI (ADR 0012). Its ``sources`` row holds
+    the title, schedule, marking and reliability like any built-in feed's;
+    this row holds how to fetch and read it. ``auth_secret`` is encrypted
+    (threatlens.vault), never stored in clear."""
+
+    __tablename__ = "custom_feeds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"), unique=True)
+    url: Mapped[str] = mapped_column(Text)
+    format: Mapped[str] = mapped_column(String(8))  # text | csv | json
+    ioc_type: Mapped[str] = mapped_column(String(16), default="auto")  # auto | ip | domain | url | hash
+    verdict: Mapped[str] = mapped_column(String(16), default="malicious")  # malicious | suspicious
+    confidence: Mapped[int] = mapped_column(Integer, default=70)
+    comment_char: Mapped[str] = mapped_column(String(4), default="#")
+    value_column: Mapped[int] = mapped_column(Integer, default=0)  # 0-based, CSV
+    json_path: Mapped[str | None] = mapped_column(String(200))  # e.g. "data.ip"
+    auth_header: Mapped[str | None] = mapped_column(String(64))
+    auth_secret: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    updated_by: Mapped[str] = mapped_column(String(100))
+    updated_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("format IN ('text','csv','json')", name="format"),
+        CheckConstraint("ioc_type IN ('auto','ip','domain','url','hash')", name="ioc_type"),
+        CheckConstraint("verdict IN ('malicious','suspicious')", name="verdict"),
+        CheckConstraint("confidence BETWEEN 0 AND 100", name="confidence"),
+        CheckConstraint("value_column BETWEEN 0 AND 255", name="value_column"),
+    )

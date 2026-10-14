@@ -58,7 +58,8 @@ from threatlens.settings import Settings
 log = get_logger("threatlens.scoring")
 
 BATCH = 500
-SUSPICIOUS_FEED_KINDS = frozenset({"anonymizer"})  # being listed is context, not maliciousness
+# Being listed is context, not maliciousness (a Tor exit; a custom feed an admin marked "suspicious").
+SUSPICIOUS_FEED_KINDS = frozenset({"anonymizer", "custom-suspicious"})
 LABEL_PENALTIES = {
     "shared-cdn": ("shared_cdn", "on a shared CDN edge range: blocking it affects many sites"),
     "popular-domain": ("popular_domain", "on a popular (Tranco top) domain"),

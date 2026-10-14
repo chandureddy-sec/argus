@@ -27,6 +27,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from threatlens import catalog
 from threatlens import tlp as tlp_rules
 from threatlens.allowlist import Allowlist, Entry, Verdict
 from threatlens.connectors import REGISTRY
@@ -202,10 +203,11 @@ class Collector:
         now = self.now()
         async with self.sm() as s:
             rows = (await s.scalars(select(Source).where(Source.enabled.is_(True)))).all()
+            custom = await catalog.custom_names(s)
         due = []
         for r in rows:
             next_run = aware(r.next_run_at)
-            if r.name in self.sources and (next_run is None or next_run <= now):
+            if (r.name in self.sources or r.name in custom) and (next_run is None or next_run <= now):
                 due.append(r.name)
         return due
 
@@ -232,6 +234,9 @@ class Collector:
             return await self._run_kb(name, force=force)
         started = time.perf_counter()
         cls = self.registry.get(name)
+        if cls is None:  # a feed an admin added in the UI (catalog)
+            async with self.sm() as s:
+                cls = await catalog.load_connector(s, name, self.settings)
         if cls is None:
             raise KeyError(f"unknown source {name!r}")
         info = cls.info

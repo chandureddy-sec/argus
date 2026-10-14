@@ -526,15 +526,6 @@ async def attack(request: Request) -> HTMLResponse:
     return page(request, "attack.html", {"me": me, "m": m, "fams": fams})
 
 
-@router.get("/sources", response_class=HTMLResponse)
-async def sources(request: Request) -> HTMLResponse:
-    me = await who(request)
-    rows = await v1_api.list_sources(me, request)
-    async with _sm(request)() as s:
-        runs = await data.last_runs(s)
-    return page(request, "sources.html", {"me": me, "rows": rows, "runs": runs})
-
-
 @router.get("/assets", response_class=HTMLResponse)
 async def assets_page(request: Request) -> HTMLResponse:
     me = await who(request)

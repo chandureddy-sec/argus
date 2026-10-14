@@ -275,7 +275,7 @@ def _skip_text(e: dict[str, Any]) -> str:
         "tlp": f"Not asked: {title} shares what is searched with others. Choose TLP:CLEAR to include it.",
         "quota_exhausted": f"Daily quota used up; it resets in {e.get('resets_in_s') or '?'} s",
         "budget_exhausted": "Not asked: this check's call budget ran out",
-        "disabled": "Turned off on the Sources page",
+        "disabled": "Switched off in the Feed catalog",
         "active_not_requested": "Not run: this check contacts the target directly",
         "not_requested": "Not asked: showing our own intel and saved answers only",
     }.get(reason or "", f"Not asked ({reason})")
