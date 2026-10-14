@@ -286,11 +286,15 @@ def summary_line(r: dict[str, Any]) -> str:
     es = r.get("enrichments") or []
     answered = [e for e in es if e.get("status") in ("ok", "cached", "not_found")]
     skipped = [e for e in es if e.get("status") == "skipped"]
-    failed = [e for e in es if e.get("status") in ("error", "stale")]
+    # "stale" is an older saved answer: a failure only when a live call was tried and failed.
+    failed = [e for e in es if e.get("status") == "error" or (e.get("status") == "stale" and e.get("error"))]
+    saved = [e for e in es if e.get("status") == "stale" and not e.get("error")]
     parts = [
         f"Checked in {r.get('took_ms', 0) / 1000:.1f} s",
         f"{len(answered)} of {len(es)} sources answered",
     ]
+    if saved:
+        parts.append(f"{len(saved)} from saved answers")
     if failed:
         parts.append(
             "no answer from " + ", ".join(CARD_TITLE.get(e["enricher"], e["enricher"]) for e in failed)

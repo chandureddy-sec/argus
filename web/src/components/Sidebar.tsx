@@ -1,9 +1,6 @@
 import {
-  BookOpen,
   ChevronDown,
   Crosshair,
-  Database,
-  Gauge,
   Home,
   Radar,
   Search,
@@ -39,9 +36,8 @@ const NAV: Item[] = [
     icon: Home,
     children: [
       { label: "Reports", to: "/", end: true },
+      { label: "Assets", to: "/assets" },
       { label: "Overview", href: "/ui" },
-      { label: "Assets", href: "/ui/assets" },
-      { label: "Cases", href: "/ui/cases" },
     ],
   },
   {
@@ -58,18 +54,30 @@ const NAV: Item[] = [
     label: "Threat intel",
     icon: Crosshair,
     children: [
-      { label: "Verify", href: "/ui/verify" },
-      { label: "Bulk check", href: "/ui/lookup" },
-      { label: "Indicators", href: "/ui/indicators" },
+      { label: "Verify", to: "/verify" },
+      { label: "Bulk check", to: "/bulk" },
+      { label: "Indicators", to: "/indicators" },
+      { label: "Vulnerabilities", href: "/ui/vulnerabilities" },
       { label: "ATT&CK", href: "/ui/attack" },
     ],
   },
-  { label: "Vulnerabilities", icon: Gauge, href: "/ui/vulnerabilities" },
-  { label: "Blocklist", icon: ShieldBan, href: "/ui/blocklist" },
-  { label: "Feed catalog", icon: Database, href: "/ui/sources" },
-  { label: "Search", icon: Search, href: "/ui/search" },
-  { label: "Settings", icon: Settings, href: "/ui/settings" },
-  { label: "Sources & licences", icon: BookOpen, href: "/ui/sources#feeds" },
+  {
+    label: "Response",
+    icon: ShieldBan,
+    children: [
+      { label: "Cases", to: "/cases" },
+      { label: "Blocklist", to: "/blocklist" },
+    ],
+  },
+  {
+    label: "Platform",
+    icon: Settings,
+    children: [
+      { label: "Feed catalog", to: "/feeds" },
+      { label: "Settings", to: "/settings" },
+      { label: "Search", href: "/ui/search" },
+    ],
+  },
 ];
 
 function isActive(path: string, c: Child): boolean {
@@ -80,7 +88,7 @@ function isActive(path: string, c: Child): boolean {
 function Group({ item }: { item: Item }) {
   const path = useLocation().pathname;
   const hasActive = item.children?.some((c) => isActive(path, c)) ?? false;
-  const [open, setOpen] = useState(hasActive || item.label === "Attack surface");
+  const [open, setOpen] = useState(hasActive || item.label === "Attack surface" || item.label === "Threat intel");
   useEffect(() => {
     if (hasActive) setOpen(true);
   }, [hasActive]);
@@ -197,9 +205,9 @@ export default function Sidebar({ open, onClose, me }: { open: boolean; onClose:
               </p>
             </div>
           </div>
-          <Link className="btn-primary h-10 w-full" to="/scans/new">
-            <Radar className="h-4 w-4" />
-            New scan
+          <Link className="btn-primary h-10 w-full" to="/verify">
+            <Crosshair className="h-4 w-4" />
+            Verify an indicator
           </Link>
         </div>
       </aside>

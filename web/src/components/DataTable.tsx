@@ -76,7 +76,7 @@ export default function DataTable() {
     <Card delay={280} className="!p-0">
       <div className="p-5 pb-0 sm:p-6 sm:pb-0">
         <CardHead title="Latest indicators" sub="Known-bad values from your feeds, newest first, scored 0–100 and matched locally">
-          <a className="btn-ghost h-8 text-[13px]" href="/ui/indicators">
+          <a className="btn-ghost h-8 text-[13px]" href="/app/indicators">
             Open all
           </a>
         </CardHead>
@@ -122,7 +122,7 @@ export default function DataTable() {
                 <tr key={r.id} className="group border-b border-line/70 transition-colors odd:bg-white/[0.012] hover:bg-accent/[0.06]">
                   <td className="py-3.5 pl-6 text-ink-faint tabular-nums">{(page - 1) * SIZE + i + 1}</td>
                   <td className="py-3.5 pr-4">
-                    <a href={`/ui/indicators/${r.id}`} className="flex items-center gap-3">
+                    <a href={`/app/indicators/${r.id}`} className="flex items-center gap-3">
                       <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent-soft ring-1 ring-accent/20" title={r.typeLabel}>
                         <Icon className="h-4 w-4" />
                       </span>

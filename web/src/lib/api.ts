@@ -299,3 +299,302 @@ export function useText(path: string): string | undefined {
   }, [path]);
   return text;
 }
+
+/** Send a request with any method and JSON body to any same-origin API path. */
+export async function send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", url: string, body?: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method,
+    credentials: "same-origin",
+    headers: { Accept: "application/json", ...(body !== undefined ? { "Content-Type": "application/json" } : {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) {
+    window.location.assign(`/ui/login?next=${encodeURIComponent(window.location.pathname)}`);
+    throw new Error("signed out");
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const detail = (data as { detail?: unknown }).detail;
+    const msg =
+      typeof detail === "string" ? detail : Array.isArray(detail) ? ((detail[0] as { msg?: string })?.msg ?? "invalid input") : `${r.status} error`;
+    throw new Error(msg);
+  }
+  return data as T;
+}
+
+/** GET from /api/v1 (the REST API, with the session) as a hook. */
+export function useV1<T>(path: string, params: Params = {}): Loaded<T> {
+  return useApi<T>(`../../api/v1/${path}`, params);
+}
+
+/** Read newline-delimited JSON events from a streaming response. */
+export async function readEvents<T>(r: Response, onEvent: (e: T) => void): Promise<void> {
+  if (!r.ok || !r.body) {
+    const data = await r.json().catch(() => ({}));
+    const detail = (data as { detail?: unknown }).detail;
+    throw new Error(typeof detail === "string" ? detail : `${r.status} error`);
+  }
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i = buf.indexOf("\n");
+    while (i >= 0) {
+      const line = buf.slice(0, i).trim();
+      buf = buf.slice(i + 1);
+      if (line) onEvent(JSON.parse(line) as T);
+      i = buf.indexOf("\n");
+    }
+  }
+  if (buf.trim()) onEvent(JSON.parse(buf) as T);
+}
+
+// ── threat intel shapes (/api/v1 and /app/api) ───────────────────────────────
+
+export interface Indicator {
+  id: number;
+  type: string;
+  value: string;
+  defanged: string;
+  status: string;
+  confidence: number;
+  tlp: string;
+  labels: string[];
+  first_seen: string;
+  last_seen: string;
+  sources: string[];
+  priority_score: number | null;
+  verdict: string | null;
+  valid_until: string | null;
+  analyst_verdict: string | null;
+}
+
+export interface Signal {
+  source: string;
+  upstream: string;
+  kind: string;
+  confidence: number;
+  weight: number;
+  decay: number;
+  age_days: number;
+  value: number;
+  text: string;
+  counted: boolean;
+}
+
+export interface IndicatorDetail extends Indicator {
+  sightings: {
+    source: string;
+    first_seen: string;
+    last_seen: string;
+    times_reported: number;
+    confidence: number;
+    labels: string[];
+    context: Record<string, unknown>;
+  }[];
+  score_breakdown: {
+    formula?: string;
+    base?: { value: number; source: string | null; kind: string | null };
+    corroboration?: { value: number; upstreams: string[] };
+    relevance?: { value: number; applied: boolean; hits: { kind: string; points: number; reason: string }[] };
+    penalty?: { value: number; items: { kind: string; points: number; reason: string }[] };
+    signals?: Signal[];
+    suppressed?: string | null;
+    half_life_days?: number;
+  } | null;
+  feedback: { verdict: string; actor: string; note: string; at: string }[];
+}
+
+export interface Card {
+  enricher: string;
+  title: string;
+  status: string;
+  mode?: string;
+  fetchedAt?: string;
+  headline: string;
+  tone: "mal" | "sus" | "ok" | "info" | "off";
+  rows: [string, string | string[]][];
+  evidence: { kind: string; text: string }[];
+  error: string | null;
+}
+
+export interface Known {
+  indicator_id: number;
+  status: string;
+  confidence: number;
+  tlp: string;
+  labels: string[];
+  sources: string[];
+  first_seen: string | null;
+  last_seen: string | null;
+  analyst_verdict: string | null;
+  analyst_verdict_by: string | null;
+  priority_score: number | null;
+}
+
+export interface Local {
+  known: Known | null;
+  asset: { kind: string; target: string } | null;
+  allowlist: { effect: string | null; reasons: string[]; labels: string[] } | null;
+  related: { label: string; ref: string }[];
+}
+
+export interface QueryInfo {
+  type: string;
+  typeLabel: string;
+  value: string;
+}
+
+export interface Block {
+  id: number;
+  kind: string;
+  value: string;
+  state: string;
+  mode: "monitor" | "enforce";
+  reason: string;
+  score: number | null;
+  tlp: string;
+  note: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string;
+  requested_by: string | null;
+  approved_by: string | null;
+  lifted_by: string | null;
+  lifted_at: string | null;
+}
+
+export interface VerifyDone extends Local {
+  event: "done";
+  query: QueryInfo;
+  verdict: string;
+  verdictLabel: string;
+  score: number;
+  action: string;
+  actionLabel: string;
+  actionText: string;
+  tlp: string;
+  summary: string;
+  partial: boolean;
+  cards: Card[];
+  links: { title: string; url: string }[];
+  block: Block | null;
+  blockable: boolean;
+}
+
+export type VerifyEvent =
+  | ({ event: "start"; query: QueryInfo; pending: { enricher: string; title: string }[] } & Local)
+  | { event: "provider"; card: Card }
+  | VerifyDone
+  | { event: "error"; message: string };
+
+export interface BulkRow {
+  query: QueryInfo;
+  verdict: string;
+  verdictLabel: string;
+  score: number;
+  action: string;
+  actionLabel: string;
+  tlp: string;
+  sources: string[];
+  known: boolean;
+  analystVerdict: string | null;
+  country: string | null;
+  signals: { name: string; kind: string; text: string; figure: number | null }[];
+  asset: boolean;
+  block: { id: number; mode: string; state: string } | null;
+  blockable: boolean;
+}
+
+export type BulkEvent =
+  | { event: "start"; total: number; notes: string[] }
+  | { event: "row"; row: BulkRow; done: number; total: number; counts: Record<string, number> }
+  | { event: "skip"; done: number; total: number }
+  | { event: "done"; total: number; counts: Record<string, number>; calls: number; providers: boolean; blocked: string[]; refused: string[] };
+
+export interface CaseRow {
+  id: number;
+  title: string;
+  status: "open" | "closed";
+  severity: "low" | "medium" | "high" | "critical";
+  tlp: string;
+  summary: string;
+  conclusion: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+  items: number;
+}
+
+export interface CaseItem {
+  id: number;
+  kind: string;
+  ref: string;
+  label: string;
+  snapshot: Record<string, unknown>;
+  note: string;
+  tlp: string;
+  added_by: string;
+  added_at: string;
+}
+
+export interface CaseDetail extends CaseRow {
+  evidence: CaseItem[];
+}
+
+export interface SourceOut {
+  name: string;
+  title: string;
+  kind: string;
+  reliability: string;
+  reliability_note: string;
+  credibility: number;
+  weight_factor: number;
+  feedback_tp: number;
+  feedback_fp: number;
+  license: string;
+  license_url: string;
+  commercial_use: boolean;
+  redistribution: boolean;
+  attribution: string | null;
+  requires_key: boolean;
+  key_configured: boolean;
+  enabled: boolean;
+  health: string;
+  interval_minutes: number;
+  last_run_at: string | null;
+  last_success_at: string | null;
+  next_run_at: string | null;
+  last_error: string | null;
+  custom: boolean;
+}
+
+export interface RunOut {
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  http_status: number | null;
+  items_total: number;
+  items_new: number;
+  items_updated: number;
+  items_rejected: number;
+  items_allowlisted: number;
+  error: string | null;
+}
+
+export interface AssetOut {
+  id: number;
+  kind: string;
+  value: string;
+  target: string;
+  origin: string;
+  first_seen: string;
+  last_seen: string;
+  details: Record<string, unknown>;
+  products: string[];
+  indicator: { indicator_id: number; status: string; priority_score: number | null; sources: string[] } | null;
+}

@@ -4,13 +4,25 @@ import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import { useApi, type Me } from "./lib/api";
 import { CrumbsProvider, usePage } from "./lib/page";
+import Assets from "./pages/Assets";
+import Blocklist from "./pages/Blocklist";
+import BulkCheck from "./pages/BulkCheck";
+import Cases from "./pages/Cases";
+import CaseView from "./pages/CaseView";
 import Compare from "./pages/Compare";
+import FeedForm from "./pages/FeedForm";
+import Feeds from "./pages/Feeds";
+import FeedView from "./pages/FeedView";
+import Indicators from "./pages/Indicators";
+import IndicatorView from "./pages/IndicatorView";
 import Job from "./pages/Job";
 import Monitors from "./pages/Monitors";
 import NewScan from "./pages/NewScan";
 import Reports from "./pages/Reports";
 import ScanView from "./pages/ScanView";
 import Scans from "./pages/Scans";
+import Settings from "./pages/Settings";
+import Verify from "./pages/Verify";
 
 function NotFound() {
   usePage("Not found");
@@ -51,6 +63,19 @@ function Shell() {
               <Route path="/scans/view/:ref" element={<ScanView me={me} />} />
               <Route path="/scans/compare" element={<Compare />} />
               <Route path="/monitors" element={<Monitors me={me} />} />
+              <Route path="/assets" element={<Assets />} />
+              <Route path="/verify" element={<Verify me={me} />} />
+              <Route path="/bulk" element={<BulkCheck me={me} />} />
+              <Route path="/indicators" element={<Indicators />} />
+              <Route path="/indicators/:id" element={<IndicatorView me={me} />} />
+              <Route path="/blocklist" element={<Blocklist me={me} />} />
+              <Route path="/cases" element={<Cases me={me} />} />
+              <Route path="/cases/:id" element={<CaseView me={me} />} />
+              <Route path="/feeds" element={<Feeds me={me} />} />
+              <Route path="/feeds/new" element={<FeedForm me={me} />} />
+              <Route path="/feeds/:name" element={<FeedView me={me} />} />
+              <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

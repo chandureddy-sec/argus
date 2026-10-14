@@ -89,7 +89,7 @@ export function Select({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="ctl h-8 cursor-pointer appearance-none pr-8 text-[13px] text-ink-muted hover:text-ink"
+        className="ctl h-8 max-w-[220px] cursor-pointer appearance-none truncate pr-8 text-[13px] text-ink-muted hover:text-ink"
       >
         {options.map((o) => (
           <option key={o} value={o} className="bg-card text-ink">
