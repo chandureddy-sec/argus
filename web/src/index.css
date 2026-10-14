@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Inter";
+  src: url("/app/fonts/inter-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/app/fonts/jetbrains-mono-latin.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+}
+
+/* Design tokens: RGB triplets so Tailwind can add opacity (bg-accent/10).
+   Change the theme here; components never hard-code a colour. */
+:root {
+  --bg: 5 11 24;           /* #050B18 page */
+  --card: 11 19 36;        /* #0B1324 cards, sidebar */
+  --card-2: 15 26 49;      /* #0F1A31 hover rows, inputs */
+  --line: 22 33 58;        /* #16213A borders */
+  --accent: 31 107 255;    /* #1F6BFF the one bright blue */
+  --accent-soft: 76 141 255;  /* #4C8DFF chart secondary */
+  --accent-muted: 143 163 200; /* #8FA3C8 chart tertiary */
+  --ink: 255 255 255;
+  --ink-muted: 124 139 168;   /* #7C8BA8 labels */
+  --ink-faint: 84 99 128;
+  --up: 34 197 94;
+  --down: 244 63 94;
+  --warn: 245 158 11;
+  color-scheme: dark;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-feature-settings: "cv11", "ss01", "tnum";
+  }
+  ::selection { background: rgb(var(--accent) / 0.35); }
+  :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
+}
+
+@layer components {
+  .card { @apply rounded-card border border-line bg-card; }
+  .label { @apply text-[13px] text-ink-muted; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors; }
+  .btn-primary { @apply btn bg-accent text-white hover:bg-accent-soft shadow-[0_6px_20px_-8px_rgb(var(--accent)/0.8)]; }
+  .btn-ghost { @apply btn border border-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
+  .ctl { @apply h-9 rounded-ctl border border-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
+}
+
+/* Charts: a soft glow under the lines, quiet grid. */
+.glow-line path.recharts-curve.recharts-area-curve,
+.glow-line path.recharts-line-curve { filter: drop-shadow(0 0 6px rgb(var(--accent) / 0.55)); }
+.recharts-cartesian-grid line { stroke: rgb(var(--line)); }
+.recharts-text { fill: rgb(var(--ink-muted)); font-size: 12px; }
+.recharts-surface:focus, .recharts-wrapper:focus, .recharts-sector:focus { outline: none; }
+
+/* Respect "reduce motion": no entrance or chart animations. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise { animation: none !important; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
+}
