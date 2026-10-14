@@ -178,7 +178,26 @@ def _presented_key(request: Request) -> str | None:
     return value.strip() if scheme.lower() == "bearer" and value else None
 
 
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def same_origin(request: Request) -> bool:
+    """Refuse state-changing requests that another site's page triggered.
+
+    Browsers send ``Sec-Fetch-Site`` (a page cannot set it); older ones fall
+    back to ``Origin``. Requests with neither are not from a browser page."""
+    site = request.headers.get("sec-fetch-site")
+    if site is not None:
+        return site in ("same-origin", "none")
+    origin = request.headers.get("origin")
+    if origin is None:
+        return True
+    return origin != "null" and origin.split("://", 1)[-1] == request.headers.get("host", "")
+
+
 def require(role: str) -> Callable[[Request], Awaitable[Principal]]:
+    """API access by API key, or by a signed-in Argus/UI session (ADR 0015).
+    A session may change state only from a same-site page (CSRF)."""
     if role not in ROLE_RANK:
         raise ValueError(role)
 
@@ -189,12 +208,22 @@ def require(role: str) -> Callable[[Request], Awaitable[Principal]]:
         if key:
             async with sm() as s:
                 principal = await authenticate(s, key)
+        elif request.cookies:
+            from threatlens.settings import get_settings
+            from threatlens.ui import session  # session imports this module
+
+            settings = getattr(request.app.state, "settings", None) or get_settings()
+            principal = await session.principal(request, settings)
+            if principal is not None and request.method not in SAFE_METHODS and not same_origin(request):
+                raise HTTPException(403, "cross-site request refused")
         if principal is None:
             raise HTTPException(401, "missing or invalid API key", headers={"WWW-Authenticate": "ApiKey"})
         if not principal.can(role):
             raise HTTPException(403, f"this action needs the {role} role")
         limits = request.app.state.rate_limits
-        wait = await request.app.state.limiter.hit(f"key:{principal.key_id}", limits[principal.role])
+        wait = await request.app.state.limiter.hit(
+            f"{principal.kind}:{principal.key_id}", limits[principal.role]
+        )
         if wait:
             raise HTTPException(429, "rate limit exceeded", headers={"Retry-After": str(wait)})
         request.state.principal = principal

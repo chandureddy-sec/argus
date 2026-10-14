@@ -27,7 +27,7 @@ from threatlens import tlp as tlp_rules
 from threatlens.api import assets as assets_api
 from threatlens.api import kb as kb_api
 from threatlens.api import v1 as v1_api
-from threatlens.auth import Principal
+from threatlens.auth import Principal, same_origin
 from threatlens.connectors.base import clip
 from threatlens.ioc.extract import defang_text
 from threatlens.ioc.types import IOCType
@@ -141,17 +141,7 @@ async def who(request: Request) -> Principal:
 
 
 def _same_origin(request: Request) -> bool:
-    """Refuse state-changing requests that another site's page triggered.
-
-    Browsers send ``Sec-Fetch-Site`` (a page cannot set it); older ones fall
-    back to ``Origin``. Requests with neither are not from a browser page."""
-    site = request.headers.get("sec-fetch-site")
-    if site is not None:
-        return site in ("same-origin", "none")
-    origin = request.headers.get("origin")
-    if origin is None:
-        return True
-    return origin != "null" and urlparse(origin).netloc == request.headers.get("host", "")
+    return same_origin(request)
 
 
 def _target(nxt: str) -> str:
