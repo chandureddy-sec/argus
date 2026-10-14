@@ -105,9 +105,9 @@ function OurIntel({ local }: { local: Local }) {
       {local.related.length > 0 && (
         <p className="mt-3 flex flex-wrap gap-1.5">
           {local.related.map((r) => (
-            <a key={r.ref} href={`/ui/entities/${encodeURIComponent(r.ref)}`} className="rounded bg-card-2 px-2 py-0.5 text-[12px] text-ink-muted ring-1 ring-line hover:text-accent-soft">
+            <Link key={r.ref} to={`/entities/${encodeURIComponent(r.ref)}`} className="rounded bg-card-2 px-2 py-0.5 text-[12px] text-ink-muted ring-1 ring-line hover:text-accent-soft">
               {r.label}
-            </a>
+            </Link>
           ))}
         </p>
       )}

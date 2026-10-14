@@ -402,50 +402,50 @@ async def overview(
                 "label": "Active indicators",
                 "sub": f"+{new_24h:,} in the last 24 h",
                 "tone": "orange",
-                "href": "/ui/indicators",
+                "href": "/indicators",
             },
             {
                 "value": kev,
                 "label": "Known exploited CVEs",
                 "sub": f"{kev_30d} added in 30 days",
                 "tone": "yellow",
-                "href": "/ui/vulnerabilities?kev=true",
+                "href": "/vulnerabilities?kev=true",
             },
             {
                 "value": stack_kev,
                 "label": "Exploited in our stack",
                 "sub": f"of {len(stack_ids):,} CVEs matching the tech stack",
                 "tone": "cyan",
-                "href": "/ui/vulnerabilities?kev=true&stack=true",
+                "href": "/vulnerabilities?kev=true&stack=true",
             },
             {
                 "value": len(families),
                 "label": "Malware families seen",
                 "sub": "named by feed indicators",
                 "tone": "pink",
-                "href": "/ui/attack",
+                "href": "/attack",
             },
             {
                 "value": healthy,
                 "label": "Healthy sources",
                 "sub": f"of {enabled} collecting",
                 "tone": "purple",
-                "href": "/ui/sources",
+                "href": "/feeds",
             },
         ],
         "collected": collected,
         "new_items": new_items,
         "window": window,
         "kev_months": months,
-        "types": [(TYPE_LABELS.get(t, t), int(n), f"/ui/indicators?type={t}") for t, n in types],
+        "types": [(TYPE_LABELS.get(t, t), int(n), f"/indicators?type={t}") for t, n in types],
         "priority": [
             (b, int(prio_map.get(b, 0))) for b in ("malicious (60+)", "suspicious (30-59)", "low (under 30)")
         ],
         "top": [(i, TYPE_LABELS.get(t, t), v, p) for i, t, v, p in top],
         "by_source": [(n, int(c)) for n, c in by_source],
         "status": {k: int(v) for k, v in status_rows.items()},
-        "families": [(name, n, f"/ui/entities/{ext or ref}") for name, n, ref, ext in families[:6]],
-        "techniques": [(label, n, f"/ui/entities/{ext}") for label, n, ext in techniques],
+        "families": [(name, n, f"/entities/{ext or ref}") for name, n, ref, ext in families[:6]],
+        "techniques": [(label, n, f"/entities/{ext}") for label, n, ext in techniques],
         "geo": geo,
         "geo_located": sum(geo.values()),
         "ips": int(ips),
@@ -676,7 +676,7 @@ async def activity(s: AsyncSession, now: datetime, clearance: str, limit: int = 
             .limit(limit)
         )
     ).all():
-        href, meta = f"/ui/cases/{c.id}", f"{c.severity} · {c.tlp}"
+        href, meta = f"/cases/{c.id}", f"{c.severity} · {c.tlp}"
         if (opened := aware(c.created_at)) and opened >= since:
             events.append({"at": opened, "tone": "pink", "kind": "Case opened", "title": c.title,
                            "detail": f"{meta} · by {c.created_by}", "href": href})  # fmt: skip
@@ -703,11 +703,11 @@ async def activity(s: AsyncSession, now: datetime, clearance: str, limit: int = 
         if run.status == "failed":
             why = f"HTTP {run.http_status}" if run.http_status else "see Sources"
             events.append({"at": at, "tone": "red", "kind": "Feed failed", "title": name,
-                           "detail": why, "href": "/ui/sources"})  # fmt: skip
+                           "detail": why, "href": "/feeds"})  # fmt: skip
         else:
             events.append({"at": at, "tone": "cyan", "kind": "Collected", "title": name,
                            "detail": f"+{run.items_new:,} new of {run.items_total:,}",
-                           "href": f"/ui/indicators?source={quote(name, safe='')}"})  # fmt: skip
+                           "href": f"/indicators?source={quote(name, safe='')}"})  # fmt: skip
 
     for v in (
         await s.scalars(
@@ -719,7 +719,7 @@ async def activity(s: AsyncSession, now: datetime, clearance: str, limit: int = 
     ).all():
         events.append({"at": datetime.combine(v.kev_date_added or since.date(), time(), UTC), "tone": "amber",
                        "kind": "Added to KEV", "title": v.cve_id, "detail": v.kev_name or "",
-                       "href": f"/ui/vulnerabilities/{v.cve_id}"})  # fmt: skip
+                       "href": f"/vulnerabilities/{v.cve_id}"})  # fmt: skip
 
     events.sort(key=lambda e: e["at"], reverse=True)
     # Feeds run hourly; cap routine collections so cases, failures and KEV keep a place.

@@ -1,4 +1,4 @@
-import { FileUp, Loader2, ShieldBan, Square } from "lucide-react";
+import { Download, FileUp, Loader2, ShieldBan, Square } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { FlagButtons } from "../components/actions";
 import { Ioc, Score, TlpSelect, VerdictPill } from "../components/intel";
@@ -10,6 +10,27 @@ import { usePage } from "../lib/page";
 const FILTERS = ["All", "Malicious", "Suspicious", "No known threat", "Clean"] as const;
 const FILTER_VERDICT: Record<string, string> = { Malicious: "malicious", Suspicious: "suspicious", "No known threat": "unknown", Clean: "benign" };
 const ORDER: Record<string, number> = { malicious: 0, suspicious: 1, unknown: 2, benign: 3 };
+/** A CSV cell that a spreadsheet won't run as a formula (=, +, -, @ get a leading quote). */
+export function csvCell(v: unknown): string {
+  let s = v == null ? "" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(rows: BulkRow[]) {
+  const head = ["value_defanged", "type", "verdict", "score", "action", "sources", "country", "providers", "our_asset", "blocked"];
+  const lines = rows.map((r) =>
+    [r.query.value, r.query.type, r.verdict, r.score, r.action, r.sources.join(";"), r.country ?? "",
+     r.signals.map((x) => `${x.name}:${x.kind}`).join(";"), r.asset ? "yes" : "", r.block ? r.block.mode : ""].map(csvCell).join(","),
+  );
+  const blob = new Blob([[head.join(","), ...lines].join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `bulk-check-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 const SIG: Record<string, string> = { malicious: "bg-down/15 text-down", suspicious: "bg-warn/15 text-warn", benign: "bg-up/15 text-up", info: "bg-ink-faint/15 text-ink-muted" };
 
 export default function BulkCheck({ me }: { me?: Me }) {
@@ -154,6 +175,11 @@ export default function BulkCheck({ me }: { me?: Me }) {
                 onChange={setFilter}
                 label="Show"
               />
+              {summary && rows.length > 0 && (
+                <button className="btn-ghost ml-auto h-8 text-[13px]" onClick={() => downloadCsv(shown)} title="Values stay defanged in the file">
+                  <Download className="h-3.5 w-3.5" /> Export CSV
+                </button>
+              )}
               <span className="text-[12.5px] text-ink-faint">
                 {(["malicious", "suspicious", "unknown", "benign"] as const).map((v) => `${counts[v] ?? 0} ${v === "unknown" ? "unknown" : v}`).join(" · ")}
               </span>

@@ -19,15 +19,18 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from threatlens import catalog
+from threatlens import catalog, session
 from threatlens import tlp as tlp_rules
-from threatlens.auth import Principal
+from threatlens.auth import Principal, same_origin
+from threatlens.logs import get_logger
 from threatlens.models import (
     Asset,
     ConnectorRun,
@@ -38,12 +41,13 @@ from threatlens.models import (
 )
 from threatlens.models import Observable as ObsRow
 from threatlens.settings import Settings, get_settings
-from threatlens.ui import session
+from threatlens.users import authenticate_user, login_key
 
 # Register ``api`` before ``router``: the app's catch-all route would otherwise answer /app/api/*.
 api = APIRouter(prefix="/app/api", include_in_schema=False)
 router = APIRouter(include_in_schema=False)
 
+log = get_logger("threatlens.argus")
 APP_CSP = (
     "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' data:; "
     "font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
@@ -139,9 +143,10 @@ async def app_files(request: Request, path: str) -> Response:
             raise HTTPException(
                 404, "not found"
             )  # a missing static file; anything else is an app route (scan pages end in .json)
-    # Any other path is an app route: the page needs a session.
-    if await session.principal(request, _settings(request)) is None:
-        return RedirectResponse("/ui/login?next=/app/", status_code=303)
+    # Any other path is an app route: the page needs a session, except the sign-in page.
+    if path != "login" and await session.principal(request, _settings(request)) is None:
+        here = "/app/" + path + (f"?{request.url.query}" if request.url.query else "")
+        return RedirectResponse(f"/app/login?next={quote(here, safe='/')}", status_code=303)
     return FileResponse(
         index,
         headers={
@@ -150,6 +155,61 @@ async def app_files(request: Request, path: str) -> Response:
             "Referrer-Policy": "same-origin",
         },
     )
+
+
+# ── sign in / sign out ───────────────────────────────────────────────────────
+
+
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=1, max_length=1000)
+
+
+def safe_next(nxt: str) -> str:
+    """Only Argus paths are valid post-login targets (no open redirect)."""
+    ok = nxt.startswith("/app/") and "//" not in nxt and "\\" not in nxt
+    return nxt if ok else "/app/"
+
+
+@api.post("/session")
+async def login(request: Request, body: LoginIn) -> Response:
+    """Username + password sign-in (ADR 0007): same-site only, rate-limited per
+    address and per account, a signed HttpOnly SameSite=Strict cookie."""
+    if not same_origin(request):
+        raise HTTPException(403, "cross-site sign-in refused")
+    client = request.client.host if request.client else "unknown"
+    limiter = request.app.state.limiter
+    if await limiter.hit(f"login:{client}", 10) or await limiter.hit(
+        f"login-user:{login_key(body.username)}", 10
+    ):
+        raise HTTPException(429, "Too many attempts; wait a minute.")
+    async with _sm(request)() as s, s.begin():
+        user = await authenticate_user(s, body.username, body.password)
+        tag = session.password_tag(user.password_hash) if user else ""
+        uid = user.id if user else 0
+    if user is None:
+        log.warning("argus.login_failed", user=body.username[:100], client=client)
+        raise HTTPException(401, "Wrong username or password.")
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(
+        session.COOKIE,
+        session.issue(_settings(request), uid, tag),
+        max_age=session.LIFETIME_S,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
+        path="/",
+    )
+    return resp
+
+
+@api.delete("/session")
+async def logout(request: Request) -> Response:
+    if not same_origin(request):
+        raise HTTPException(403, "cross-site request refused")
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(session.COOKIE, path="/")
+    return resp
 
 
 # ── who is signed in ─────────────────────────────────────────────────────────
@@ -419,3 +479,19 @@ async def indicators(
         for ind, obs in rows
     ]
     return {"total": int(total), "page": page, "size": size, "items": items}
+
+
+# ── the classic UI moved here (ADR 0016) ─────────────────────────────────────
+
+_RENAMED = {"lookup": "bulk", "sources": "feeds", "": ""}
+
+
+@router.get("/ui")
+@router.get("/ui/{path:path}")
+async def classic(request: Request, path: str = "") -> RedirectResponse:
+    """Old /ui addresses (bookmarks, links in reports) open the same Argus page."""
+    head, _, rest = path.partition("/")
+    target = "/app/" + "/".join(x for x in (_RENAMED.get(head, head), rest) if x)
+    if request.url.query:
+        target += "?" + request.url.query
+    return RedirectResponse(target, status_code=301)

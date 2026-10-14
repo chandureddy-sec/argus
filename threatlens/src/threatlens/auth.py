@@ -209,8 +209,8 @@ def require(role: str) -> Callable[[Request], Awaitable[Principal]]:
             async with sm() as s:
                 principal = await authenticate(s, key)
         elif request.cookies:
+            from threatlens import session  # session imports this module
             from threatlens.settings import get_settings
-            from threatlens.ui import session  # session imports this module
 
             settings = getattr(request.app.state, "settings", None) or get_settings()
             principal = await session.principal(request, settings)

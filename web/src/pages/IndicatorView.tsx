@@ -21,7 +21,9 @@ function Breakdown({ ind }: { ind: IndicatorDetail }) {
           Scored by <b>patch priority</b>: <span className="rounded bg-down/15 px-2 py-0.5 font-semibold text-down">{patch.priority}</span>
         </p>
         <p className="text-[13px] text-ink-muted">{patch.note}. Patch priority weighs exploitation in the wild (KEV), exploit likelihood (EPSS), severity and whether your own software is affected.</p>
-        <a href={`/ui/vulnerabilities/${encodeURIComponent(ind.value)}`} className="btn-ghost h-9">Open the vulnerability</a>
+        <Link to={`/vulnerabilities/${encodeURIComponent(ind.value)}`} className="btn-ghost h-9">
+          Open the vulnerability
+        </Link>
       </div>
     );
   }

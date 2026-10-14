@@ -73,7 +73,7 @@ export function FlagButtons({ values, tlp = "TLP:GREEN", onDone }: { values: str
 }
 
 /** Add evidence to an open case: an indicator by id, or values to look up. */
-export function AddToCase({ indicatorId, values }: { indicatorId?: number; values?: string[] }) {
+export function AddToCase({ indicatorId, values, cve }: { indicatorId?: number; values?: string[]; cve?: string }) {
   const cases = useV1<CaseRow[]>("cases", { status: "open" });
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
@@ -102,7 +102,11 @@ export function AddToCase({ indicatorId, values }: { indicatorId?: number; value
           setBusy(true);
           setMsg(undefined);
           try {
-            const body = indicatorId ? { kind: "indicator", ref: String(indicatorId) } : { values: values ?? [] };
+            const body = indicatorId
+              ? { kind: "indicator", ref: String(indicatorId) }
+              : cve
+                ? { kind: "vulnerability", ref: cve }
+                : { values: values ?? [] };
             await send("POST", `/api/v1/cases/${pick}/items`, body);
             setMsg({ ok: true, text: "Added", id: Number(pick) });
           } catch (e) {

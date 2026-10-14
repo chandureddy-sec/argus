@@ -5,12 +5,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type Params = Record<string, string | number | undefined>;
 
+/** The session ended: go to the sign-in page, then come back here. */
+export function toLogin(): void {
+  const here = window.location.pathname + window.location.search;
+  window.location.assign(`/app/login?next=${encodeURIComponent(here)}`);
+}
+
+export async function signOut(): Promise<void> {
+  await fetch("/app/api/session", { method: "DELETE", credentials: "same-origin" }).catch(() => undefined);
+  window.location.assign("/app/login");
+}
+
 export async function get<T>(path: string, params: Params = {}): Promise<T> {
   const url = new URL(`/app/api/${path}`, window.location.origin);
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   const r = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } });
   if (r.status === 401) {
-    window.location.assign("/ui/login?next=/app/");
+    toLogin();
     throw new Error("signed out");
   }
   if (!r.ok) throw new Error(`${r.status} ${r.statusText || "error"}`);
@@ -132,7 +143,7 @@ export async function post<T>(path: string, body: unknown = {}): Promise<T> {
     body: JSON.stringify(body),
   });
   if (r.status === 401) {
-    window.location.assign("/ui/login?next=/app/");
+    toLogin();
     throw new Error("signed out");
   }
   const data = await r.json().catch(() => ({}));
@@ -309,7 +320,7 @@ export async function send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", url: 
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (r.status === 401) {
-    window.location.assign(`/ui/login?next=${encodeURIComponent(window.location.pathname)}`);
+    toLogin();
     throw new Error("signed out");
   }
   const data = await r.json().catch(() => ({}));

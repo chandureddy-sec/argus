@@ -89,6 +89,9 @@ async def sync_all(who: Admin, request: Request) -> dict[str, Any]:
 
 @router.patch("/sources/{name}", response_model=SourceOut)
 async def set_enabled(who: Admin, request: Request, name: Name, body: EnabledIn) -> SourceOut:
+    svc = getattr(request.app.state, "enrich", None)
+    if svc is not None:  # a lookup provider may not have its row yet
+        await svc.ensure_sources()
     try:
         async with _sm(request)() as s, s.begin():
             src = await catalog.set_enabled(s, name, body.enabled, actor=who.name)

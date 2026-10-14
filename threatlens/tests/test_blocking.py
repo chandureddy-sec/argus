@@ -329,91 +329,63 @@ async def test_blocks_api(app: App) -> None:
     ] == "lifted"
 
 
-async def test_blocklist_page_flow(app: App) -> None:
+async def test_blocklist_flow_through_argus(app: App) -> None:
     await _admins(app)
     await app.login("anna")
-    typed = {"text": f"{FREE}\n10.0.0.1\nevil-c2[.]top", "note": "from alert 9"}
-    r = await app.c.post("/ui/blocklist", data=typed, headers=SAME)
-    assert r.status_code == 200
-    assert "2 blocked" in r.text
-    assert "never blocked: a private or reserved address" in r.text
-    assert "evil-c2[.]top" in r.text  # values are shown defanged
-    async with app.sm() as s:
-        b = await s.scalar(select(Block).where(Block.value == FREE))
-    assert b is not None
-    assert (await app.c.post(f"/ui/blocklist/{b.id}/request", data={}, headers=SAME)).status_code == 303
-    page = await app.c.get("/ui/blocklist?view=pending")
-    assert "awaiting approval" in page.text
-    assert f"/ui/blocklist/{b.id}/approve" not in page.text  # an analyst can't approve
-    assert (await app.c.post(f"/ui/blocklist/{b.id}/approve", headers=SAME)).status_code == 403
+    made = await app.c.post("/api/v1/blocks", json={"value": FREE, "note": "from alert 9"}, headers=SAME)
+    assert made.status_code == 201
+    bid = made.json()["id"]
+    private = await app.c.post("/api/v1/blocks", json={"value": "10.0.0.1"}, headers=SAME)
+    assert private.status_code == 422
+    assert "private or reserved" in private.json()["detail"]
+    again = await app.c.post("/api/v1/blocks", json={"value": FREE}, headers=SAME)
+    assert again.status_code == 422
+    assert "already blocked" in again.json()["detail"]
+    asked = await app.c.post(f"/api/v1/blocks/{bid}/request-enforce", headers=SAME)
+    assert asked.json()["state"] == "pending"
+    assert (await app.c.post(f"/api/v1/blocks/{bid}/approve", headers=SAME)).status_code == 403  # analyst
     await app.login("ada")
-    assert f"/ui/blocklist/{b.id}/approve" in (await app.c.get("/ui/blocklist?view=pending")).text
-    assert (await app.c.post(f"/ui/blocklist/{b.id}/approve", headers=SAME)).status_code == 303
-    assert "approved by ada" in (await app.c.get("/ui/blocklist?view=enforce")).text
-    # cross-site posts and viewers are refused
-    assert (
-        await app.c.post(f"/ui/blocklist/{b.id}/lift", headers={"Sec-Fetch-Site": "cross-site"})
-    ).status_code == 403
+    approved = await app.c.post(f"/api/v1/blocks/{bid}/approve", headers=SAME)
+    assert (approved.json()["state"], approved.json()["approved_by"]) == ("enforce", "ada")
+    cross = await app.c.post(f"/api/v1/blocks/{bid}/lift", json={}, headers={"Sec-Fetch-Site": "cross-site"})
+    assert cross.status_code == 403
     await app.login("vera")
     assert (
-        await app.c.post("/ui/blocklist", data={"text": "185.220.101.40"}, headers=SAME)
+        await app.c.post("/api/v1/blocks", json={"value": "185.220.101.40"}, headers=SAME)
     ).status_code == 403
-    assert "Block now" not in (await app.c.get("/ui/blocklist")).text
 
 
-async def test_block_from_indicator_and_lookup(app: App) -> None:
-    ind = await app.ind(LIVE)
-    await app.login("anna")
-    page = await app.c.get(f"/ui/indicators/{ind.id}")
-    assert "Block (monitor)" in page.text
-    r = await app.c.post(
-        "/ui/blocklist",
-        data={"values": LIVE, "origin": "indicator", "next": f"/ui/indicators/{ind.id}"},
-        headers=SAME,
-    )
-    assert (r.status_code, r.headers["location"]) == (303, f"/ui/indicators/{ind.id}")
-    assert "blocked · monitor" in (await app.c.get(f"/ui/indicators/{ind.id}")).text
-    looked = await app.c.post("/ui/lookup", data={"text": f"{LIVE} 185.220.101.41"}, headers=SAME)
-    assert 'formaction="/ui/blocklist"' in looked.text
-    r = await app.c.post(
-        "/ui/blocklist", data={"values": [LIVE, "185.220.101.41"], "origin": "lookup"}, headers=SAME
-    )
-    assert "1 blocked" in r.text
-    assert "already blocked" in r.text
-    elsewhere = await app.c.post(
-        "/ui/blocklist", data={"values": "185.220.101.42", "next": "https://evil-c2.top/"}, headers=SAME
-    )
-    assert elsewhere.status_code == 200  # blocked, but no redirect off the UI
-
-
-async def test_never_block_and_settings_pages(app: App) -> None:
+async def test_never_block_and_settings(app: App) -> None:
     await _admins(app)
     await app.login("anna")
-    assert (await app.c.post("/ui/blocklist/never", data={"value": "185.220.101.0/24", "reason": "office"},
-                             headers=SAME)).status_code == 403  # fmt: skip
-    settings = await app.c.get("/ui/settings")
-    assert settings.status_code == 200
-    assert "Read only" in settings.text
-    assert (await app.c.post("/ui/settings/tokens", data={"name": "fw"}, headers=SAME)).status_code == 403
+    office = {"value": "185.220.101.0/24", "reason": "office egress"}
+    assert (await app.c.post("/app/api/neverblock", json=office, headers=SAME)).status_code == 403
+    assert (await app.c.get("/app/api/settings")).json()["canEdit"] is False
+    assert (
+        await app.c.post("/app/api/settings/tokens", json={"name": "fw"}, headers=SAME)
+    ).status_code == 403
     await app.login("ada")
-    r = await app.c.post("/ui/blocklist/never", data={"value": "185.220.101.0/24", "reason": "office egress"},
-                         headers=SAME)  # fmt: skip
-    assert r.status_code == 303
-    assert "office egress" in (await app.c.get("/ui/blocklist")).text
-    refused = await app.c.post("/ui/blocklist", data={"text": "185.220.101.9"}, headers=SAME)
-    assert "office egress" in refused.text
-    bad = await app.c.post("/ui/settings", data={"known_bad_days": 0, "suspect_days": 6, "manual_days": 30,
-                           "known_bad_score": 60, "export_max_tlp": "TLP:AMBER"}, headers=SAME)  # fmt: skip
+    assert (await app.c.post("/app/api/neverblock", json=office, headers=SAME)).json()["kind"] == "cidr"
+    refused = await app.c.post("/api/v1/blocks", json={"value": "185.220.101.9"}, headers=SAME)
+    assert refused.status_code == 422
+    assert "office egress" in refused.json()["detail"]
+    policy = (await app.c.get("/app/api/settings")).json()["policy"]
+    bad = await app.c.put("/app/api/settings/policy", json=policy | {"known_bad_days": 0}, headers=SAME)
     assert bad.status_code == 422
-    ok = await app.c.post("/ui/settings", data={"known_bad_days": 14, "suspect_days": 3, "manual_days": 30,
-                          "known_bad_score": 70, "export_max_tlp": "TLP:GREEN"}, headers=SAME)  # fmt: skip
-    assert ok.status_code == 303
+    new = policy | {
+        "known_bad_days": 14,
+        "suspect_days": 3,
+        "known_bad_score": 70,
+        "export_max_tlp": "TLP:GREEN",
+        "require_second_approver": False,
+    }
+    assert (await app.c.put("/app/api/settings/policy", json=new, headers=SAME)).status_code == 200
     async with app.sm() as s:
         p = await blocking.get_policy(s)
     assert (p["known_bad_days"], p["known_bad_score"], p["require_second_approver"]) == (14, 70, False)
-    made = await app.c.post("/ui/settings/tokens", data={"name": "hq-fw"}, headers=SAME)
+    made = await app.c.post("/app/api/settings/tokens", json={"name": "hq-fw"}, headers=SAME)
     assert made.headers["cache-control"] == "no-store"
-    token = made.text.split("/feeds/")[1].split("/")[0]
+    token = made.json()["token"]
     assert token.startswith("tlf_")
-    assert token not in (await app.c.get("/ui/settings")).text  # shown once
+    assert token not in (await app.c.get("/app/api/settings")).text  # shown once
     assert (await app.c.get(f"/feeds/{token}/ip.txt")).status_code == 200

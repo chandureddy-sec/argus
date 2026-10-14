@@ -12,7 +12,7 @@ import { usePage } from "../lib/page";
 
 function Item({ it, canEdit, onRemove }: { it: CaseItem; canEdit: boolean; onRemove: () => void }) {
   const snap = it.snapshot as { verdict?: string; priority?: number; sources?: string[]; indicator_id?: number };
-  const href = it.kind === "indicator" && snap.indicator_id ? `/indicators/${snap.indicator_id}` : it.kind === "vulnerability" ? `/ui/vulnerabilities/${encodeURIComponent(it.ref)}` : null;
+  const href = it.kind === "indicator" && snap.indicator_id ? `/indicators/${snap.indicator_id}` : it.kind === "vulnerability" ? `/vulnerabilities/${encodeURIComponent(it.ref)}` : it.kind === "entity" ? `/entities/${encodeURIComponent(it.ref)}` : null;
   return (
     <li className="flex flex-wrap items-start gap-3 px-5 py-4 sm:px-6">
       <span className="w-24 shrink-0 pt-0.5 text-[11.5px] uppercase tracking-wide text-ink-faint">{it.kind}</span>
@@ -22,12 +22,10 @@ function Item({ it, canEdit, onRemove }: { it: CaseItem; canEdit: boolean; onRem
         ) : (
           <>
             <p className="flex flex-wrap items-center gap-2">
-              {href && !href.startsWith("/ui") ? (
+              {href ? (
                 <Link to={href} className="hover:text-accent-soft">
                   <Ioc value={it.label} className="text-[13.5px]" />
                 </Link>
-              ) : href ? (
-                <a href={href} className="hover:text-accent-soft"><Ioc value={it.label} className="text-[13.5px]" /></a>
               ) : (
                 <Ioc value={it.label} className="text-[13.5px]" />
               )}

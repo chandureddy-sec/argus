@@ -28,11 +28,11 @@ class Web:
         self.c, self.sm = c, sm
 
     async def login(self, user: str) -> None:
-        await self.c.post("/ui/logout", headers=SAME)
+        await self.c.delete("/app/api/session", headers=SAME)
         r = await self.c.post(
-            "/ui/login", data={"username": user, "password": user + "-password"}, headers=SAME
+            "/app/api/session", json={"username": user, "password": user + "-password"}, headers=SAME
         )
-        assert r.status_code == 303
+        assert r.status_code == 200
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ async def web(seeded: SM, dist: Path) -> AsyncIterator[Web]:  # noqa: F811
 async def test_the_app_needs_a_session_but_its_files_do_not(web: Web) -> None:
     r = await web.c.get("/app/")
     assert r.status_code == 303
-    assert r.headers["location"] == "/ui/login?next=/app/"
+    assert r.headers["location"] == "/app/login?next=/app/"
     js = await web.c.get("/app/assets/app.js")
     assert js.status_code == 200
     assert "immutable" in js.headers["cache-control"]
@@ -78,11 +78,11 @@ async def test_the_app_needs_a_session_but_its_files_do_not(web: Web) -> None:
     assert (await web.c.get("/")).headers["location"] == "/app/"
 
     r = await web.c.post(
-        "/ui/login",
-        data={"username": "chandu reddy", "password": "chandu reddy-password", "next": "/app/"},
+        "/app/api/session",
+        json={"username": "chandu reddy", "password": "chandu reddy-password"},
         headers=SAME,
     )
-    assert r.headers["location"] == "/app/"  # sign-in comes back to Argus
+    assert r.status_code == 200
     page = await web.c.get("/app/")
     assert page.status_code == 200
     assert 'id="root"' in page.text

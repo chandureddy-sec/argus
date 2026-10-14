@@ -115,12 +115,12 @@ reconx keys unset urlscan
 Keys are saved to `%AppData%\reconx\keys.json` (Windows) or
 `~/.config/reconx/keys.json` (Linux/macOS) with owner-only permissions
 (override the path with `RECONX_KEYS_FILE`). An environment variable that is
-already set always wins over the stored key. The dashboard's **Settings** page
-does the same.
+already set always wins over the stored key. Argus (the web UI) manages the
+engine's keys the same way.
 
 ### Raw response archive
 
-`reconx scan example.com --archive-raw` (or the dashboard checkbox) saves every
+`reconx scan example.com --archive-raw` (or the Argus New scan option) saves every
 raw HTTP response the passive sources return to
 `reports/raw/<scan name>/`, with a `manifest.json` listing URL, status, size and
 SHA-256 for each. Request headers are never written and key-like URL
@@ -150,9 +150,9 @@ potential dangling DNS, weakened SPF/DMARC, and hosts or IPs that ThreatLens
 newly flags (when it is configured). The first run saves a baseline.
 Alerts are logged to `reports/monitor/alerts.jsonl`. Slack, Discord and Teams
 webhook URLs get chat-formatted messages; any other URL receives JSON
-(`{"text": …, "alert": {…}}`). Monitors run while `reconx serve` is open
-(disable with `--no-monitor`) or under `reconx monitor daemon`; the dashboard's
-**Monitoring** page manages them.
+(`{"text": …, "alert": {…}}`). Monitors run while the engine (`reconx serve`, which the Argus stack runs) is up
+(disable with `--no-monitor`) or under `reconx monitor daemon`; Argus's
+**Monitors** page manages them.
 
 ### Threat intel from ThreatLens
 
@@ -168,16 +168,20 @@ reconx scan example.com --threatlens --threatlens-assets  # also import as YOUR 
 
 Each host and IP gets a verdict (malicious / suspicious / benign / unknown), a score, the
 evidence and a recommended action. They are shown in the terminal (flagged ones), the JSON,
-HTML and Markdown reports, and the dashboard's **Threat Intel** tab. `--threatlens-tlp
+HTML and Markdown reports. `--threatlens-tlp
 TLP:AMBER` keeps the values on the ThreatLens server (no third-party lookups).
 `--threatlens-assets` is only for targets you own: ThreatLens then lists your hosts that a feed
 reports, treats lookups of them as "investigate, don't block", and adds the software Shodan saw on
 them to your tech stack. Monitors include the check automatically when ThreatLens is configured
 (rule `threat_intel_flagged`). Design: `threatlens/docs/adr/0006-reconx-link.md`.
 
-### Dashboard visualisations
+### Argus: the web UI
 
-Each scan's detail view has a **Graph** tab (domain → hosts → CNAMEs → IPs →
+ReconX's web dashboard is now **Argus**, the unified ReconX + ThreatLens UI
+(`threatlens/`, `.	l up`, then http://127.0.0.1:8000/app/). `reconx serve` is the
+engine API that Argus drives; it has no user accounts, so never expose it.
+
+Each scan's page in Argus has a **Graph** tab (domain → hosts → CNAMEs → IPs →
 ASNs → likely providers, plus nameservers and mail servers; drag, Ctrl+scroll
 to zoom, click to focus) and a **Map** tab (IP geolocation, coloured by
 Shodan exposure). The graph exports as GraphML (Gephi, yEd) or JSON; HTML and

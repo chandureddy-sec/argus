@@ -1,6 +1,7 @@
 import { CheckCircle2, Download, Globe2, Loader2, Save, Search, Server } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import InfraGraph from "../components/InfraGraph";
 import { ModePill, SevPill } from "../components/recon";
 import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, Segmented, token } from "../components/ui";
@@ -8,7 +9,7 @@ import { post, useApi, useText, type GeoPoint, type Me, type Report } from "../l
 import { dateTime } from "../lib/format";
 import { usePage } from "../lib/page";
 
-const TABS = ["Hosts", "Findings", "Ports", "Map", "Sources", "Downloads"] as const;
+const TABS = ["Hosts", "Graph", "Findings", "Ports", "Map", "Sources", "Downloads"] as const;
 type Tab = (typeof TABS)[number];
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
 
@@ -241,7 +242,9 @@ export default function ScanView({ me }: { me?: Me }) {
   const { data: rep, error, reload } = useApi<Report>("recon/report", { ref });
   const target = rep?.target?.value ?? "Scan";
   usePage("Attack surface", "Scans", target);
-  const [tab, setTab] = useState<Tab>("Hosts");
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = (TABS as readonly string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as Tab) : "Hosts";
+  const setTab = (t: Tab) => setParams(t === "Hosts" ? {} : { tab: t }, { replace: true });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>();
   const unsaved = ref.startsWith("job:");
@@ -334,6 +337,8 @@ export default function ScanView({ me }: { me?: Me }) {
           <Skeleton className="mx-6 mb-6 h-64" />
         ) : tab === "Hosts" ? (
           <Hosts rep={rep} />
+        ) : tab === "Graph" ? (
+          <InfraGraph refId={ref} />
         ) : tab === "Findings" ? (
           <Findings rep={rep} />
         ) : tab === "Ports" ? (

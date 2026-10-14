@@ -18,7 +18,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from tests.conftest import FIXTURES
 from tests.test_collect import Clock, collector, feed_handler
 from tests.test_enrich import Upstream
-from tests.uihelp import only_our_script
 from threatlens.api.app import create_app
 from threatlens.assets import (
     ImportFormatError,
@@ -309,23 +308,22 @@ async def test_lookup_of_an_own_asset_says_investigate(api: Api) -> None:
     assert other.json()["asset"] is None
 
 
-async def test_assets_page(api: Api) -> None:
+async def test_assets_through_the_argus_session(api: Api) -> None:
     async with api.sm() as s, s.begin():
         await create_user(s, "ui", "ui-password", "analyst")
     r = await api.client.post(
-        "/ui/login",
-        data={"username": "ui", "password": "ui-password", "next": "/ui/assets"},
+        "/app/api/session",
+        json={"username": "ui", "password": "ui-password"},
         headers={"Sec-Fetch-Site": "same-origin"},
     )
-    assert r.status_code == 303
-    empty = await api.client.get("/ui/assets")
-    assert "No assets yet" in empty.text
+    assert r.status_code == 200
+    assert (await api.client.get("/api/v1/assets")).json()["total"] == 0
     await do_import(api.sm, scan())
-    html = (await api.client.get("/ui/assets")).text
-    assert "162.243.103.246" in html
-    assert "listed" in html
-    assert "http server" in html  # observed stack panel
-    assert only_our_script(html)
+    page = (await api.client.get("/api/v1/assets")).json()
+    assert page["items"][0]["value"] == "162.243.103.246"
+    assert page["items"][0]["indicator"]["sources"] == ["feodo"]  # listed by a feed
+    products = (await api.client.get("/api/v1/assets/products")).json()
+    assert "http_server" in {p["product"] for p in products}  # observed stack
 
 
 def test_cli_import(

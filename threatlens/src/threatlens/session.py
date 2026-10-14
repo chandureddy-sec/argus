@@ -24,7 +24,7 @@ from threatlens.logs import get_logger
 from threatlens.models import User
 from threatlens.settings import Settings
 
-log = get_logger("threatlens.ui")
+log = get_logger("threatlens.session")
 
 COOKIE = "tl_user"
 LIFETIME_S = 12 * 3600

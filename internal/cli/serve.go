@@ -3,18 +3,14 @@ package cli
 import (
 	"context"
 	"crypto/rand"
-	"embed"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/fs"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,9 +29,6 @@ import (
 	"reconx/pkg/models"
 )
 
-//go:embed webui/*
-var webUI embed.FS
-
 var (
 	servePort      int
 	serveHost      string
@@ -45,10 +38,12 @@ var (
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",
-	Short: "Launch the ReconX web dashboard (history, stats, and new scans) in your browser",
-	Long: `Serve starts a local web server and opens the ReconX dashboard in your browser.
-From there you can review previous scans and launch new passive, active, or combined
-scans with live progress. The server binds to localhost only.`,
+	Short: "Run the ReconX engine API (scans, live progress, history, monitors) for Argus",
+	Long: `Serve starts the ReconX engine: a JSON API for scans with live progress, scan
+history, comparisons and scheduled monitors. Its dashboard is Argus, the unified
+ReconX + ThreatLens front end, which runs the engine for you in its Docker stack
+(.\tl up in threatlens/). The server binds to localhost unless told otherwise; it has
+no user accounts, so never expose it: Argus adds sign-in, roles and audit in front.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		srv := newWebServer()
 		addr := net.JoinHostPort(serveHost, fmt.Sprintf("%d", servePort))
@@ -59,13 +54,9 @@ scans with live progress. The server binds to localhost only.`,
 		}
 
 		url := fmt.Sprintf("http://%s", addr)
-		fmt.Printf("\n  ReconX dashboard running at  %s\n", url)
-		fmt.Printf("  Session token: %s\n", srv.token)
+		fmt.Printf("\n  ReconX engine API at  %s\n", url)
+		fmt.Printf("  The dashboard is Argus (http://127.0.0.1:8000/app/ in the ThreatLens stack).\n")
 		fmt.Printf("  Press Ctrl+C to stop.\n\n")
-
-		if !serveNoOpen {
-			openBrowser(url)
-		}
 
 		if serveNoMonitor {
 			fmt.Printf("  Monitor scheduler: off (--no-monitor); \"Run now\" still works.\n\n")
@@ -83,7 +74,7 @@ scans with live progress. The server binds to localhost only.`,
 func init() {
 	serveCmd.Flags().IntVar(&servePort, "port", 8787, "port to serve the dashboard on")
 	serveCmd.Flags().StringVar(&serveHost, "host", "127.0.0.1", "host/interface to bind (keep localhost for safety)")
-	serveCmd.Flags().BoolVar(&serveNoOpen, "no-open", false, "do not auto-open the browser")
+	serveCmd.Flags().BoolVar(&serveNoOpen, "no-open", false, "kept for compatibility; the engine never opens a browser")
 	serveCmd.Flags().BoolVar(&serveNoMonitor, "no-monitor", false, "do not run scheduled monitors while serving")
 }
 
@@ -121,15 +112,6 @@ func (s *webServer) routes() http.Handler {
 	mux.HandleFunc("/api/alerts", s.handleAlerts)     // ?target=&limit=
 	mux.HandleFunc("/api/keys", s.handleKeys)         // GET status, POST {name,value}
 	mux.HandleFunc("/api/keys/test", s.handleKeyTest) // POST {name}
-	if static, err := fs.Sub(webUI, "webui"); err == nil {
-		// Embedded files carry no modification time, so browsers would cache
-		// them heuristically and keep stale scripts after an upgrade.
-		files := http.StripPrefix("/static/", http.FileServer(http.FS(static)))
-		mux.Handle("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "no-cache")
-			files.ServeHTTP(w, r)
-		}))
-	}
 	return mux
 }
 
@@ -138,14 +120,9 @@ func (s *webServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	data, err := webUI.ReadFile("webui/index.html")
-	if err != nil {
-		http.Error(w, "UI not found", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(data)
+	_, _ = io.WriteString(w, "ReconX engine API. Its dashboard is Argus: open http://127.0.0.1:8000/app/ (the ThreatLens stack runs this engine for you).\n")
 }
 
 // handleConfig returns the session token the page must echo back on POSTs.
@@ -846,18 +823,4 @@ func randomToken() string {
 // isSafeReportName blocks path traversal in user-supplied report names.
 func isSafeReportName(name string) bool {
 	return name != "" && !strings.ContainsAny(name, `/\`) && !strings.Contains(name, "..")
-}
-
-// openBrowser attempts to open url in the default browser, best-effort.
-func openBrowser(url string) {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	_ = cmd.Start()
 }

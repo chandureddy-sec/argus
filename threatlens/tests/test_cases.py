@@ -1,12 +1,8 @@
 """Phase 5 analyst experience: cases (TLP, evidence snapshots, exports),
-notes, saved searches, bulk lookup with CSV, search, the new dashboard, and the
-strict-CSP rule that no page uses inline styles."""
+notes, saved searches, and the Argus landscape, bulk check and search."""
 
 from __future__ import annotations
 
-import csv
-import io
-import re
 from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
 
@@ -17,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.test_collect import Clock
 from tests.test_enrich import KEYS, Upstream, http, seeded, upstream  # noqa: F401  # fixtures
-from tests.uihelp import only_our_script
 from threatlens import cases as case_store
+from threatlens import dashboard
 from threatlens.api.app import create_app
 from threatlens.auth import MemoryRateLimiter, create_key
 from threatlens.enrich.quota import MemoryQuotaStore
@@ -27,8 +23,6 @@ from threatlens.models import AuditLog, Case, Indicator
 from threatlens.models import Observable as ObsRow
 from threatlens.net.http import SafeHttp
 from threatlens.settings import Settings
-from threatlens.ui import data as ui_data
-from threatlens.ui.work import _csv_cell
 from threatlens.users import create_user
 
 SM = async_sessionmaker[AsyncSession]
@@ -47,11 +41,11 @@ class App:
         return {"X-API-Key": self.keys[who]}
 
     async def login(self, user: str) -> None:
-        await self.c.post("/ui/logout", headers=SAME)
+        await self.c.delete("/app/api/session", headers=SAME)
         r = await self.c.post(
-            "/ui/login", data={"username": user, "password": user + "-password"}, headers=SAME
+            "/app/api/session", json={"username": user, "password": user + "-password"}, headers=SAME
         )
-        assert r.status_code == 303
+        assert r.status_code == 200
 
     async def ind(self, value: str) -> Indicator:
         async with self.sm() as s:
@@ -181,43 +175,17 @@ def test_saved_searches_stay_inside_the_ui(query: str, ok: bool) -> None:
             case_store.check_query(query)
 
 
-@pytest.mark.parametrize(
-    ("cell", "safe"),
-    [
-        ("=HYPERLINK(1)", "'=HYPERLINK(1)"),
-        ("+1", "'+1"),
-        ("-2", "'-2"),
-        ("@x", "'@x"),
-        ("1.2.3.4", "1.2.3.4"),
-        (None, ""),
-        (72.5, "72.5"),
-    ],
-)
-def test_csv_cells_cannot_become_formulas(cell: object, safe: str) -> None:
-    assert _csv_cell(cell) == safe
+# ── Argus ────────────────────────────────────────────────────────────────────
 
 
-# ── UI ───────────────────────────────────────────────────────────────────────
-
-
-async def test_dashboard_shows_the_new_panels(app: App) -> None:
+async def test_landscape_has_the_queue_pirs_and_patch_panels(app: App) -> None:
     await app.login("vera")
-    r = await app.c.get("/ui")
-    assert r.status_code == 200
-    for text in (
-        "Malicious · block",
-        "New high-priority",
-        "Patch now · P1",
-        "Feeds healthy",
-        "Verdict mix",
-        "Priority queue",
-        "Intelligence requirements",
-        "Feed reliability",
-        "PIR-1",
-    ):
-        assert text in r.text, text
-    assert r.text.count('class="gauge"') == 3
-    assert "50[.]16[.]16[.]211" in r.text  # the live C2 tops the queue
+    d = (await app.c.get("/app/api/landscape")).json()
+    assert d["queue"][0]["value"] == "50[.]16[.]16[.]211"  # the live C2 tops the queue
+    assert d["queue"][0]["action"] == "block"
+    assert [p["priority"] for p in d["patch"]] == ["P1", "P2", "P3", "P4"]
+    assert any(p["id"] == "PIR-1" for p in d["pirs"])
+    assert all(f["href"].startswith("/") and not f["href"].startswith("/ui") for f in d["families"])
 
 
 async def test_activity_feed_respects_clearance(app: App) -> None:
@@ -229,35 +197,18 @@ async def test_activity_feed_respects_clearance(app: App) -> None:
             s, title="Red operation", actor="anna", tlp="TLP:RED", clearance="TLP:RED"
         )
     await app.login("vera")  # viewer: TLP:GREEN
-    r = await app.c.get("/ui")
-    assert "Activity" in r.text
-    assert "Green triage" in r.text
-    assert "Red operation" not in r.text
+    titles = [e["title"] for e in (await app.c.get("/app/api/landscape")).json()["activity"]]
+    assert "Green triage" in titles
+    assert "Red operation" not in titles
     await app.login("anna")  # analyst: TLP:AMBER+STRICT
-    assert "Red operation" not in (await app.c.get("/ui")).text
-
-
-async def test_calendar_month_navigation(app: App) -> None:
-    now = datetime.now(UTC)
-    async with app.sm() as s, s.begin():
-        await s.execute(update(Indicator).values(created_at=now))
-    await app.login("vera")
-    r = await app.c.get("/ui")
-    assert now.strftime("%B %Y") in r.text
-    assert re.search(r'<td class="l[1-4] today"', r.text)
-    assert 'aria-label="Next month"' not in r.text  # nothing after the current month
-    old = await app.c.get("/ui?month=2001-02")
-    assert "February 2001" in old.text
-    assert 'href="/ui?month=2001-03#calendar"' in old.text
-    assert 'href="/ui?month=2001-01#calendar"' in old.text
-    for bad in ("2099-12", "nonsense", "2026-13", "1999-01"):
-        assert now.strftime("%B %Y") in (await app.c.get(f"/ui?month={bad}")).text, bad
+    titles = [e["title"] for e in (await app.c.get("/app/api/landscape")).json()["activity"]]
+    assert "Red operation" not in titles
 
 
 async def test_month_calendar_grid(app: App) -> None:
     now = datetime(2026, 10, 11, 12, tzinfo=UTC)
     async with app.sm() as s:
-        c = await ui_data.month_calendar(s, now, "TLP:RED")
+        c = await dashboard.month_calendar(s, now, "TLP:RED")
     assert c["label"] == "October 2026"
     assert all(len(w) == 7 for w in c["weeks"])
     first = c["weeks"][0]
@@ -270,163 +221,44 @@ async def test_month_calendar_grid(app: App) -> None:
     assert not any(x["future"] for x in days[:11])
     assert c["prev"] == "2026-09"
     assert c["next"] is None
-    assert ui_data.parse_month("2026-02") == date(2026, 2, 1)
-    assert ui_data.parse_month("2026-2-1") is None
+    assert dashboard.parse_month("2026-02") == date(2026, 2, 1)
+    assert dashboard.parse_month("2026-2-1") is None
 
 
-async def test_no_page_uses_inline_styles(app: App) -> None:
-    """The UI's CSP forbids inline styles: every page must style through app.css."""
-    ind = await app.ind(LIVE)
-    await app.login("anna")
-    async with app.sm() as s, s.begin():
-        c = await case_store.create_case(s, title="t", actor="anna", clearance="TLP:RED")
-    pages = [
-        "/ui",
-        "/ui/indicators",
-        f"/ui/indicators/{ind.id}",
-        "/ui/lookup",
-        "/ui/cases",
-        f"/ui/cases/{c.id}",
-        f"/ui/cases/{c.id}/print",
-        "/ui/search",
-        "/ui/search?q=50.16&show=all",
-        "/ui/vulnerabilities",
-        "/ui/sources",
-        "/ui/assets",
-        "/ui/attack",
-        "/ui/blocklist",
-        "/ui/blocklist?view=all",
-        "/ui/settings",
-    ]
-    for path in pages:
-        r = await app.c.get(path)
-        assert r.status_code == 200, path
-        assert not re.search(r'\sstyle="', r.text), path
-        assert only_our_script(r.text), path
-    font = await app.c.get("/ui/static/fonts/inter-latin.woff2")
-    assert font.status_code == 200
-    assert font.content[:4] == b"wOF2"
-
-
-async def test_bulk_lookup_page_and_csv(app: App) -> None:
+async def test_bulk_check_rules(app: App) -> None:
     alert = (
         "EDR: host-17 beaconed to 50.16.16[.]211 and 162.243.103.246; "
         "also hxxp://evil-example[.]com/x and 10.0.0.5"
     )
     await app.login("vera")
-    assert (
-        await app.c.post("/ui/lookup", data={"text": alert}, headers=SAME)
-    ).status_code == 403  # viewers read
+    assert (await app.c.post("/app/api/bulk/stream", data={"text": alert}, headers=SAME)).status_code == 403
     await app.login("anna")
-    r = await app.c.post("/ui/lookup", data={"text": alert}, headers=SAME)
+    r = await app.c.post("/app/api/bulk/stream", data={"text": alert}, headers=SAME)
     assert r.status_code == 200
-    assert "no provider asked" in r.text
-    assert app.calls == []  # no provider asked
+    assert app.calls == []  # providers are off unless asked
     assert "50[.]16[.]16[.]211" in r.text
     assert "10[.]0[.]0[.]5" not in r.text  # private: never looked up
-    out = await app.c.post("/ui/lookup", data={"text": alert, "format": "csv"}, headers=SAME)
-    assert out.headers["content-type"].startswith("text/csv")
-    assert "attachment" in out.headers["content-disposition"]
-    rows = list(csv.reader(io.StringIO(out.text)))
-    assert rows[0][:3] == ["value_defanged", "type", "verdict"]
-    first = rows[1]
-    assert (first[0], first[2], first[4]) == ("50[.]16[.]16[.]211", "malicious", "block")  # worst first
-    assert (await app.c.post("/ui/lookup", data={"text": "nothing here"}, headers=SAME)).status_code == 422
-    many = "\n".join(f"8.8.{i // 250}.{i % 250 + 1}" for i in range(501))
-    too_many = await app.c.post("/ui/lookup", data={"text": many}, headers=SAME)
-    assert too_many.status_code == 422
-    assert "at most 500" in too_many.text
-    cross = await app.c.post("/ui/lookup", data={"text": alert}, headers={"Sec-Fetch-Site": "cross-site"})
-    assert cross.status_code == 403
-
-
-async def test_case_flow_from_alert_to_documented_verdict(app: App) -> None:
-    ind = await app.ind(LIVE)
-    await app.login("anna")
-    r = await app.c.post(
-        "/ui/cases",
-        data={"title": "Beacon from host-17", "severity": "high", "indicator_id": str(ind.id)},
-        headers=SAME,
-    )
-    assert r.status_code == 303
-    case_url = r.headers["location"]
-    case_id = int(case_url.rsplit("/", 1)[1])
-    added = await app.c.post(
-        "/ui/cases/add",
-        data={
-            "case": str(case_id),
-            "values": ["162.243.103.246", "hxxp://new-thing-login[.]com/a"],
-            "note": "from the alert",
-        },
-        headers=SAME,
-    )
-    assert added.status_code == 303
-    await app.c.post(
-        f"/ui/cases/{case_id}/items",
-        data={"kind": "note", "note": "Host owner confirmed."},
-        headers=SAME,
-    )
-    await app.c.post(
-        f"/ui/cases/{case_id}",
-        data={"conclusion": "True positive: blocked, host reimaged."},
-        headers=SAME,
-    )
-    page = await app.c.get(case_url)
-    assert "50[.]16[.]16[.]211" in page.text
-    assert "new-thing-login[.]com" in page.text  # not an indicator: added as an observable
-    assert "Host owner confirmed." in page.text
-    md = await app.c.get(f"/ui/cases/{case_id}/export.md")
-    assert md.headers["content-disposition"] == f'attachment; filename="case-{case_id}.md"'
-    assert md.text.startswith("**TLP:AMBER**")
-    assert "True positive: blocked, host reimaged." in md.text
-    assert re.search(r"malicious; priority \d+; sources: feodo", md.text)
-    prt = await app.c.get(f"/ui/cases/{case_id}/print")
-    assert "Save as PDF" in prt.text
-    closed = await app.c.post(f"/ui/cases/{case_id}", data={"status": "closed"}, headers=SAME)
-    assert closed.status_code == 303
-    late = await app.c.post(f"/ui/cases/{case_id}/items", data={"kind": "note", "note": "x"}, headers=SAME)
-    assert late.status_code == 422
-    cross = await app.c.post(
-        f"/ui/cases/{case_id}", data={"status": "open"}, headers={"Sec-Fetch-Site": "cross-site"}
-    )
-    assert cross.status_code == 403
-    await app.login("vera")
     assert (
-        await app.c.post(f"/ui/cases/{case_id}", data={"status": "open"}, headers=SAME)
-    ).status_code == 403
-    assert (await app.c.get(case_url)).status_code == 404  # an AMBER case; viewers read GREEN
-
-
-async def test_notes_and_saved_searches(app: App) -> None:
-    ind = await app.ind(LIVE)
-    await app.login("anna")
-    r = await app.c.post(
-        f"/ui/indicators/{ind.id}/notes", data={"body": "Seen in proxy logs at 09:12."}, headers=SAME
+        await app.c.post("/app/api/bulk/stream", data={"text": "nothing here"}, headers=SAME)
+    ).status_code == 422
+    many = "\n".join(f"8.8.{i // 250}.{i % 250 + 1}" for i in range(501))
+    too_many = await app.c.post("/app/api/bulk/stream", data={"text": many}, headers=SAME)
+    assert too_many.status_code == 422
+    assert "at most 500" in too_many.json()["detail"]
+    cross = await app.c.post(
+        "/app/api/bulk/stream", data={"text": alert}, headers={"Sec-Fetch-Site": "cross-site"}
     )
-    assert r.status_code == 303
-    assert "Seen in proxy logs at 09:12." in (await app.c.get(f"/ui/indicators/{ind.id}")).text
-    saved = await app.c.post(
-        "/ui/searches",
-        data={"name": "Live C2", "query": "/ui/indicators?source=feodo&status=active"},
-        headers=SAME,
-    )
-    assert saved.status_code == 303
-    page = await app.c.get("/ui/search")
-    assert "Live C2" in page.text
-    bad = await app.c.post("/ui/searches", data={"name": "x", "query": "https://evil.example/"}, headers=SAME)
-    assert bad.status_code == 422
-    await app.login("vera")  # saved searches are per account
-    assert "Live C2" not in (await app.c.get("/ui/search")).text
+    assert cross.status_code == 403
 
 
 async def test_search_lists_by_tag_and_entity(app: App) -> None:
     await app.login("vera")
     async with app.sm() as s, s.begin():
         await s.execute(update(Indicator).values(labels=["botnet-c2", "qakbot"]))
-    r = await app.c.get("/ui/search", params={"q": "tag:qakbot"})
-    assert r.status_code == 200
-    assert "50[.]16[.]16[.]211" in r.text
-    assert "QakBot" in (await app.c.get("/ui/search", params={"q": "qak", "show": "all"})).text
+    r = (await app.c.get("/app/api/search", params={"q": "tag:qakbot"})).json()
+    assert "50[.]16[.]16[.]211" in [i["value"] for i in r["indicators"]]
+    listing = (await app.c.get("/app/api/search", params={"q": "qak", "all": "true"})).json()
+    assert "QakBot" in [e["name"] for e in listing["entities"]]
 
 
 # ── API ──────────────────────────────────────────────────────────────────────

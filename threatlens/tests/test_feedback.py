@@ -279,32 +279,34 @@ async def test_api_shows_scores_and_sorts_by_priority(api: Api) -> None:
     assert sources["feodo"]["weight_factor"] == 1.0
 
 
-async def test_ui_score_panel_and_buttons(api: Api) -> None:
+async def test_feedback_through_the_argus_session(api: Api) -> None:
     ind = await ind_of(api.sm, LIVE_C2)
     same = {"Sec-Fetch-Site": "same-origin"}
-    await api.client.post("/ui/login", data={"username": "vera", "password": "vera-password"}, headers=same)
-    page = await api.client.get(f"/ui/indicators/{ind.id}")
+    await api.client.post(
+        "/app/api/session", json={"username": "vera", "password": "vera-password"}, headers=same
+    )
+    detail = (await api.client.get(f"/api/v1/indicators/{ind.id}")).json()
     assert ind.score_breakdown is not None
-    assert ind.score_breakdown["formula"] in page.text
-    assert "True positive" not in page.text  # viewers get no buttons...
-    r = await api.client.post(f"/ui/indicators/{ind.id}/feedback", data={"verdict": "fp"}, headers=same)
-    assert r.status_code == 403  # ...and can't post either
-    await api.client.post("/ui/logout", headers=same)
-    await api.client.post("/ui/login", data={"username": "anna", "password": "anna-password"}, headers=same)
-    assert "True positive" in (await api.client.get(f"/ui/indicators/{ind.id}")).text
+    assert detail["score_breakdown"]["formula"] == ind.score_breakdown["formula"]
+    r = await api.client.post(f"/api/v1/indicators/{ind.id}/feedback", json={"verdict": "fp"}, headers=same)
+    assert r.status_code == 403  # viewers read only
+    await api.client.delete("/app/api/session", headers=same)
+    await api.client.post(
+        "/app/api/session", json={"username": "anna", "password": "anna-password"}, headers=same
+    )
     cross = await api.client.post(
-        f"/ui/indicators/{ind.id}/feedback", data={"verdict": "fp"}, headers={"Sec-Fetch-Site": "cross-site"}
+        f"/api/v1/indicators/{ind.id}/feedback",
+        json={"verdict": "fp"},
+        headers={"Sec-Fetch-Site": "cross-site"},
     )
     assert cross.status_code == 403
     r = await api.client.post(
-        f"/ui/indicators/{ind.id}/feedback", data={"verdict": "fp", "note": "lab host"}, headers=same
+        f"/api/v1/indicators/{ind.id}/feedback", json={"verdict": "fp", "note": "lab host"}, headers=same
     )
-    assert (r.status_code, r.headers["location"]) == (303, f"/ui/indicators/{ind.id}#score")
-    page = await api.client.get(f"/ui/indicators/{ind.id}")
-    assert "false positive" in page.text
-    assert "lab host" in page.text
-    for path in ("/ui", "/ui/indicators?sort=priority", "/ui/sources", "/ui/vulnerabilities?sort=patch"):
-        assert (await api.client.get(path)).status_code == 200, path
+    assert r.status_code == 200
+    detail = (await api.client.get(f"/api/v1/indicators/{ind.id}")).json()
+    assert detail["status"] == "false_positive"
+    assert detail["feedback"][0]["note"] == "lab host"
 
 
 # ── jobs and CLI ─────────────────────────────────────────────────────────────

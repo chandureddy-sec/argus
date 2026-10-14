@@ -88,7 +88,7 @@ function Show-Ready {
     try {
         $r = Invoke-RestMethod -Uri 'http://127.0.0.1:8000/readyz' -TimeoutSec 5
         $checks = ($r.checks.PSObject.Properties | ForEach-Object { "$($_.Name)=$(if ($_.Value.ok) {'ok'} else {'FAIL'})" }) -join ', '
-        Write-Host "API: $($r.status) ($checks)  Argus: http://127.0.0.1:8000/app/  (classic UI: /ui)" -ForegroundColor Green
+        Write-Host "API: $($r.status) ($checks)  Argus: http://127.0.0.1:8000/app/" -ForegroundColor Green
     } catch {
         Write-Host 'API: not answering on http://127.0.0.1:8000 yet' -ForegroundColor Yellow
     }

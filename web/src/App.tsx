@@ -5,6 +5,13 @@ import Topbar from "./components/Topbar";
 import { useApi, type Me } from "./lib/api";
 import { CrumbsProvider, usePage } from "./lib/page";
 import Assets from "./pages/Assets";
+import Attack from "./pages/Attack";
+import EntityView from "./pages/EntityView";
+import Landscape from "./pages/Landscape";
+import Login from "./pages/Login";
+import SearchPage from "./pages/SearchPage";
+import VulnView from "./pages/VulnView";
+import Vulnerabilities from "./pages/Vulnerabilities";
 import Blocklist from "./pages/Blocklist";
 import BulkCheck from "./pages/BulkCheck";
 import Cases from "./pages/Cases";
@@ -76,6 +83,12 @@ function Shell() {
               <Route path="/feeds/:name" element={<FeedView me={me} />} />
               <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/landscape" element={<Landscape />} />
+              <Route path="/vulnerabilities" element={<Vulnerabilities />} />
+              <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />
+              <Route path="/attack" element={<Attack />} />
+              <Route path="/entities/:ref" element={<EntityView />} />
+              <Route path="/search" element={<SearchPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
@@ -88,7 +101,10 @@ function Shell() {
 export default function App() {
   return (
     <BrowserRouter basename="/app">
-      <Shell />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Shell />} />
+      </Routes>
     </BrowserRouter>
   );
 }

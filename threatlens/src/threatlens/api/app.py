@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -25,6 +24,7 @@ from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
 from threatlens.argus_api import router as argus_router
+from threatlens.argus_intel import router as intel_router
 from threatlens.auth import MemoryRateLimiter, RateLimiter, RedisRateLimiter
 from threatlens.db import make_engine, make_sessionmaker, ping
 from threatlens.enrich.quota import RedisQuotaStore
@@ -34,17 +34,10 @@ from threatlens.logs import configure_logging, get_logger
 from threatlens.recon import Engine
 from threatlens.recon_api import router as recon_router
 from threatlens.settings import Environment, Settings, get_settings
-from threatlens.ui.feeds import router as feeds_ui_router
-from threatlens.ui.investigate import router as investigate_router
-from threatlens.ui.respond import router as respond_router
-from threatlens.ui.routes import HERE as UI_DIR
-from threatlens.ui.routes import router as ui_router
-from threatlens.ui.work import router as work_router
 from threatlens.webapp import api as webapp_api
 from threatlens.webapp import router as webapp_router
 
 log = get_logger("threatlens.api")
-UI_STATIC = UI_DIR / "static"
 
 # A caller-supplied request ID is echoed only if it is short and boring;
 # otherwise it could inject content into logs or response headers.
@@ -149,16 +142,11 @@ def create_app(
     app.include_router(cases_router)
     app.include_router(blocks_router)
     app.include_router(feeds_router)
-    app.include_router(ui_router)
-    app.include_router(work_router)
-    app.include_router(respond_router)
-    app.include_router(investigate_router)
-    app.include_router(feeds_ui_router)
     app.include_router(recon_router)  # /app/api/recon, before the app's catch-all route
     app.include_router(argus_router)  # Argus-only JSON (verify/bulk streams, settings)
+    app.include_router(intel_router)  # landscape, ATT&CK matrix, search
     app.include_router(webapp_api)  # before the app's catch-all route
     app.include_router(webapp_router)
-    app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")
     app.state.settings = settings
 
     @app.get("/", include_in_schema=False)

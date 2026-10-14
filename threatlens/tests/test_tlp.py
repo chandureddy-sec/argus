@@ -91,9 +91,11 @@ class App:
 
     async def login(self, user: str) -> None:
         r = await self.client.post(
-            "/ui/login", data={"username": user, "password": PW}, headers={"Sec-Fetch-Site": "same-origin"}
+            "/app/api/session",
+            json={"username": user, "password": PW},
+            headers={"Sec-Fetch-Site": "same-origin"},
         )
-        assert r.status_code == 303
+        assert r.status_code == 200
 
 
 @pytest.fixture
@@ -223,25 +225,30 @@ async def test_asset_flags_respect_clearance(app: App) -> None:
 # ── UI ───────────────────────────────────────────────────────────────────────
 
 
-async def test_ui_pages_respect_clearance(app: App) -> None:
+async def test_argus_respects_clearance(app: App) -> None:
     ids = await app.ids()
     await app.login("vera")  # viewer: GREEN
-    listing = await app.client.get("/ui/indicators?sort=priority")
+    listing = await app.client.get("/api/v1/indicators", params={"sort": "priority"})
     assert "162[.]243[.]103[.]246" not in listing.text
-    assert (await app.client.get(f"/ui/indicators/{ids[AMBER_IP]}")).status_code == 404
-    search = await app.client.get(f"/ui/search?q={AMBER_IP}")
-    assert search.status_code == 200  # not a direct hit: a results page...
-    assert f"/ui/indicators/{ids[AMBER_IP]}" not in search.text  # ...that doesn't list it either
-    assert "No indicator matches" in search.text
-    for page in ("/ui", "/ui/assets", "/ui/entities/Emotet", "/ui/attack"):
-        r = await app.client.get(page)
-        assert r.status_code == 200, page
-        assert "162[.]243[.]103[.]246" not in r.text, page
-        assert AMBER_IP not in r.text, page
-    await app.client.post("/ui/logout", headers={"Sec-Fetch-Site": "same-origin"})
+    assert (await app.client.get(f"/api/v1/indicators/{ids[AMBER_IP]}")).status_code == 404
+    search = (await app.client.get("/app/api/search", params={"q": AMBER_IP})).json()
+    assert search["open"] is None  # not a direct hit...
+    assert search["indicators"] == []  # ...and not listed either
+    for path in (
+        "/app/api/landscape",
+        "/app/api/indicators",
+        "/app/api/kpis",
+        "/api/v1/assets",
+        "/app/api/attack",
+    ):
+        r = await app.client.get(path)
+        assert r.status_code == 200, path
+        assert "162[.]243[.]103[.]246" not in r.text, path
+        assert AMBER_IP not in r.text, path
+    await app.client.delete("/app/api/session", headers={"Sec-Fetch-Site": "same-origin"})
     await app.login("anna")  # analyst: AMBER+STRICT
-    assert (await app.client.get(f"/ui/indicators/{ids[AMBER_IP]}")).status_code == 200
-    assert (await app.client.get(f"/ui/indicators/{ids[RED_IP]}")).status_code == 404
+    assert (await app.client.get(f"/api/v1/indicators/{ids[AMBER_IP]}")).status_code == 200
+    assert (await app.client.get(f"/api/v1/indicators/{ids[RED_IP]}")).status_code == 404
 
 
 # ── sinks ────────────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
+from threatlens.auth import same_origin as _same_origin
 from threatlens.models import AuditLog
 from threatlens.recon import (
     JOB_ID,
@@ -31,7 +32,6 @@ from threatlens.recon import (
     valid_ref,
 )
 from threatlens.scoring.store import rescore
-from threatlens.ui.routes import _same_origin
 from threatlens.webapp import _me, _settings, _sm
 
 router = APIRouter(prefix="/app/api/recon", include_in_schema=False)

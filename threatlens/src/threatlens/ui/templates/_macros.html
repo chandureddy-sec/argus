@@ -1,7 +1,0 @@
-{% macro save_view(here) %}
-<form class="formrow noprint" method="post" action="/ui/searches">
-  <label class="field">Save this view as<input name="name" required maxlength="100" placeholder="e.g. Live C2 IPs"></label>
-  <input type="hidden" name="query" value="{{ here }}">
-  <button type="submit">Save</button>
-</form>
-{% endmacro %}

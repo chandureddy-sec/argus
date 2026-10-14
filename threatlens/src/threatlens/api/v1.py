@@ -225,6 +225,9 @@ def _source_out(s: Source, settings: Settings) -> SourceOut:
 
 @router.get("/sources", response_model=list[SourceOut], tags=["sources"])
 async def list_sources(_: Viewer, request: Request) -> list[SourceOut]:
+    svc = getattr(request.app.state, "enrich", None)
+    if svc is not None:  # lookup providers get their rows on first use; list them before that
+        await svc.ensure_sources()
     async with _sm(request)() as s:
         rows = (await s.scalars(select(Source).order_by(Source.name))).all()
     settings: Settings = getattr(request.app.state, "settings", None) or get_settings()

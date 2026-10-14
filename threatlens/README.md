@@ -22,7 +22,7 @@ From the `threatlens` folder, in PowerShell (`.\tl …`) or Command Prompt (`tl 
 ```
 
 `tl` finds Docker even in a terminal opened before Docker was installed. Analyst UI:
-http://127.0.0.1:8000/ui (sign in with that username and password). Manage accounts with
+http://127.0.0.1:8000/app/ (Argus; sign in with that username and password). Manage accounts with
 `.\tl passwd NAME` and `.\tl users list|role|disable|enable`. API keys (`.\tl key NAME analyst`)
 are for programs such as ReconX, not for signing in. After changing code, `.\tl up --build`.
 
@@ -104,7 +104,7 @@ curl -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/assets/products        
 
 The worker collects every enabled source on its own schedule. Sources that
 need a free key (ThreatFox, OTX) show `skipped` until `TL_ABUSECH_AUTH_KEY` /
-`TL_OTX_API_KEY` are set in `.env`. Analyst UI: http://127.0.0.1:8000/ui.
+`TL_OTX_API_KEY` are set in `.env`. Argus, the analyst UI: http://127.0.0.1:8000/app/.
 
 ### Without Docker (SQLite trial)
 

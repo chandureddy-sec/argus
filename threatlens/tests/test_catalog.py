@@ -4,7 +4,7 @@ sources; removing a feed; and the pages and API that drive it."""
 
 from __future__ import annotations
 
-import re
+import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from tests.test_collect import Clock, collector
 from tests.test_enrich import KEYS, Upstream, http, seeded, upstream  # noqa: F401  # fixtures
-from tests.uihelp import only_our_script
 from threatlens import catalog, vault
 from threatlens.api.app import create_app
 from threatlens.auth import MemoryRateLimiter, create_key
@@ -228,11 +227,11 @@ class Cat:
         self.c, self.sm, self.keys, self.queued = c, sm, keys, queued
 
     async def login(self, user: str) -> None:
-        await self.c.post("/ui/logout", headers=SAME)
+        await self.c.delete("/app/api/session", headers=SAME)
         r = await self.c.post(
-            "/ui/login", data={"username": user, "password": user + "-password"}, headers=SAME
+            "/app/api/session", json={"username": user, "password": user + "-password"}, headers=SAME
         )
-        assert r.status_code == 303
+        assert r.status_code == 200
 
 
 @pytest.fixture
@@ -267,38 +266,35 @@ FORM = {"title": "Partner SOC bad IPs", "url": "https://feeds.example/bad.txt", 
         "ioc_type": "ip", "verdict": "malicious", "confidence": "80", "interval_minutes": "60",
         "tlp": "TLP:AMBER", "reliability": "B", "comment_char": "#", "value_column": "0", "json_path": "",
         "auth_header": "x-api-key", "secret": SECRET, "upstream": ""}  # fmt: skip
+API_FORM = {**FORM, "confidence": 80, "interval_minutes": 60, "value_column": 0}
 
 
-async def test_catalog_page_add_edit_toggle_pull_and_remove(cat: Cat) -> None:
+async def test_catalog_add_edit_pull_toggle_and_remove_with_the_session(cat: Cat) -> None:
     await cat.login("ada")
-    r = await cat.c.get("/ui/sources")
-    assert r.status_code == 200
-    assert only_our_script(r.text)
-    for text in ("Feed catalog", "Sync all feeds", "Add source", "Indicator feeds", "Knowledge sources",
-                 "No feeds of your own yet", 'role="switch"'):  # fmt: skip
-        assert text in r.text, text
-    assert not re.search(r'\sstyle="', r.text)
+    names = {s["name"] for s in (await cat.c.get("/api/v1/sources")).json()}
+    assert {"feodo", "ripestat"} <= names  # lookup providers are listed before any lookup
+    body = API_FORM
 
-    bad = await cat.c.post("/ui/sources/new", data=FORM | {"url": "http://192.168.1.5/x"}, headers=SAME)
+    bad = await cat.c.post(
+        "/api/v1/sources/custom", json=body | {"url": "http://192.168.1.5/x"}, headers=SAME
+    )
     assert bad.status_code == 422
-    assert "private" in bad.text
+    assert "private" in bad.json()["detail"]
     assert SECRET not in bad.text
-    r = await cat.c.post("/ui/sources/new", data=FORM, headers=SAME)
-    assert r.status_code == 303
-    assert r.headers["location"] == "/ui/sources/custom_partner_soc_bad_ips?done=added"
-    page = await cat.c.get("/ui/sources/custom_partner_soc_bad_ips?done=added")
-    assert page.status_code == 200
-    for text in ("Feed added", "Edit this feed", "Remove this feed", "stored encrypted, sent in", "x-api-key",
-                 "custom:feeds.example", "Never pulled yet"):  # fmt: skip
-        assert text in page.text, text
-    assert SECRET not in page.text  # the stored key never comes back
+    r = await cat.c.post("/api/v1/sources/custom", json=body, headers=SAME)
+    assert r.status_code == 201
+    name = r.json()["name"]
+    assert name == "custom_partner_soc_bad_ips"
+    assert SECRET not in r.text
+    form = (await cat.c.get(f"/app/api/feeds/{name}/form")).json()
+    assert form["has_secret"] is True
+    assert SECRET not in json.dumps(form)  # the stored key never comes back
 
     # edit without a key keeps the stored one
-    edit = FORM | {"secret": "", "confidence": "65", "upstream": "Abuse.ch"}
-    r = await cat.c.post("/ui/sources/custom_partner_soc_bad_ips/edit", data=edit, headers=SAME)
-    assert r.status_code == 303
+    edit = body | {"secret": "", "confidence": 65, "upstream": "Abuse.ch"}
+    assert (await cat.c.put(f"/api/v1/sources/custom/{name}", json=edit, headers=SAME)).status_code == 200
     async with cat.sm() as s:
-        found = await catalog.get_custom(s, "custom_partner_soc_bad_ips")
+        found = await catalog.get_custom(s, name)
     assert found is not None
     src, feed = found
     assert (feed.confidence, src.upstream, src.tlp_default, src.reliability) == (
@@ -310,27 +306,16 @@ async def test_catalog_page_add_edit_toggle_pull_and_remove(cat: Cat) -> None:
     assert feed.auth_secret
     assert vault.unseal(SETTINGS, feed.auth_secret) == SECRET
 
-    r = await cat.c.post("/ui/sources/custom_partner_soc_bad_ips/pull", data={"next": "source"}, headers=SAME)
-    assert r.headers["location"].endswith("?done=queued")
-    assert cat.queued == ["custom_partner_soc_bad_ips"]
-    r = await cat.c.post("/ui/sources/custom_partner_soc_bad_ips/pull", headers=SAME)
-    assert r.headers["location"] == "/ui/sources?done=busy"
-
-    r = await cat.c.post(
-        "/ui/sources/custom_partner_soc_bad_ips/toggle", data={"enabled": "false"}, headers=SAME
-    )
-    assert r.headers["location"] == "/ui/sources?done=off"
-    off = await cat.c.get("/ui/sources?show=off")
-    assert "Partner SOC bad IPs" in off.text
-    assert "Feodo" not in off.text
-    assert (await cat.c.post("/ui/sources/custom_partner_soc_bad_ips/pull", headers=SAME)).status_code == 409
-
-    r = await cat.c.post("/ui/sources/custom_partner_soc_bad_ips/delete", headers=SAME)
-    assert r.headers["location"] == "/ui/sources?done=removed"
-    assert (await cat.c.get("/ui/sources/custom_partner_soc_bad_ips")).status_code == 404
+    assert (await cat.c.post(f"/api/v1/sources/{name}/run", headers=SAME)).json()["queued"] is True
+    assert cat.queued == [name]
+    assert (await cat.c.post(f"/api/v1/sources/{name}/run", headers=SAME)).json()["queued"] is False  # busy
+    off = await cat.c.patch(f"/api/v1/sources/{name}", json={"enabled": False}, headers=SAME)
+    assert off.json()["enabled"] is False
+    assert (await cat.c.delete(f"/api/v1/sources/custom/{name}", headers=SAME)).json()["removed"] == name
+    assert name not in {s["name"] for s in (await cat.c.get("/api/v1/sources")).json()}
     async with cat.sm() as s:
         actions = [a for (a,) in (await s.execute(select(AuditLog.action).order_by(AuditLog.id))).all()]
-    assert {"custom_feed.create", "custom_feed.update", "source.sync", "source.disable",
+    assert {"custom_feed.create", "custom_feed.update", "source.run", "source.disable",
             "custom_feed.delete"} <= set(actions)  # fmt: skip
 
 
@@ -338,43 +323,39 @@ async def test_sync_all_queues_every_enabled_collectable_source(cat: Cat) -> Non
     await cat.login("ada")
     async with cat.sm() as s, s.begin():
         await catalog.set_enabled(s, "feodo", False, actor="ada")
-    r = await cat.c.post("/ui/sources/sync", headers=SAME)
-    assert r.headers["location"] == "/ui/sources?done=synced"
+    r = await cat.c.post("/api/v1/sources/sync", headers=SAME)
+    assert r.status_code == 202
     assert "feodo" not in cat.queued
     assert cat.queued
     assert all(not n.startswith(("rdap", "ripestat")) for n in cat.queued)  # never enrichers
 
 
-async def test_source_page_shows_history_and_contribution(cat: Cat) -> None:
+async def test_a_viewer_reads_history_and_contribution_but_changes_nothing(cat: Cat) -> None:
     await cat.login("vera")
-    r = await cat.c.get("/ui/sources/feodo")
-    assert r.status_code == 200
-    for text in ("Pull history", "Where it comes from", "Terms of use", "Top active indicators", "Indicators",
-                 "Only here", "/ui/indicators?source=feodo"):  # fmt: skip
-        assert text in r.text, text
-    assert "Pull now" not in r.text
-    assert 'role="switch"' not in r.text  # a viewer can't change anything
-    assert "50[.]16[.]16[.]211" in r.text.replace('<span class="df">', "").replace("</span>", "")
-
-
-async def test_only_admins_change_the_catalog(cat: Cat) -> None:
-    await cat.login("vera")
-    for path in ("/ui/sources/sync", "/ui/sources/feodo/toggle", "/ui/sources/feodo/pull", "/ui/sources/new"):
-        r = await cat.c.post(path, data={"enabled": "false"} | FORM, headers=SAME)
+    runs = (await cat.c.get("/api/v1/sources/feodo/runs")).json()
+    assert runs
+    c = (await cat.c.get("/api/v1/sources/feodo/contribution")).json()
+    assert "50[.]16[.]16[.]211" in [t["value"] for t in c["top"]]
+    for method, path, payload in (
+        ("POST", "/api/v1/sources/sync", None),
+        ("PATCH", "/api/v1/sources/feodo", {"enabled": False}),
+        ("POST", "/api/v1/sources/feodo/run", None),
+        ("POST", "/api/v1/sources/custom", API_FORM),
+    ):
+        r = await cat.c.request(method, path, json=payload, headers=SAME)
         assert r.status_code == 403, path
-    assert (await cat.c.get("/ui/sources/new")).status_code == 403
+    assert (await cat.c.get("/app/api/feeds/feodo/form")).status_code == 403
     await cat.login("ada")
     cross = {"Sec-Fetch-Site": "cross-site"}  # another site's page
-    r = await cat.c.post("/ui/sources/feodo/toggle", data={"enabled": "false"}, headers=cross)
+    r = await cat.c.patch("/api/v1/sources/feodo", json={"enabled": False}, headers=cross)
     assert r.status_code == 403
     assert cat.queued == []
 
 
 async def test_switching_off_a_lookup_provider_applies_at_once(cat: Cat) -> None:
     await cat.login("ada")
-    assert "Lookup providers" in (await cat.c.get("/ui/sources")).text  # listed before any lookup
-    r = await cat.c.post("/ui/sources/ripestat/toggle", data={"enabled": "false"}, headers=SAME)
-    assert r.status_code == 303
+    r = await cat.c.patch("/api/v1/sources/ripestat", json={"enabled": False}, headers=SAME)
+    assert r.status_code == 200
     body = (await cat.c.get("/api/v1/lookup/ipv4-addr/185.220.101.34?enrichers=ripestat",
                             headers={"X-API-Key": cat.keys["analyst"]})).json()  # fmt: skip
     e = next(x for x in body["enrichments"] if x["enricher"] == "ripestat")

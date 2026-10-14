@@ -11,11 +11,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { Me } from "../lib/api";
 import { Avatar, Logo, PRODUCT } from "./ui";
 
-/** `to` is an Argus page; `href` a classic ThreatLens screen not rebuilt yet. */
+/** `to` is an Argus page; `href` anything else (an external page). */
 interface Child {
   label: string;
   to?: string;
@@ -36,8 +36,8 @@ const NAV: Item[] = [
     icon: Home,
     children: [
       { label: "Reports", to: "/", end: true },
+      { label: "Threat landscape", to: "/landscape" },
       { label: "Assets", to: "/assets" },
-      { label: "Overview", href: "/ui" },
     ],
   },
   {
@@ -57,8 +57,8 @@ const NAV: Item[] = [
       { label: "Verify", to: "/verify" },
       { label: "Bulk check", to: "/bulk" },
       { label: "Indicators", to: "/indicators" },
-      { label: "Vulnerabilities", href: "/ui/vulnerabilities" },
-      { label: "ATT&CK", href: "/ui/attack" },
+      { label: "Vulnerabilities", to: "/vulnerabilities" },
+      { label: "ATT&CK", to: "/attack" },
     ],
   },
   {
@@ -75,7 +75,7 @@ const NAV: Item[] = [
     children: [
       { label: "Feed catalog", to: "/feeds" },
       { label: "Settings", to: "/settings" },
-      { label: "Search", href: "/ui/search" },
+      { label: "Search", to: "/search" },
     ],
   },
 ];
@@ -130,9 +130,8 @@ function Group({ item }: { item: Item }) {
                     {c.label}
                   </Link>
                 ) : (
-                  <a href={c.href} className={cls2} title="Opens the classic screen until it is rebuilt in Argus">
+                  <a href={c.href} className={cls2}>
                     {c.label}
-                    <span className="text-[10.5px] text-ink-faint">classic</span>
                   </a>
                 )}
               </li>
@@ -145,6 +144,7 @@ function Group({ item }: { item: Item }) {
 }
 
 export default function Sidebar({ open, onClose, me }: { open: boolean; onClose: () => void; me?: Me }) {
+  const navigate = useNavigate();
   return (
     <>
       {/* mobile backdrop */}
@@ -172,7 +172,15 @@ export default function Sidebar({ open, onClose, me }: { open: boolean; onClose:
           </button>
         </div>
 
-        <form className="px-4 pb-3" method="get" action="/ui/search" role="search">
+        <form
+          className="px-4 pb-3"
+          role="search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = new FormData(e.currentTarget).get("q");
+            if (typeof q === "string" && q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`);
+          }}
+        >
           <label className="relative block">
             <span className="sr-only">Search</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
@@ -199,9 +207,9 @@ export default function Sidebar({ open, onClose, me }: { open: boolean; onClose:
                 {me && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-up" />}
                 <span className="capitalize">{me?.role ?? ""}</span>
                 <span className="text-ink-faint">·</span>
-                <a href="/ui/settings" className="hover:text-accent-soft">
-                  Account
-                </a>
+                <Link to="/settings" className="hover:text-accent-soft">
+                  Settings
+                </Link>
               </p>
             </div>
           </div>

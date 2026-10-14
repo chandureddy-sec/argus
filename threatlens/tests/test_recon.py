@@ -105,9 +105,9 @@ class Recon:
         self.c, self.sm, self.fake, self.engine = c, sm, fake, engine
 
     async def login(self, user: str) -> None:
-        await self.c.post("/ui/logout", headers=SAME)
+        await self.c.delete("/app/api/session", headers=SAME)
         creds = {"username": user, "password": user + "-password"}
-        assert (await self.c.post("/ui/login", data=creds, headers=SAME)).status_code == 303
+        assert (await self.c.post("/app/api/session", json=creds, headers=SAME)).status_code == 200
 
 
 @pytest.fixture
@@ -248,6 +248,6 @@ async def test_without_an_engine_the_routes_say_so(seeded: SM) -> None:  # noqa:
         httpx.AsyncClient(transport=httpx.ASGITransport(app=a), base_url="http://test") as c,
     ):
         creds = {"username": "vera", "password": "vera-password"}
-        await c.post("/ui/login", data=creds, headers=SAME)
+        await c.post("/app/api/session", json=creds, headers=SAME)
         assert (await c.get("/app/api/recon/status")).json() == {"configured": False, "reachable": False}
         assert (await c.get("/app/api/recon/scans")).status_code == 503

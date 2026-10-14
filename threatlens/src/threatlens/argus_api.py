@@ -35,14 +35,13 @@ from threatlens.api.enrich import NOT_LOOKUPS
 from threatlens.api.v1 import Admin, Analyst, Viewer, _app_settings, _sm
 from threatlens.collect import reapply_allowlist
 from threatlens.enrich.service import Budget, EnrichmentService
+from threatlens.intake import BLOCKABLE, BULK_MAX, gather_text, observables
 from threatlens.ioc.extract import defang_text
 from threatlens.ioc.normalize import guess
 from threatlens.ioc.types import IOCType, Observable
 from threatlens.logs import get_logger
 from threatlens.models import AllowlistEntry, Asset, AuditLog, FeedToken
 from threatlens.scoring.feedback import rescore_sources
-from threatlens.ui.routes import BLOCKABLE
-from threatlens.ui.work import BULK_MAX, gather_text, observables
 
 router = APIRouter(prefix="/app/api", include_in_schema=False)
 log = get_logger("threatlens.argus")
