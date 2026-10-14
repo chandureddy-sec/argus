@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Product marks</title>
+<style>
+  @font-face { font-family: "Inter"; src: url("../threatlens/src/threatlens/ui/static/fonts/inter-latin.woff2") format("woff2"); font-weight: 100 900; }
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 32px; background: #0c0818; color: #ece8ff; font: 15px/1.5 "Inter", system-ui, sans-serif; }
+  h1 { font-size: 22px; margin: 0 0 4px; } p { color: #aaa0cc; margin: 0 0 28px; }
+  .row { display: flex; flex-wrap: wrap; align-items: end; gap: 22px; padding: 22px; border-radius: 14px; margin-bottom: 18px; }
+  .dark { background: #150f29; border: 1px solid #2a1f47; } .light { background: #f4f3f8; color: #1b1530; }
+  .word { display: inline-flex; align-items: center; gap: 12px; font-weight: 700; font-size: 26px; letter-spacing: -.01em; margin-right: 18px; }
+  .word img { width: 40px; height: 40px; }
+  .tl b { color: #2ee6f0; } .rx b { color: #22d3ee; } .light .tl b { color: #8b5cf6; } .light .rx b { color: #0f9f8f; }
+  figure { margin: 0; text-align: center; font-size: 11px; color: #8a80b0; }
+</style>
+</head>
+<body>
+<h1>Product marks</h1>
+<p>One family: shared frame and pink signal, a glyph and gradient per product.</p>
+<div class="row dark">
+  <span class="word tl"><img src="threatlens.svg" alt=""><span>Threat<b>Lens</b></span></span>
+  <span class="word rx"><img src="reconx.svg" alt=""><span>Recon<b>X</b></span></span>
+  <span class="word"><img src="template.svg" alt=""><span>Next product</span></span>
+</div>
+<div class="row light">
+  <span class="word tl"><img src="threatlens.svg" alt=""><span>Threat<b>Lens</b></span></span>
+  <span class="word rx"><img src="reconx.svg" alt=""><span>Recon<b>X</b></span></span>
+</div>
+<div class="row dark">
+  <figure><img src="threatlens.svg" width="16" alt="ThreatLens 16 px"><br>16</figure>
+  <figure><img src="threatlens.svg" width="24" alt="ThreatLens 24 px"><br>24</figure>
+  <figure><img src="threatlens.svg" width="32" alt="ThreatLens 32 px"><br>32</figure>
+  <figure><img src="threatlens.svg" width="64" alt="ThreatLens 64 px"><br>64</figure>
+  <figure><img src="threatlens.svg" width="128" alt="ThreatLens 128 px"><br>128</figure>
+  <figure><img src="reconx.svg" width="16" alt="ReconX 16 px"><br>16</figure>
+  <figure><img src="reconx.svg" width="24" alt="ReconX 24 px"><br>24</figure>
+  <figure><img src="reconx.svg" width="32" alt="ReconX 32 px"><br>32</figure>
+  <figure><img src="reconx.svg" width="64" alt="ReconX 64 px"><br>64</figure>
+  <figure><img src="reconx.svg" width="128" alt="ReconX 128 px"><br>128</figure>
+</div>
+</body>
+</html>

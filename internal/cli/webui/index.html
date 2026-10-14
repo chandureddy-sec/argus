@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ReconX Dashboard</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="preload" href="/static/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face{font-family:"Inter";src:url("/static/inter-latin.woff2") format("woff2");font-weight:100 900;font-display:swap}
   :root{
     color-scheme: dark;
     --bg:#161617; --sidebar:#1d1d1f; --card:#2a2a2d; --card2:#232326; --line:#343437;
@@ -18,7 +21,7 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:var(--bg);color:var(--text);
-    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;font-feature-settings:"cv11","ss01";
     font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
   a{color:inherit;text-decoration:none}
   button{font-family:inherit}
@@ -26,9 +29,9 @@
 
   /* Sidebar */
   .side{width:220px;flex-shrink:0;background:var(--sidebar);padding:26px 18px;display:flex;flex-direction:column;gap:28px;position:sticky;top:0;height:100vh}
-  .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:18px;letter-spacing:-.3px;padding-left:6px}
-  .brand .dot{width:22px;height:22px;border-radius:50%;background:var(--accent);display:inline-block;position:relative}
-  .brand .dot::after{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--sidebar)}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em;padding-left:2px}
+  .brand img{width:32px;height:32px;display:block}
+  .brand b{font-weight:700;color:var(--accent)}
   .nav{display:flex;flex-direction:column;gap:4px}
   .nav a,.nav button{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:12px;color:var(--muted);font-weight:500;font-size:13.5px;background:none;border:none;cursor:pointer;text-align:left;width:100%}
   .nav a:hover,.nav button:hover{color:var(--text);background:#242427}
@@ -293,7 +296,7 @@
 <div class="app">
   <!-- Sidebar -->
   <aside class="side">
-    <div class="brand"><span class="dot"></span>ReconX</div>
+    <div class="brand"><img src="/static/logo.svg" alt=""><span>Recon<b>X</b></span></div>
     <nav class="nav">
       <a href="#/" data-nav="dashboard">▦ Dashboard</a>
       <a href="#/new" data-nav="new">⌖ New Scan <span class="run hidden" id="navRun" title="A scan is running"></span></a>

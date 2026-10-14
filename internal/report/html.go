@@ -54,6 +54,15 @@ const htmlTemplate = `<!DOCTYPE html>
     align-items: center;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   }
+  header .title {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header .mark {
+    flex: none;
+    display: block;
+  }
   h1 {
     color: var(--accent);
     margin: 0 0 6px 0;
@@ -182,9 +191,12 @@ const htmlTemplate = `<!DOCTYPE html>
 <body>
 <div class="container">
   <header>
-    <div>
+    <div class="title">
+      <svg class="mark" viewBox="0 0 64 64" width="44" height="44" aria-hidden="true"><defs> <linearGradient id="rx-g" x1="8" y1="56" x2="56" y2="8" gradientUnits="userSpaceOnUse"> <stop offset="0" stop-color="#a7e9c6"/> <stop offset=".55" stop-color="#34d3b4"/> <stop offset="1" stop-color="#22d3ee"/> </linearGradient> </defs> <rect x="3" y="3" width="58" height="58" rx="17" fill="#0e0b1d"/> <rect x="3" y="3" width="58" height="58" rx="17" fill="none" stroke="url(#rx-g)" stroke-width="2.5"/> <path d="M17 36.5a10.5 10.5 0 0 1 10.5 10.5" fill="none" stroke="url(#rx-g)" stroke-width="4.5" stroke-linecap="round"/> <path d="M17 26a21 21 0 0 1 21 21" fill="none" stroke="url(#rx-g)" stroke-width="4.5" stroke-linecap="round" opacity=".85"/> <path d="M17 47L40.5 23.5" stroke="url(#rx-g)" stroke-width="4.5" stroke-linecap="round"/> <circle cx="17" cy="47" r="3.5" fill="#a7e9c6"/> <circle cx="48" cy="16" r="4" fill="#ff4fa3"/></svg>
+      <div>
       <h1>ReconX Security Assessment Report</h1>
       <div>Target: <strong>{{.Target.Value}}</strong> ({{.Target.Type}}) | Generated: {{.Timestamp.Format "2006-01-02 15:04:05 UTC"}}</div>
+      </div>
     </div>
     <div>
       {{if or .ActiveRecon .WebMap}}
