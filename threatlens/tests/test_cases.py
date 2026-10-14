@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from tests.test_collect import Clock
 from tests.test_enrich import KEYS, Upstream, http, seeded, upstream  # noqa: F401  # fixtures
 from tests.uihelp import only_our_script
 from threatlens import cases as case_store
@@ -76,7 +77,7 @@ async def app(
         await create_user(s, "anna", "anna-password", "analyst")
         await create_user(s, "vera", "vera-password", "viewer")
     settings = Settings(rate_limit_analyst=1000, rate_limit_viewer=1000, **KEYS)  # type: ignore[arg-type]
-    svc = EnrichmentService(seeded, http, MemoryQuotaStore(), settings)
+    svc = EnrichmentService(seeded, http, MemoryQuotaStore(), settings, now=Clock())  # the fixture's day
     a = create_app(settings, checks={}, sessionmaker=seeded, limiter=MemoryRateLimiter(), enrich=svc)
     async with (
         a.router.lifespan_context(a),
@@ -302,7 +303,7 @@ async def test_no_page_uses_inline_styles(app: App) -> None:
         assert r.status_code == 200, path
         assert not re.search(r'\sstyle="', r.text), path
         assert only_our_script(r.text), path
-    font = await app.c.get("/ui/static/fonts/montserrat-latin.woff2")
+    font = await app.c.get("/ui/static/fonts/inter-latin.woff2")
     assert font.status_code == 200
     assert font.content[:4] == b"wOF2"
 

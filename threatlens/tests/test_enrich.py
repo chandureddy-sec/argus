@@ -131,7 +131,8 @@ async def seeded(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> SM:
 
 
 def service(sm: SM, http: SafeHttp, **settings: Any) -> EnrichmentService:
-    return EnrichmentService(sm, http, MemoryQuotaStore(), Settings(**settings))
+    # On the fixture's day, so feed ages (and the verdicts they decay into) don't drift with the calendar.
+    return EnrichmentService(sm, http, MemoryQuotaStore(), Settings(**settings), now=Clock())
 
 
 def by_name(res: dict[str, Any]) -> dict[str, dict[str, Any]]:

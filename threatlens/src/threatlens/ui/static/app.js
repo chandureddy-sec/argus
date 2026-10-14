@@ -217,7 +217,24 @@
     }
   });
 
+  // "Copy refanged": the only place a live value leaves the page, and only on an explicit click
+  const refang = (s) => s.replace(/\[:\/\/\]/g, "://").replace(/\[\.\]/g, ".").replace(/\[:\]/g, ":")
+    .replace(/\[@\]/g, "@").replace(/^hxxp/i, "http").replace(/^fxp/i, "ftp");
+
+  async function copyRefanged(btn) {
+    const label = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(refang(btn.dataset.copy || ""));
+      btn.textContent = "Copied";
+    } catch (_) {
+      btn.textContent = "Copy failed";
+    }
+    setTimeout(() => { btn.textContent = label; }, 1500);
+  }
+
   document.addEventListener("click", (ev) => {
+    const copy = ev.target.closest("button[data-copy]");
+    if (copy) { copyRefanged(copy); return; }
     const pick = ev.target.closest("[data-select]");
     if (pick) {
       const mode = pick.dataset.select;

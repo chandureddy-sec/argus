@@ -17,6 +17,7 @@ from urllib.parse import quote, urlparse
 from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup, escape
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -91,9 +92,22 @@ def safe_url(url: str | None) -> str | None:
     return url if url and urlparse(url).scheme in ("http", "https") else None
 
 
+_DEFANG_MARK = re.compile(r"\[(\.|:|@|://)\]")
+
+
+def ioc(text: object) -> Markup:
+    """Defanged for display, but easy to read: the brackets are dimmed so
+    ``crawhyderabad[.]in`` reads like the domain while staying inert when
+    copied (PROMPT §2: defang in the UI, refang only as an explicit action)."""
+    safe = str(escape(defang_text("" if text is None else str(text))))
+    # The text is escaped above; only these fixed spans are added, never data.
+    return Markup(_DEFANG_MARK.sub(r'<span class="df">[</span>\1<span class="df">]</span>', safe))  # noqa: S704
+
+
 templates.env.filters.update(
-    plain=plain, ago=ago, safe_url=safe_url, defang_text=defang_text, quote=lambda s: quote(str(s), safe="")
-)
+    plain=plain, ago=ago, safe_url=safe_url, defang_text=defang_text, ioc=ioc,
+    quote=lambda s: quote(str(s), safe=""),
+)  # fmt: skip
 
 
 def _sm(request: Request) -> async_sessionmaker[AsyncSession]:

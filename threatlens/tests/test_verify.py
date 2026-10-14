@@ -61,9 +61,15 @@ def test_headlines_and_fields() -> None:
         "status": "ok",
         "summary": {"malicious": 5, "suspicious": 1, "engines": 92},
     }
-    assert verify.headline(vt) == ("5/92 engines flag it, 1 suspicious", "mal")
+    assert verify.headline(vt) == ("5 of 92 security engines flag it (1 more suspicious)", "mal")
     ab = {"enricher": "abuseipdb", "status": "cached", "summary": {"abuse_confidence": 0, "total_reports": 0}}
-    assert verify.headline(ab) == ("Abuse confidence 0/100 · 0 reports", "ok")
+    assert verify.headline(ab) == ("No abuse reports", "ok")
+    old = {
+        "enricher": "rdap",
+        "status": "ok",
+        "summary": {"registrar": "R", "created": "2024-06-02T12:16:00+00:00", "age_days": 860},
+    }
+    assert verify.headline(old) == ("Registered 2 Jun 2024 (2 years 4 months ago) via R", "info")
     skip = {"enricher": "virustotal", "status": "skipped", "skipped_reason": "no_api_key"}
     assert verify.headline(skip)[1] == "off"
     rows = dict(
@@ -71,7 +77,13 @@ def test_headlines_and_fields() -> None:
             "abuseipdb", {"abuse_confidence": 87, "is_tor": True, "hostnames": ["a", "b"], "x": None}
         )
     )
-    assert rows == {"Abuse confidence": "87", "Tor exit": "yes", "Hostnames": "a, b"}
+    assert rows == {"Abuse confidence": "87 / 100", "Tor exit node": "yes", "Host names": ["a", "b"]}
+    crt = dict(
+        verify.fields(
+            "crtsh", {"certificates": 1200, "first_issued": "2024-06-02T00:00:00", "names_total": 3}
+        )
+    )
+    assert crt == {"Certificates": "1,200", "First issued": "2 Jun 2024"}  # names_total is not worth a row
 
 
 def test_second_opinion_links_follow_tlp() -> None:
@@ -91,8 +103,8 @@ async def test_verify_page_without_javascript_renders_everything(app: App) -> No
     await app.login("vera")
     r = await app.c.get("/ui/verify", params={"q": "162.243.103[.]246", "tlp": "TLP:CLEAR"})
     assert r.status_code == 200
-    for text in ("Our intel", "WHOIS (RDAP)", "Network &amp; geo", "DIGITALOCEAN-162-243-0-0", "Secaucus",
-                 "Second opinion", "Actions", "Listed by <b>feodo</b>"):  # fmt: skip
+    for text in ("Our intel", "WHOIS registration", "Network &amp; location", "DIGITALOCEAN-162-243-0-0",
+                 "Secaucus", "Second opinion", "Actions", "Reported by feodo", "Copy refanged"):  # fmt: skip
         assert text in r.text, text
     assert "https://www.abuseipdb.com/check/162.243.103.246" in r.text
     assert 'rel="noopener noreferrer"' in r.text
@@ -115,7 +127,7 @@ async def test_verify_live_page_and_stream(app: App) -> None:
     msgs = lines(r.text)
     first = msgs[0]["ops"][0]
     assert (first["op"], first["id"]) == ("replace", "verify-body")
-    assert "checking" in first["html"]
+    assert "Checking" in first["html"]
     assert 'id="vc-rdap"' in first["html"]  # a pending card per provider
     cards = [op["id"] for m in msgs[1:-1] for op in m["ops"]]
     assert "vc-rdap" in cards
@@ -245,3 +257,13 @@ async def test_overview_has_the_verify_bar_and_the_script_is_served(app: App) ->
     assert js.status_code == 200
     assert "eval(" not in js.text
     assert "innerHTML = '<p" in js.text  # only fixed strings or server-rendered HTML go into the page
+
+
+def test_ioc_filter_defangs_dims_and_escapes() -> None:
+    from threatlens.ui.routes import ioc
+
+    html = str(ioc("conn to 185.220.101.34 <script>x</script>"))
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert '185<span class="df">[</span>.<span class="df">]</span>220' in html
+    assert "185.220.101.34" not in html

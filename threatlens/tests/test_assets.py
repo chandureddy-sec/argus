@@ -226,7 +226,7 @@ async def api(sm: SM, mock_http: MakeHttp, tmp_path: Path) -> AsyncIterator[Api]
             VulnerabilityProduct(vulnerability_id=vuln.id, part="a", vendor="apache", product="http_server")
         )
     settings = Settings(rate_limit_analyst=1000, rate_limit_viewer=1000)
-    svc = EnrichmentService(sm, mock_http(Upstream()), MemoryQuotaStore(), settings)  # type: ignore[arg-type]
+    svc = EnrichmentService(sm, mock_http(Upstream()), MemoryQuotaStore(), settings, now=Clock())  # type: ignore[arg-type]
     app = create_app(settings, checks={}, sessionmaker=sm, limiter=MemoryRateLimiter(), enrich=svc)
     async with (
         app.router.lifespan_context(app),

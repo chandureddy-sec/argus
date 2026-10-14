@@ -6,7 +6,7 @@
 <meta name="referrer" content="same-origin">
 <title>{% block title %}ThreatLens{% endblock %} · ThreatLens</title>
 <link rel="icon" href="/ui/static/logo.svg" type="image/svg+xml">
-<link rel="preload" href="/ui/static/fonts/montserrat-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/ui/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/ui/static/app.css?v={{ version }}">
 <script src="/ui/static/app.js?v={{ version }}" defer></script>
 </head>
@@ -35,7 +35,7 @@
   ]),
 ] %}
 <aside class="sidebar">
-  <a class="brand" href="/ui" title="ThreatLens"><img src="/ui/static/logo.svg" alt="" width="30" height="30"><b>ThreatLens</b></a>
+  <a class="brand" href="/ui" title="ThreatLens"><img src="/ui/static/logo.svg" alt="" width="32" height="32"><span class="word">Threat<b>Lens</b></span></a>
   {% for title, items in sections %}
   <nav class="side-section" aria-label="{{ title }}">
     <h2>{{ title }}</h2>
@@ -74,7 +74,7 @@
     </div>
     {% block content %}{% endblock %}
   </div>
-  <footer>ThreatLens {{ version }} · data © its sources (see <a href="/ui/sources">Sources</a> for licences and attribution) · MITRE ATT&CK® © The MITRE Corporation · fonts: Montserrat, JetBrains Mono (SIL OFL)</footer>
+  <footer>ThreatLens {{ version }} · data © its sources (see <a href="/ui/sources">Sources</a> for licences and attribution) · MITRE ATT&CK® © The MITRE Corporation · fonts: Inter, JetBrains Mono (SIL OFL)</footer>
 </main>
 </body>
 </html>

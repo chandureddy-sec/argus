@@ -44,7 +44,15 @@ from threatlens.ui.work import BULK_MAX, TLPS, _open_cases, gather_text, observa
 
 router = APIRouter(prefix="/ui", include_in_schema=False)
 log = get_logger("threatlens.ui")
-templates.env.globals.update(headline=verify.headline, fields=verify.fields, titles=verify.CARD_TITLE)
+templates.env.globals.update(
+    headline=verify.headline,
+    fields=verify.fields,
+    titles=verify.CARD_TITLE,
+    summary_line=verify.summary_line,
+    VERDICT=verify.VERDICT,
+    TYPE=verify.TYPE,
+    ACTION=verify.ACTION,
+)
 VERIFY_PER_MINUTE = 60
 BULK_PER_MINUTE = 20
 BULK_CONCURRENCY = 8
