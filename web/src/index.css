@@ -48,7 +48,7 @@
 @layer components {
   .card { @apply rounded-card border border-line bg-card; }
   .label { @apply text-[13px] text-ink-muted; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply btn bg-accent text-white hover:bg-accent-soft shadow-[0_6px_20px_-8px_rgb(var(--accent)/0.8)]; }
   .btn-ghost { @apply btn border border-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
   .ctl { @apply h-9 rounded-ctl border border-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }

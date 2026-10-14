@@ -6,8 +6,10 @@ import KpiCard from "../components/KpiCard";
 import { Failed, Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
 import { useApi, type Kpi } from "../lib/api";
+import { usePage } from "../lib/page";
 
 export default function Reports() {
+  usePage("Reports");
   const kpis = useApi<Kpi[]>("kpis");
   return (
     <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">

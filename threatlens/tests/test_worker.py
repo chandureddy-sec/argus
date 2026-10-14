@@ -32,5 +32,6 @@ def test_worker_settings_schedule_heartbeat() -> None:
         "cron:refresh_allowlist",
         "cron:daily_scoring",
         "cron:enrich_backlog",
+        "cron:import_recon_reports",  # saved monitor runs become assets (ADR 0014)
     }
     assert ws.redis_settings.host  # parsed from TL_REDIS_URL

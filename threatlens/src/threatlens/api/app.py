@@ -30,6 +30,8 @@ from threatlens.enrich.quota import RedisQuotaStore
 from threatlens.enrich.service import EnrichmentService, enrichment_http
 from threatlens.health import Check, run_checks
 from threatlens.logs import configure_logging, get_logger
+from threatlens.recon import Engine
+from threatlens.recon_api import router as recon_router
 from threatlens.settings import Environment, Settings, get_settings
 from threatlens.ui.feeds import router as feeds_ui_router
 from threatlens.ui.investigate import router as investigate_router
@@ -70,9 +72,10 @@ def create_app(
     limiter: RateLimiter | None = None,
     enqueue: Enqueue | None = None,
     enrich: EnrichmentService | None = None,
+    recon: Engine | None = None,
 ) -> FastAPI:
-    """Build the app. ``checks``, ``sessionmaker``, ``limiter``, ``enqueue`` and
-    ``enrich`` override the real dependencies (tests)."""
+    """Build the app. ``checks``, ``sessionmaker``, ``limiter``, ``enqueue``,
+    ``enrich`` and ``recon`` override the real dependencies (tests)."""
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_json)
     dev = settings.env != Environment.PROD
@@ -90,6 +93,7 @@ def create_app(
             app.state.limiter = limiter or MemoryRateLimiter()
             app.state.enqueue = enqueue
             app.state.enrich = enrich
+            app.state.recon = recon
             yield
             return
         engine = make_engine(settings.database_url.get_secret_value())
@@ -114,11 +118,14 @@ def create_app(
         app.state.enqueue = enqueue or enqueue_run
         http = enrichment_http(settings)
         app.state.enrich = EnrichmentService(app.state.sessionmaker, http, RedisQuotaStore(redis), settings)
+        app.state.recon = recon or (Engine(settings.reconx_url) if settings.reconx_url else None)
         log.info("api.startup", version=__version__, env=settings.env.value)
         try:
             yield
         finally:
             await http.aclose()
+            if app.state.recon is not None:
+                await app.state.recon.aclose()
             await pool.aclose()
             await redis.aclose()
             await engine.dispose()
@@ -146,6 +153,7 @@ def create_app(
     app.include_router(respond_router)
     app.include_router(investigate_router)
     app.include_router(feeds_ui_router)
+    app.include_router(recon_router)  # /app/api/recon, before the app's catch-all route
     app.include_router(webapp_api)  # before the app's catch-all route
     app.include_router(webapp_router)
     app.mount("/ui/static", StaticFiles(directory=str(UI_STATIC)), name="ui-static")

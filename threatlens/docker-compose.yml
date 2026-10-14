@@ -15,6 +15,7 @@ x-app: &app
   environment:
     TL_DATABASE_URL: postgresql+asyncpg://threatlens:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/threatlens
     TL_REDIS_URL: redis://redis:6379/0
+    TL_RECONX_URL: http://reconx:8787
   read_only: true
   tmpfs: [/tmp]
   security_opt: ["no-new-privileges:true"]
@@ -68,12 +69,26 @@ services:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
 
+  # The ReconX engine (Argus attack-surface scans). Internal only: no published port.
+  reconx:
+    build:
+      context: ..
+      dockerfile: deploy/reconx.Dockerfile
+    image: argus-reconx:dev
+    volumes: [recondata:/data]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+
   worker:
     <<: *app
     command: ["arq", "threatlens.worker.WorkerSettings"]
     environment:
       TL_DATABASE_URL: postgresql+asyncpg://threatlens:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/threatlens
       TL_REDIS_URL: redis://redis:6379/0
+      TL_RECONX_URL: http://reconx:8787
       TL_DATA_DIR: /app/data
     volumes: [rawdata:/app/data]  # the only writable path besides /tmp
     restart: unless-stopped
@@ -86,3 +101,4 @@ volumes:
   pgdata:
   redisdata:
   rawdata:
+  recondata:  # ReconX reports, monitors, drift DB and keys

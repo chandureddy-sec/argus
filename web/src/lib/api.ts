@@ -122,3 +122,180 @@ export interface Page<T> {
   size: number;
   items: T[];
 }
+
+/** POST JSON to /app/api; the browser marks it same-origin, which the API requires for changes. */
+export async function post<T>(path: string, body: unknown = {}): Promise<T> {
+  const r = await fetch(`/app/api/${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401) {
+    window.location.assign("/ui/login?next=/app/");
+    throw new Error("signed out");
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const detail = (data as { detail?: unknown }).detail;
+    throw new Error(typeof detail === "string" ? detail : Array.isArray(detail) ? "Check the form: some values aren't valid" : `${r.status} error`);
+  }
+  return data as T;
+}
+
+// ── attack surface (ReconX engine, via /app/api/recon) ───────────────────────
+
+export interface EngineStatus {
+  configured: boolean;
+  reachable: boolean;
+  browser?: boolean;
+  nmap?: boolean;
+}
+
+export interface ScanRow {
+  file?: string;
+  job_id?: string;
+  target: string;
+  timestamp: string;
+  mode: "passive" | "active" | "both";
+  has_passive: boolean;
+  has_active: boolean;
+  subdomains: number;
+  live_hosts: number;
+  findings: number;
+  high: number;
+  medium: number;
+  low: number;
+  info: number;
+  imported: boolean;
+}
+
+export interface ProgressEvent {
+  step: string;
+  message: string;
+  percent: number;
+  level: "info" | "warn" | "done" | "error";
+}
+
+export interface JobStatus {
+  id: string;
+  status: "running" | "done" | "error";
+  events: ProgressEvent[];
+  file?: string;
+  error?: string;
+}
+
+export interface HostNode {
+  hostname: string;
+  sources: string[];
+  confidence: number;
+  is_alive: boolean;
+  resolved_ips?: string[];
+  asn?: string;
+  organization?: string;
+  isp?: string;
+  cloud_provider?: string;
+  country?: string;
+}
+
+export interface Finding {
+  category: string;
+  severity: string;
+  title: string;
+  description: string;
+  evidence?: string;
+  target: string;
+}
+
+export interface Port {
+  port: number;
+  protocol: string;
+  state: string;
+  service?: string;
+  banner?: string;
+}
+
+export interface SourceRun {
+  name: string;
+  purpose: string;
+  status: string;
+  error?: string;
+  duration_ms: number;
+  results: number;
+  reliability: string;
+}
+
+export interface Report {
+  target?: { value: string; type: string };
+  timestamp: string;
+  normalized_assets?: { asset: string; type: string; sources: string[] }[];
+  attack_surface_graph?: { target_domain: string; total_assets: number; live_assets: number; nodes: HostNode[] };
+  passive_intel?: { sources?: SourceRun[]; ips?: { ip: string }[]; certificates?: unknown[] };
+  active_recon?: { findings?: Finding[]; open_ports?: Port[]; tech_stack?: unknown };
+  web_map?: { total_pages_crawled?: number };
+}
+
+export interface GeoPoint {
+  lat: number;
+  lon: number;
+  x: number;
+  y: number;
+  place: string;
+  country?: string;
+  ips: string[];
+  hosts: number;
+  providers?: string[];
+  exposed?: number;
+}
+
+export interface ChangeSet {
+  previous_scan: string;
+  previous_file?: string;
+  summary: Record<string, number>;
+  events?: { category: string; action: "added" | "removed" | "changed"; key: string; old?: string; new?: string }[];
+}
+
+export interface Monitor {
+  id: string;
+  target: string;
+  every: string;
+  enabled: boolean;
+  webhook: string;
+  webhook_kind?: string;
+  min_severity?: string;
+  last_run?: string;
+  next_run: string;
+  last_status?: string;
+  last_error?: string;
+  last_file?: string;
+  last_alerts: number;
+  runs: number;
+}
+
+export interface Alert {
+  id: string;
+  target: string;
+  time: string;
+  rule: string;
+  severity: string;
+  title: string;
+  items?: string[];
+  more?: number;
+  scan_file?: string;
+}
+
+/** A plain-text resource (the map's land outline), fetched once. */
+export function useText(path: string): string | undefined {
+  const [text, setText] = useState<string>();
+  useEffect(() => {
+    let live = true;
+    fetch(`/app/api/${path}`, { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.text() : undefined))
+      .then((t) => live && setText(t))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  return text;
+}

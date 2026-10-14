@@ -135,8 +135,10 @@ async def app_files(request: Request, path: str) -> Response:
                 else "public, max-age=3600"
             )
             return FileResponse(target, headers={"Cache-Control": cache})
-        if "." in path.rsplit("/", 1)[-1]:
-            raise HTTPException(404, "not found")  # a missing file, not an app route
+        if path.startswith(("assets/", "fonts/")):
+            raise HTTPException(
+                404, "not found"
+            )  # a missing static file; anything else is an app route (scan pages end in .json)
     # Any other path is an app route: the page needs a session.
     if await session.principal(request, _settings(request)) is None:
         return RedirectResponse("/ui/login?next=/app/", status_code=303)

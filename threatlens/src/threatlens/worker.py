@@ -32,6 +32,8 @@ from threatlens.enrich.service import EnrichmentService, enrichment_http
 from threatlens.jobs import daily_scoring as run_daily_scoring
 from threatlens.jobs import open_collector, refresh_allowlists
 from threatlens.logs import configure_logging, get_logger
+from threatlens.recon import Engine, EngineError, import_new_reports
+from threatlens.scoring.store import rescore
 from threatlens.settings import get_settings
 
 log = get_logger("threatlens.worker")
@@ -69,6 +71,21 @@ async def enrich_backlog(ctx: dict[str, Any]) -> dict[str, int]:
     return await service.enrich_backlog(service.settings.enrich_auto_per_run)
 
 
+async def import_recon_reports(ctx: dict[str, Any]) -> dict[str, int]:
+    """Scheduled ReconX monitor runs save reports on their own: import them as assets."""
+    engine: Engine | None = ctx.get("recon")
+    if engine is None:
+        return {"seen": 0, "imported": 0, "failed": 0}
+    try:
+        out = await import_new_reports(ctx["collector"].sm, engine)
+    except EngineError as e:
+        log.warning("worker.recon_unreachable", error=str(e)[:200])
+        return {"seen": 0, "imported": 0, "failed": 0}
+    if out["imported"]:
+        await rescore(ctx["collector"].sm, ctx["collector"].settings)
+    return out
+
+
 async def daily_scoring(ctx: dict[str, Any]) -> dict[str, Any]:
     collector = ctx["collector"]
     return await run_daily_scoring(collector.sm, collector.settings)
@@ -81,6 +98,9 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["collector"] = await stack.enter_async_context(open_collector(s))
     http = await stack.enter_async_context(enrichment_http(s))
     ctx["enrich"] = EnrichmentService(ctx["collector"].sm, http, RedisQuotaStore(ctx["redis"]), s)
+    ctx["recon"] = Engine(s.reconx_url) if s.reconx_url else None
+    if ctx["recon"] is not None:
+        stack.push_async_callback(ctx["recon"].aclose)
     ctx["stack"] = stack
     await heartbeat(ctx)
     log.info("worker.startup")
@@ -103,6 +123,7 @@ class WorkerSettings:
         func(refresh_allowlist, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(enrich_backlog, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(daily_scoring, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(import_recon_reports, keep_result=0, timeout=COLLECT_TIMEOUT_S),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),
@@ -110,6 +131,7 @@ class WorkerSettings:
         cron(refresh_allowlist, hour=3, minute=17, unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(enrich_backlog, minute={7, 37}, unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(daily_scoring, hour=2, minute=47, unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(import_recon_reports, minute=set(range(3, 60, 10)), unique=True, timeout=COLLECT_TIMEOUT_S),
     ]
     on_startup = startup
     on_shutdown = shutdown

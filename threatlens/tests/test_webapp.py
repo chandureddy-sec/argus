@@ -171,3 +171,11 @@ async def test_everything_respects_tlp_clearance(web: Web) -> None:
     assert green == red - 1
     assert (await web.c.get("/app/api/indicators", params={"q": "162.243.103.246"})).json()["total"] == 0
     assert (await web.c.get("/app/api/me")).json()["clearance"] == "TLP:GREEN"
+
+
+async def test_app_routes_may_look_like_file_names(web: Web) -> None:
+    await web.login("chandu reddy")
+    page = await web.c.get("/app/scans/view/recon_example.com_20261014_105025.json")  # a saved scan's page
+    assert page.status_code == 200
+    assert 'id="root"' in page.text
+    assert (await web.c.get("/app/fonts/missing.woff2")).status_code == 404

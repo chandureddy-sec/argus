@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # /app/webapp; for a native run point it at web/dist.
     web_dist: Path = Path("webapp")
 
+    # The ReconX engine (attack-surface scans), on the compose network only (ADR 0014).
+    reconx_url: str | None = None
+
     # Third-party keys (free tiers). A connector whose key is missing is
     # recorded as "skipped", never as an error.
     abusech_auth_key: SecretStr | None = None  # ThreatFox (required), URLhaus (optional)
