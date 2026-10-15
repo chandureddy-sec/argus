@@ -33,7 +33,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
 const VERDICT: Record<string, [string, string]> = {
   malicious: ["Malicious", "bg-down/12 text-down ring-down/25"],
   suspicious: ["Suspicious", "bg-warn/10 text-warn ring-warn/25"],
-  unknown: ["No known threat", "bg-ink-faint/15 text-ink-muted ring-line"],
+  unknown: ["No known threat", "bg-chip text-chip-ink ring-line"],
   benign: ["Clean", "bg-up/10 text-up ring-up/20"],
 };
 
@@ -85,11 +85,11 @@ export function Score({ n, wide = false }: { n: number | null | undefined; wide?
 export function StatusPill({ status }: { status: string }) {
   const map: Record<string, [string, string]> = {
     active: ["Active", "bg-up/10 text-up ring-up/20"],
-    new: ["New", "bg-accent/10 text-accent-soft ring-accent/20"],
+    new: ["New", "bg-info/10 text-info-soft ring-info/20"],
     expired: ["Expired", "bg-down/10 text-down ring-down/20"],
-    false_positive: ["Not malicious", "bg-ink-faint/15 text-ink-muted ring-line"],
-    revoked: ["Revoked", "bg-ink-faint/15 text-ink-muted ring-line"],
+    false_positive: ["Not malicious", "bg-chip text-chip-ink ring-line"],
+    revoked: ["Revoked", "bg-chip text-chip-ink ring-line"],
   };
-  const [text, tone] = map[status] ?? [status, "bg-ink-faint/15 text-ink-muted ring-line"];
+  const [text, tone] = map[status] ?? [status, "bg-chip text-chip-ink ring-line"];
   return <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium ring-1 ${tone}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{text}</span>;
 }

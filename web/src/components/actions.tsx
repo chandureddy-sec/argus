@@ -11,7 +11,7 @@ export function BlockButton({ value, block, onDone }: { value: string; block?: B
   const current = made ?? block;
   if (current && current.state !== "lifted" && current.state !== "expired") {
     return (
-      <Link to="/blocklist" className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-medium ring-1 ${current.mode === "enforce" ? "bg-down/10 text-down ring-down/25" : "bg-accent/10 text-accent-soft ring-accent/20"}`}>
+      <Link to="/blocklist" className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-medium ring-1 ${current.mode === "enforce" ? "bg-down/10 text-down ring-down/25" : "bg-info/10 text-info-soft ring-info/20"}`}>
         <ShieldBan className="h-3.5 w-3.5" /> {current.mode === "enforce" ? "Blocked on firewalls" : "Blocked (monitor)"}
       </Link>
     );
