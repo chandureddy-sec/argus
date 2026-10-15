@@ -75,6 +75,7 @@ const NAV: Item[] = [
     children: [
       { label: "Feed catalog", to: "/feeds" },
       { label: "Settings", to: "/settings" },
+      { label: "Audit log", to: "/audit" },
       { label: "Search", to: "/search" },
     ],
   },

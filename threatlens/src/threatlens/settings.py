@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # Signs analyst UI session cookies. Without it, sessions end when the API restarts.
     secret_key: SecretStr | None = None
 
+    # Development only: POST /app/api/auth/sso/mock signs in an SSO identity without
+    # any identity provider checking it. Off unless TL_SSO_MOCK=true; never in production.
+    sso_mock: bool = False
+
     # Knowledge base (Phase 2).
     attack_domains: list[str] = Field(
         default_factory=lambda: ["enterprise-attack", "mobile-attack", "ics-attack"]

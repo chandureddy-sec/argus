@@ -377,6 +377,7 @@ async def approve(s: AsyncSession, b: Block, *, actor: str, is_admin: bool) -> B
     policy = await get_policy(s)
     if policy["require_second_approver"] and b.requested_by == actor[:100]:
         raise BlockError("you can't approve your own request: another admin has to")
+    _audit(s, actor, "block.approve", b, requested_by=b.requested_by)
     await _enforce(s, b, actor=actor, now=now)
     return b
 

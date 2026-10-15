@@ -18,6 +18,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.3",
+    "qrcode>=8.2",
     "redis>=5.3.1",
     "sqlalchemy[asyncio]>=2",
     "structlog>=26.1.0",
@@ -54,7 +55,7 @@ plugins = ["pydantic.mypy"]
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["arq.*"]
+module = ["arq.*", "qrcode.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -84,6 +84,7 @@ function Shell() {
               <Route path="/feeds/:name" element={<FeedView me={me} />} />
               <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/audit" element={<Settings initialTab="audit" />} />
               <Route path="/landscape" element={<Landscape />} />
               <Route path="/vulnerabilities" element={<Vulnerabilities />} />
               <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />

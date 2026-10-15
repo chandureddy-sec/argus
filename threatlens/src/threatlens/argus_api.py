@@ -18,6 +18,8 @@ server (PROMPT section 2); live links exist only where the marking allows.
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 import ipaddress
 import json
 from collections import Counter
@@ -25,11 +27,12 @@ from collections.abc import AsyncIterator
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import String, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from threatlens import blocking, catalog, verify
+from threatlens import blocking, catalog, session, totp, users, verify
 from threatlens.api.blocks import BlockOut, _out
 from threatlens.api.enrich import NOT_LOOKUPS
 from threatlens.api.v1 import Admin, Analyst, Viewer, _app_settings, _sm
@@ -40,8 +43,9 @@ from threatlens.ioc.extract import defang_text
 from threatlens.ioc.normalize import guess
 from threatlens.ioc.types import IOCType, Observable
 from threatlens.logs import get_logger
-from threatlens.models import AllowlistEntry, Asset, AuditLog, FeedToken
+from threatlens.models import AllowlistEntry, AppSetting, Asset, AuditLog, FeedToken, User
 from threatlens.scoring.feedback import rescore_sources
+from threatlens.users import UserError
 
 router = APIRouter(prefix="/app/api", include_in_schema=False)
 log = get_logger("threatlens.argus")
@@ -636,3 +640,552 @@ async def feed_form(who: Admin, request: Request, name: str) -> dict[str, Any]:
         "has_secret": bool(feed.auth_secret),
         "upstream": "" if src.upstream.startswith("custom:") else src.upstream,
     }
+
+
+# ── team & user management (ADR 0017) ─────────────────────────────────────────
+
+
+class UserCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=6, max_length=256)
+    role: Literal["admin", "analyst", "viewer"] = "analyst"
+    clearance: TLP | None = None
+
+
+class UserRoleIn(BaseModel):
+    role: Literal["admin", "analyst", "viewer"]
+    clearance: TLP | None = None
+
+
+class PasswordResetIn(BaseModel):
+    password: str = Field(min_length=6, max_length=256)
+
+
+@router.get("/settings/users")
+async def users_list(who: Admin, request: Request) -> list[dict[str, Any]]:
+    """List all accounts inside Argus for admin review."""
+    async with _sm(request)() as s:
+        rows = await users.list_users(s)
+    return [
+        {
+            "id": u.id,
+            "name": u.name,
+            "login": u.login,
+            "role": u.role,
+            "tlpClearance": u.tlp_clearance,
+            "createdAt": u.created_at,
+            "lastLoginAt": u.last_login_at,
+            "disabledAt": u.disabled_at,
+            "totpEnabled": bool(u.totp_secret),
+            "ssoProvider": u.sso_provider,
+        }
+        for u in rows
+    ]
+
+
+@router.post("/settings/users")
+async def user_create(who: Admin, request: Request, body: UserCreateIn) -> dict[str, Any]:
+    """Create a new user account directly from Settings."""
+    try:
+        async with _sm(request)() as s, s.begin():
+            row = await users.create_user(
+                s, body.name, body.password, body.role, actor=who.name, clearance=body.clearance
+            )
+            return {
+                "id": row.id,
+                "name": row.name,
+                "login": row.login,
+                "role": row.role,
+                "tlpClearance": row.tlp_clearance,
+                "createdAt": row.created_at,
+            }
+    except UserError as e:
+        raise HTTPException(422, str(e)) from None
+
+
+@router.patch("/settings/users/{user_id}/role")
+async def user_change_role(who: Admin, request: Request, user_id: int, body: UserRoleIn) -> dict[str, Any]:
+    """Change an account's role and/or TLP clearance."""
+    try:
+        async with _sm(request)() as s, s.begin():
+            target = await users.get_user_by_id(s, user_id)
+            if target is None:
+                raise HTTPException(404, "no such user")
+            # Safety check: Prevent demoting the last active administrator
+            if target.id == who.key_id and body.role != "admin":
+                other_admins = (
+                    await s.scalars(
+                        select(User).where(
+                            User.role == "admin", User.disabled_at.is_(None), User.id != target.id
+                        )
+                    )
+                ).all()
+                if not other_admins:
+                    raise HTTPException(422, "Cannot demote the sole active administrator.")
+            await users.set_role(s, target.name, body.role, actor=who.name)
+            await users.set_clearance(s, target.name, body.clearance, actor=who.name)
+            return {"status": "updated", "role": target.role, "clearance": target.tlp_clearance}
+    except UserError as e:
+        raise HTTPException(422, str(e)) from None
+
+
+@router.post("/settings/users/{user_id}/password")
+async def user_reset_password(
+    who: Admin, request: Request, user_id: int, body: PasswordResetIn
+) -> dict[str, str]:
+    """Reset an account's password from Settings. Sessions signed in with the old one end."""
+    try:
+        async with _sm(request)() as s, s.begin():
+            target = await users.get_user_by_id(s, user_id)
+            if target is None:
+                raise HTTPException(404, "no such user")
+            await users.set_password(s, target.name, body.password, actor=who.name)
+            return {"status": "password_reset"}
+    except UserError as e:
+        raise HTTPException(422, str(e)) from None
+
+
+@router.post("/settings/users/{user_id}/disable")
+async def user_disable(who: Admin, request: Request, user_id: int) -> dict[str, str]:
+    """Disable an account, immediately terminating all its active sessions."""
+    try:
+        async with _sm(request)() as s, s.begin():
+            target = await users.get_user_by_id(s, user_id)
+            if target is None:
+                raise HTTPException(404, "no such user")
+            if target.id == who.key_id:
+                raise HTTPException(422, "You cannot disable your own active administrator account.")
+            await users.set_disabled(s, target.name, True, actor=who.name)
+            return {"status": "disabled"}
+    except UserError as e:
+        raise HTTPException(422, str(e)) from None
+
+
+@router.post("/settings/users/{user_id}/enable")
+async def user_enable(who: Admin, request: Request, user_id: int) -> dict[str, str]:
+    """Re-enable a disabled account."""
+    try:
+        async with _sm(request)() as s, s.begin():
+            target = await users.get_user_by_id(s, user_id)
+            if target is None:
+                raise HTTPException(404, "no such user")
+            await users.set_disabled(s, target.name, False, actor=who.name)
+            return {"status": "enabled"}
+    except UserError as e:
+        raise HTTPException(422, str(e)) from None
+
+
+@router.post("/settings/users/{user_id}/reset-2fa")
+async def user_reset_2fa(who: Admin, request: Request, user_id: int) -> dict[str, str]:
+    """Reset a user's 2FA (TOTP) secret (e.g. if device was lost)."""
+    try:
+        async with _sm(request)() as s, s.begin():
+            target = await users.get_user_by_id(s, user_id)
+            if target is None:
+                raise HTTPException(404, "no such user")
+            await users.reset_totp(s, target.name, actor=who.name)
+            return {"status": "2fa_reset"}
+    except UserError as e:
+        raise HTTPException(422, str(e)) from None
+
+
+# ── two-factor authentication (TOTP) ──────────────────────────────────────────
+
+
+class Enable2FaIn(BaseModel):
+    secret: str = Field(min_length=16, max_length=64)
+    code: str = Field(min_length=6, max_length=6)
+
+
+class Disable2FaIn(BaseModel):
+    code: str = Field(min_length=6, max_length=6)
+
+
+@router.get("/settings/2fa")
+async def two_factor_status(who: Viewer, request: Request) -> dict[str, Any]:
+    """Get 2FA status for the currently authenticated user."""
+    async with _sm(request)() as s:
+        target = await users.get_user_by_id(s, who.key_id)
+    if target is None:
+        return {"enabled": False, "enabledAt": None}
+    return {"enabled": bool(target.totp_secret), "enabledAt": target.totp_enabled_at}
+
+
+@router.post("/settings/2fa/setup")
+async def two_factor_setup(who: Viewer, request: Request) -> dict[str, str]:
+    """Generate a new TOTP secret, otpauth URL, and SVG QR code."""
+    secret = totp.generate_secret()
+    url = totp.otpauth_url(who.name, secret, issuer="Argus")
+    svg = totp.qr_svg(url)
+    return {"secret": secret, "otpauth_url": url, "qr_svg": svg}
+
+
+@router.post("/settings/2fa/enable")
+async def two_factor_enable(who: Viewer, request: Request, body: Enable2FaIn) -> dict[str, Any]:
+    """Verify code and activate TOTP for the current user."""
+    if not totp.verify_totp(body.secret, body.code):
+        raise HTTPException(422, "Invalid verification code; check the code from your authenticator app.")
+    async with _sm(request)() as s, s.begin():
+        await users.set_totp_secret(s, who.name, body.secret, actor=who.name)
+    return {"ok": True, "status": "enabled"}
+
+
+@router.post("/settings/2fa/disable")
+async def two_factor_disable(who: Viewer, request: Request, body: Disable2FaIn) -> dict[str, Any]:
+    """Disable TOTP after verifying a code from the authenticator."""
+    async with _sm(request)() as s:
+        target = await users.get_user_by_id(s, who.key_id)
+    if target is None or not target.totp_secret:
+        return {"ok": True, "status": "not_enabled"}
+    if not totp.verify_totp(target.totp_secret, body.code):
+        raise HTTPException(422, "Invalid verification code.")
+    async with _sm(request)() as s, s.begin():
+        await users.set_totp_secret(s, who.name, None, actor=who.name)
+    return {"ok": True, "status": "disabled"}
+
+
+# ── single sign-on (SSO) ─────────────────────────────────────────────────────
+
+SSO_SETTING_KEY = "security.sso"
+REDACTED_VALUE = "********"
+DEFAULT_SSO_CONFIG = {
+    "enabled": False,
+    "default_role": "analyst",
+    "auto_provision": True,
+    "providers": {
+        "google": {"enabled": False, "client_id": "", "client_secret": "", "hosted_domain": ""},
+        "microsoft": {"enabled": False, "client_id": "", "client_secret": "", "tenant": "common"},
+        "okta": {"enabled": False, "client_id": "", "client_secret": "", "domain": ""},
+    },
+}
+
+
+async def _get_sso_config(s: AsyncSession) -> dict[str, Any]:
+    row = await s.get(AppSetting, SSO_SETTING_KEY)
+    if row is None or not isinstance(row.value, dict):
+        return dict(DEFAULT_SSO_CONFIG)
+    cfg = dict(DEFAULT_SSO_CONFIG)
+    cfg.update(row.value)
+    return cfg
+
+
+@router.get("/auth/sso/providers")
+async def sso_providers(request: Request) -> list[dict[str, Any]]:
+    """Public list of active SSO providers for the login page."""
+    async with _sm(request)() as s:
+        cfg = await _get_sso_config(s)
+    if not cfg.get("enabled"):
+        return []
+    provs = cfg.get("providers", {})
+    out = []
+    if provs.get("google", {}).get("enabled"):
+        out.append({"id": "google", "name": "Google"})
+    if provs.get("microsoft", {}).get("enabled"):
+        out.append({"id": "microsoft", "name": "Microsoft"})
+    if provs.get("okta", {}).get("enabled"):
+        out.append({"id": "okta", "name": "Okta"})
+    return out
+
+
+@router.get("/settings/sso")
+async def sso_get(who: Admin, request: Request) -> dict[str, Any]:
+    """Retrieve SSO configuration (with secrets masked)."""
+    async with _sm(request)() as s:
+        cfg = await _get_sso_config(s)
+    # Mask secrets
+    provs = dict(cfg.get("providers", {}))
+    for k, p in provs.items():
+        if isinstance(p, dict):
+            p_copy = dict(p)
+            if p_copy.get("client_secret"):
+                p_copy["client_secret"] = REDACTED_VALUE
+            provs[k] = p_copy
+    return {
+        "enabled": cfg.get("enabled", False),
+        "default_role": cfg.get("default_role", "analyst"),
+        "auto_provision": cfg.get("auto_provision", True),
+        "providers": provs,
+    }
+
+
+class SsoConfigIn(BaseModel):
+    enabled: bool
+    default_role: Literal["admin", "analyst", "viewer"] = "analyst"
+    auto_provision: bool = True
+    providers: dict[str, Any] = Field(default_factory=dict)
+
+
+@router.put("/settings/sso")
+async def sso_save(who: Admin, request: Request, body: SsoConfigIn) -> dict[str, Any]:
+    """Update SSO settings."""
+    async with _sm(request)() as s, s.begin():
+        existing = await _get_sso_config(s)
+        new_data = body.model_dump()
+        # Preserve masked secrets
+        new_provs = new_data.get("providers", {})
+        old_provs = existing.get("providers", {})
+        for k, p in new_provs.items():
+            if isinstance(p, dict) and p.get("client_secret") == REDACTED_VALUE:
+                p["client_secret"] = old_provs.get(k, {}).get("client_secret", "")
+        row = await s.get(AppSetting, SSO_SETTING_KEY)
+        if row is None:
+            s.add(AppSetting(key=SSO_SETTING_KEY, value=new_data, updated_by=who.name))
+        else:
+            row.value = new_data
+            row.updated_by = who.name
+        s.add(
+            AuditLog(
+                actor=who.name,
+                action="settings.sso_update",
+                target=f"settings:{SSO_SETTING_KEY}",
+                details={"enabled": body.enabled, "default_role": body.default_role},
+            )
+        )
+    return {"status": "saved"}
+
+
+class MockSsoIn(BaseModel):
+    provider: Literal["google", "microsoft", "okta"]
+    email: str = Field(min_length=3, max_length=200)
+    name: str = Field(default="", max_length=100)
+
+
+@router.post("/auth/sso/mock")
+async def sso_mock_login(request: Request, body: MockSsoIn) -> Response:
+    """Development stand-in for an identity provider (TL_SSO_MOCK=true only).
+
+    Nothing verifies the posted identity, so it is off by default, honours the SSO
+    switches in Settings, finds accounts only by their stored SSO link (never by
+    email or name) and never signs in or creates an admin."""
+    if not _app_settings(request).sso_mock:
+        raise HTTPException(404, "Not Found")
+    client = request.client.host if request.client else "unknown"
+    limiter = request.app.state.limiter
+    if await limiter.hit(f"sso:{client}", 20):
+        raise HTTPException(429, "Too many requests; wait a minute.")
+    async with _sm(request)() as s, s.begin():
+        cfg = await _get_sso_config(s)
+        if not cfg.get("enabled") or not cfg.get("providers", {}).get(body.provider, {}).get("enabled"):
+            raise HTTPException(403, "This sign-in method is switched off.")
+        role = cfg.get("default_role", "analyst")
+        if role == "admin":
+            role = "analyst"  # an unverified identity never becomes an admin
+        try:
+            user = await users.get_or_create_sso_user(
+                s,
+                email=body.email,
+                name=body.name or body.email.split("@")[0],
+                provider=body.provider,
+                sso_id=f"sso-{body.provider}-{body.email}",
+                default_role=role,
+                actor=f"sso:{body.provider}",
+                auto_provision=bool(cfg.get("auto_provision", True)),
+            )
+        except UserError as e:
+            raise HTTPException(403, str(e)) from None
+        if user.role == "admin":
+            raise HTTPException(403, "Admins sign in with their password.")
+        tag = session.password_tag(user.password_hash)
+        uid = user.id
+    resp = JSONResponse({"ok": True, "user": user.name})
+    resp.set_cookie(
+        session.COOKIE,
+        session.issue(_app_settings(request), uid, tag),
+        max_age=session.LIFETIME_S,
+        httponly=True,
+        samesite="strict",
+        secure=request.url.scheme == "https",
+        path="/",
+    )
+    return resp
+
+
+# ── audit log viewer (who blocked, approved, scanned or changed what) ─────────
+
+
+@router.get("/settings/audit")
+async def audit_logs(
+    who: Analyst,
+    request: Request,
+    q: str | None = None,
+    category: str | None = None,
+    actor: str | None = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Search and browse audit logs: who blocked, approved, scanned, or changed what."""
+    conds = []
+    if actor and actor.strip():
+        conds.append(AuditLog.actor == actor.strip())
+    if category and category != "all":
+        if category == "block":
+            conds.append(AuditLog.action.like("block.%"))
+        elif category == "recon":
+            conds.append(AuditLog.action.like("recon.%"))
+        elif category == "user":
+            conds.append(or_(AuditLog.action.like("user.%"), AuditLog.action.like("api_key.%")))
+        elif category == "settings":
+            conds.append(
+                or_(
+                    AuditLog.action.like("settings.%"),
+                    AuditLog.action.like("allowlist.%"),
+                    AuditLog.action.like("feed_token.%"),
+                )
+            )
+        elif category == "case":
+            conds.append(or_(AuditLog.action.like("case.%"), AuditLog.action.like("note.%")))
+        else:
+            conds.append(AuditLog.action.like(f"{category}.%"))
+    if q and q.strip():
+        term = f"%{q.strip().lower()}%"
+        conds.append(
+            or_(
+                func.lower(AuditLog.actor).like(term),
+                func.lower(AuditLog.action).like(term),
+                func.lower(AuditLog.target).like(term),
+                func.cast(AuditLog.details, String).like(term),
+            )
+        )
+
+    async with _sm(request)() as s:
+        total = int(await s.scalar(select(func.count()).select_from(AuditLog).where(*conds)) or 0)
+        query = select(AuditLog).where(*conds).order_by(AuditLog.id.desc()).offset(offset).limit(limit)
+        items = (await s.scalars(query)).all()
+
+        # Gather actors for filtering
+        actor_rows = (
+            await s.execute(
+                select(AuditLog.actor, func.count())
+                .group_by(AuditLog.actor)
+                .order_by(func.count().desc())
+                .limit(20)
+            )
+        ).all()
+        actors = [r[0] for r in actor_rows]
+
+        # Gather category counts
+        cat_all = int(await s.scalar(select(func.count()).select_from(AuditLog)) or 0)
+        cat_block = int(
+            await s.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action.like("block.%")))
+            or 0
+        )
+        cat_recon = int(
+            await s.scalar(select(func.count()).select_from(AuditLog).where(AuditLog.action.like("recon.%")))
+            or 0
+        )
+        cat_user = int(
+            await s.scalar(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(or_(AuditLog.action.like("user.%"), AuditLog.action.like("api_key.%")))
+            )
+            or 0
+        )
+        cat_settings = int(
+            await s.scalar(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    or_(
+                        AuditLog.action.like("settings.%"),
+                        AuditLog.action.like("allowlist.%"),
+                        AuditLog.action.like("feed_token.%"),
+                    )
+                )
+            )
+            or 0
+        )
+        cat_case = int(
+            await s.scalar(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(or_(AuditLog.action.like("case.%"), AuditLog.action.like("note.%")))
+            )
+            or 0
+        )
+
+    return {
+        "total": total,
+        "items": [
+            {
+                "id": row.id,
+                "at": row.at,
+                "actor": row.actor,
+                "action": row.action,
+                "target": defang_text(row.target) if row.target else "",
+                "details": _df(row.details),
+            }
+            for row in items
+        ],
+        "actors": actors,
+        "categories": [
+            {"id": "all", "label": "All", "count": cat_all},
+            {"id": "block", "label": "Blocks & Approvals", "count": cat_block},
+            {"id": "recon", "label": "Scans", "count": cat_recon},
+            {"id": "user", "label": "Team & Security", "count": cat_user},
+            {"id": "settings", "label": "Policy & Settings", "count": cat_settings},
+            {"id": "case", "label": "Cases", "count": cat_case},
+        ],
+    }
+
+
+@router.get("/settings/audit/export")
+async def audit_export(
+    who: Analyst,
+    request: Request,
+    q: str | None = None,
+    category: str | None = None,
+    actor: str | None = None,
+) -> StreamingResponse:
+    """Export filtered audit logs as CSV for compliance or reporting."""
+    conds = []
+    if actor and actor.strip():
+        conds.append(AuditLog.actor == actor.strip())
+    if category and category != "all":
+        if category == "block":
+            conds.append(AuditLog.action.like("block.%"))
+        elif category == "recon":
+            conds.append(AuditLog.action.like("recon.%"))
+        elif category == "user":
+            conds.append(or_(AuditLog.action.like("user.%"), AuditLog.action.like("api_key.%")))
+        elif category == "settings":
+            conds.append(
+                or_(
+                    AuditLog.action.like("settings.%"),
+                    AuditLog.action.like("allowlist.%"),
+                    AuditLog.action.like("feed_token.%"),
+                )
+            )
+        elif category == "case":
+            conds.append(or_(AuditLog.action.like("case.%"), AuditLog.action.like("note.%")))
+        else:
+            conds.append(AuditLog.action.like(f"{category}.%"))
+    if q and q.strip():
+        term = f"%{q.strip().lower()}%"
+        conds.append(
+            or_(
+                func.lower(AuditLog.actor).like(term),
+                func.lower(AuditLog.action).like(term),
+                func.lower(AuditLog.target).like(term),
+                func.cast(AuditLog.details, String).like(term),
+            )
+        )
+
+    async with _sm(request)() as s:
+        rows = (
+            await s.scalars(select(AuditLog).where(*conds).order_by(AuditLog.id.desc()).limit(2000))
+        ).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["ID", "Timestamp (UTC)", "Actor", "Action", "Target", "Details"])
+    for r in rows:
+        writer.writerow([r.id, r.at.isoformat(), r.actor, r.action, r.target, json.dumps(r.details)])
+    buf.seek(0)
+
+    filename = f"audit_log_{request.url.query.replace('=', '_').replace('&', '_') or 'all'}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

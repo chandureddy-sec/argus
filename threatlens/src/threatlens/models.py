@@ -304,6 +304,10 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = _ts()
     disabled_at: Mapped[datetime | None] = _ts()
     tlp_clearance: Mapped[str | None] = mapped_column(String(20))  # None: the role's default (tlp.py)
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    totp_enabled_at: Mapped[datetime | None] = _ts(nullable=True)
+    sso_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    sso_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     __table_args__ = (
         CheckConstraint("role IN ('admin','analyst','viewer')", name="role"),

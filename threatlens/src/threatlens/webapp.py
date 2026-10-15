@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from threatlens import catalog, session
+from threatlens import catalog, session, totp
 from threatlens import tlp as tlp_rules
 from threatlens.auth import Principal, same_origin
 from threatlens.logs import get_logger
@@ -38,6 +38,7 @@ from threatlens.models import (
     Indicator,
     Sighting,
     Source,
+    User,
 )
 from threatlens.models import Observable as ObsRow
 from threatlens.settings import Settings, get_settings
@@ -163,6 +164,7 @@ async def app_files(request: Request, path: str) -> Response:
 class LoginIn(BaseModel):
     username: str = Field(min_length=1, max_length=200)
     password: str = Field(min_length=1, max_length=1000)
+    totp_code: str | None = None
 
 
 def safe_next(nxt: str) -> str:
@@ -173,8 +175,8 @@ def safe_next(nxt: str) -> str:
 
 @api.post("/session")
 async def login(request: Request, body: LoginIn) -> Response:
-    """Username + password sign-in (ADR 0007): same-site only, rate-limited per
-    address and per account, a signed HttpOnly SameSite=Strict cookie."""
+    """Username + password sign-in (ADR 0007, 0017): same-site only, rate-limited per
+    address and per account, a signed HttpOnly SameSite=Strict cookie, with TOTP 2FA support."""
     if not same_origin(request):
         raise HTTPException(403, "cross-site sign-in refused")
     client = request.client.host if request.client else "unknown"
@@ -185,6 +187,13 @@ async def login(request: Request, body: LoginIn) -> Response:
         raise HTTPException(429, "Too many attempts; wait a minute.")
     async with _sm(request)() as s, s.begin():
         user = await authenticate_user(s, body.username, body.password)
+        if user is not None and user.totp_secret:
+            if not body.totp_code:
+                # Signal to the frontend that 2FA is required for this user
+                return JSONResponse({"ok": False, "totp_required": True, "username": user.name})
+            if not totp.verify_totp(user.totp_secret, body.totp_code):
+                log.warning("argus.totp_failed", user=user.name, client=client)
+                raise HTTPException(401, "Invalid two-factor authentication code.")
         tag = session.password_tag(user.password_hash) if user else ""
         uid = user.id if user else 0
     if user is None:
@@ -220,7 +229,17 @@ async def me(request: Request) -> dict[str, Any]:
     p = await _me(request)
     words = [w for w in re.split(r"[\s._-]+", p.name) if w]
     initials = "".join(w[0] for w in words[:2]).upper() or "?"
-    return {"name": p.name.title(), "role": p.role, "clearance": p.clearance, "initials": initials}
+    async with _sm(request)() as s:
+        user_row = await s.get(User, p.key_id) if p.kind == "user" else None
+    return {
+        "id": p.key_id,
+        "name": p.name.title(),
+        "login": user_row.login if user_row else p.name.lower(),
+        "role": p.role,
+        "clearance": p.clearance,
+        "initials": initials,
+        "totp_enabled": bool(user_row and user_row.totp_secret),
+    }
 
 
 # ── the Reports dashboard ────────────────────────────────────────────────────

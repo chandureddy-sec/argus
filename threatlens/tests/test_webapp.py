@@ -110,7 +110,13 @@ async def test_the_api_answers_only_a_signed_in_session(web: Web) -> None:
     assert (await web.c.get("/app/api/nope")).status_code in (401, 404)
     await web.login("chandu reddy")
     me = (await web.c.get("/app/api/me")).json()
-    assert me == {"name": "Chandu Reddy", "role": "admin", "clearance": "TLP:RED", "initials": "CR"}
+    assert {k: me[k] for k in ("name", "role", "clearance", "initials")} == {
+        "name": "Chandu Reddy",
+        "role": "admin",
+        "clearance": "TLP:RED",
+        "initials": "CR",
+    }
+    assert me["totp_enabled"] is False
     assert (await web.c.get("/app/api/nope")).status_code == 404
 
 

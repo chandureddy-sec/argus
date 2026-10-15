@@ -65,10 +65,13 @@ export function useDebounced<T>(value: T, ms = 250): T {
 // ── shapes served by /app/api (threatlens/webapp.py) ─────────────────────────
 
 export interface Me {
+  id?: number;
   name: string;
+  login?: string;
   role: "admin" | "analyst" | "viewer";
   clearance: string;
   initials: string;
+  totp_enabled?: boolean;
 }
 
 export interface Kpi {
@@ -609,3 +612,68 @@ export interface AssetOut {
   products: string[];
   indicator: { indicator_id: number; status: string; priority_score: number | null; sources: string[] } | null;
 }
+
+// ── team and security (ADR 0017) ─────────────────────────────────────────────
+
+export interface UserItem {
+  id: number;
+  name: string;
+  login: string;
+  role: "admin" | "analyst" | "viewer";
+  tlpClearance: string | null;
+  createdAt: string;
+  lastLoginAt: string | null;
+  disabledAt: string | null;
+  totpEnabled: boolean;
+  ssoProvider: string | null;
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+  enabledAt: string | null;
+}
+
+export interface TwoFactorSetupData {
+  secret: string;
+  otpauth_url: string;
+  qr_svg: string;
+}
+
+export interface SsoProvider {
+  id: string;
+  name: string;
+}
+
+export interface SsoConfig {
+  enabled: boolean;
+  default_role: "admin" | "analyst" | "viewer";
+  auto_provision: boolean;
+  providers: {
+    google?: { enabled?: boolean; client_id?: string; client_secret?: string; hosted_domain?: string };
+    microsoft?: { enabled?: boolean; client_id?: string; client_secret?: string; tenant?: string };
+    okta?: { enabled?: boolean; client_id?: string; client_secret?: string; domain?: string };
+  };
+}
+
+export interface AuditItem {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  target: string;
+  details: Record<string, unknown>;
+}
+
+export interface AuditCategory {
+  id: string;
+  label: string;
+  count: number;
+}
+
+export interface AuditResponse {
+  total: number;
+  items: AuditItem[];
+  actors: string[];
+  categories: AuditCategory[];
+}
+
