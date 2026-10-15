@@ -2,12 +2,32 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { copyRefanged, TLPS } from "../lib/ioc";
 
-/** A defanged value with its brackets dimmed, so it reads normally. */
+/** Defang markers: [.] [:] [@] [://] and the hxxp/fxp schemes. */
+const FANG = /(\[(?:\.|:|@|:\/\/)\]|hxxps?|fxp)/;
+
+/** A defanged value that still reads normally: the brackets are drawn small and
+ * faint (and hidden from screen readers) around a full-strength separator, so
+ * 152[.]59[.]198[.]233 reads almost as 152.59.198.233. Copying it still copies
+ * the defanged text; CopyButton gives the live value. */
 export function Ioc({ value, className = "", mono = true }: { value: string; className?: string; mono?: boolean }) {
-  const parts = value.split(/(\[\.\]|\[:\]|\[@\]|\[:\/\/\]|hxxps?)/);
+  const parts = value.split(FANG);
   return (
     <span className={`${mono ? "break-all font-mono" : "break-words"} ${className}`}>
-      {parts.map((p, i) => (/^\[|^hxxp/.test(p) ? <span key={i} className="text-ink-faint">{p}</span> : <span key={i}>{p}</span>))}
+      {parts.map((p, i) =>
+        i % 2 === 0 ? (
+          p
+        ) : p.startsWith("[") ? (
+          <span key={i}>
+            <span className="fang" aria-hidden="true">[</span>
+            {p.slice(1, -1)}
+            <span className="fang" aria-hidden="true">]</span>
+          </span>
+        ) : (
+          <span key={i} className="text-ink-faint">
+            {p}
+          </span>
+        ),
+      )}
     </span>
   );
 }
