@@ -32,7 +32,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import String, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from threatlens import blocking, catalog, session, totp, users, verify
+from threatlens import blocking, catalog, internal, session, totp, users, verify
 from threatlens.api.blocks import BlockOut, _out
 from threatlens.api.enrich import NOT_LOOKUPS
 from threatlens.api.v1 import Admin, Analyst, Viewer, _app_settings, _sm
@@ -161,6 +161,20 @@ async def verify_stream(
     tlp: TLP = "TLP:GREEN",
     providers: bool = True,
 ) -> StreamingResponse:
+    if internal.classify(q) is not None:
+        # A private or reserved address: no provider or feed knows it, and sending
+        # it out would describe our network. Answer from our own data only.
+        await _limit(request, who, "verify", VERIFY_PER_MINUTE)
+        async with _sm(request)() as s:
+            found = await internal.lookup(s, q, who.clearance)
+        assert found is not None
+        query = {
+            "type": f"ipv{found['version']}",
+            "typeLabel": f"Internal IPv{found['version']} address",
+            "value": defang_text(found["address"]),
+        }
+        line = _line({"event": "internal", "query": query, **_df(found)})
+        return StreamingResponse(iter([line]), media_type="application/x-ndjson", headers=STREAM)
     try:
         obs = verify.parse(q)
         if obs.type in NOT_LOOKUPS:

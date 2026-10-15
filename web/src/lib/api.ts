@@ -499,10 +499,33 @@ export interface VerifyDone extends Local {
   blockable: boolean;
 }
 
+/** A scanned public name that resolves to (or near) an internal address. */
+export interface InternalHost {
+  name: string;
+  target: string;
+  assetId: number;
+  lastSeen: string;
+  ips?: string[];
+}
+
+/** Verify on a private or reserved address: answered from our own data only. */
+export interface InternalResult {
+  event: "internal";
+  query: QueryInfo;
+  address: string;
+  version: 4 | 6;
+  range: { network: string; label: string; standard: string; note: string };
+  subnet: string;
+  publicNames: InternalHost[];
+  nearbyNames: InternalHost[];
+  cases: { id: number; title: string; status: string; severity: string; tlp: string }[];
+}
+
 export type VerifyEvent =
   | ({ event: "start"; query: QueryInfo; pending: { enricher: string; title: string }[] } & Local)
   | { event: "provider"; card: Card }
   | VerifyDone
+  | InternalResult
   | { event: "error"; message: string };
 
 export interface BulkRow {

@@ -1,11 +1,11 @@
-import { ExternalLink, Loader2, Search } from "lucide-react";
+import { Briefcase, ExternalLink, Globe, Loader2, Lock, Network, Search, ShieldOff } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AddToCase, BlockButton, FlagButtons } from "../components/actions";
 import { CopyButton, Ioc, Score, TlpSelect, TlpTag, VerdictPill } from "../components/intel";
 import { Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
-import { readEvents, type Card as ProviderCard, type Local, type Me, type QueryInfo, type VerifyDone, type VerifyEvent } from "../lib/api";
+import { readEvents, type Card as ProviderCard, type InternalResult, type Local, type Me, type QueryInfo, type VerifyDone, type VerifyEvent } from "../lib/api";
 import { ago, date } from "../lib/format";
 import { usePage } from "../lib/page";
 
@@ -115,6 +115,124 @@ function OurIntel({ local }: { local: Local }) {
   );
 }
 
+const SEVERITY_TONE: Record<string, string> = {
+  critical: "bg-down/15 text-down",
+  high: "bg-down/12 text-down",
+  medium: "bg-warn/15 text-warn",
+  low: "bg-chip text-chip-ink",
+};
+
+/** Verify on a private or reserved address: what it is and what we hold, from our own data only. */
+function InternalView({ r }: { r: InternalResult }) {
+  const leaked = r.publicNames.length > 0;
+  return (
+    <>
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="min-w-0 flex-1">
+            <p className="mb-2 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-muted">
+              {r.query.typeLabel}
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-chip px-2.5 py-0.5 text-[12px] font-semibold text-chip-ink ring-1 ring-line">
+                <Lock className="h-3 w-3" /> {r.range.label}
+              </span>
+            </p>
+            <h2 className="text-[22px] font-semibold"><Ioc value={r.query.value} /></h2>
+            <p className="mt-2 text-[12.5px] text-ink-faint">Checked against our own data only. Nothing was sent to a provider or a public site.</p>
+          </div>
+          <div className="max-w-md rounded-card border border-line bg-card-2/40 p-4">
+            <p className="label">Why no reputation</p>
+            <p className="mt-1 text-[13px] text-ink-muted">
+              Threat intel only judges public addresses: this range is used inside millions of networks, so a provider's verdict would mean nothing, and asking would describe your network to them.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-line pt-5">
+          <CopyButton value={r.query.value} />
+        </div>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <article className="rounded-card border border-line bg-card p-4">
+          <h3 className="mb-2 flex items-center gap-2 text-[14px] font-semibold"><Network className="h-4 w-4 text-ink-muted" /> What this address is</h3>
+          <p className="text-[13.5px] font-medium text-ink">{r.range.label}{r.range.standard && <span className="font-normal text-ink-muted"> · {r.range.standard}</span>}</p>
+          <p className="mt-1 text-[12.5px] text-ink-muted"><Ioc value={r.range.note} mono={false} /></p>
+          <dl className="mt-3 grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 text-[12.5px]">
+            <dt className="text-ink-faint">Range</dt>
+            <dd className="text-ink-muted"><Ioc value={r.range.network} /></dd>
+            <dt className="text-ink-faint">Subnet</dt>
+            <dd className="text-ink-muted"><Ioc value={r.subnet} /></dd>
+          </dl>
+        </article>
+
+        <article className={`rounded-card border p-4 ${leaked ? "border-warn/40 bg-warn/[0.04]" : "border-line bg-card"}`}>
+          <h3 className="mb-2 flex items-center gap-2 text-[14px] font-semibold">
+            <span className={`h-2 w-2 rounded-full ${leaked ? "bg-warn" : "bg-up"}`} /> <Globe className="h-4 w-4 text-ink-muted" /> Public DNS
+          </h3>
+          {leaked ? (
+            <>
+              <p className="text-[13.5px] font-medium text-ink">Published in public DNS by {r.publicNames.length === 1 ? "1 name" : `${r.publicNames.length} names`}</p>
+              <p className="mt-1 text-[12.5px] text-ink-muted">Anyone can look these up and learn part of your internal layout. Serve internal names from internal DNS only (split-horizon).</p>
+              <ul className="mt-3 space-y-1 text-[12.5px]">
+                {r.publicNames.map((h) => (
+                  <li key={h.assetId} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <Ioc value={h.name} className="text-ink" />
+                    <span className="text-ink-faint">scan of <Ioc value={h.target} mono={false} /> · {ago(h.lastSeen)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <>
+              <p className="text-[13.5px] font-medium text-ink">Not in public DNS</p>
+              <p className="mt-1 text-[12.5px] text-ink-muted">No public name from your ReconX scans resolves to it.</p>
+            </>
+          )}
+          {r.nearbyNames.length > 0 && (
+            <div className="mt-3 border-t border-line pt-3">
+              <p className="text-[12px] text-ink-faint">Also pointing into <Ioc value={r.subnet} mono={false} /></p>
+              <ul className="mt-1 space-y-1 text-[12.5px]">
+                {r.nearbyNames.map((h) => (
+                  <li key={h.assetId} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <Ioc value={h.name} className="text-ink-muted" />
+                    <span className="text-ink-faint"><Ioc value={(h.ips ?? []).join(", ")} /></span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </article>
+
+        <article className="rounded-card border border-line bg-card p-4">
+          <h3 className="mb-2 flex items-center gap-2 text-[14px] font-semibold"><Briefcase className="h-4 w-4 text-ink-muted" /> Cases</h3>
+          {r.cases.length ? (
+            <ul className="space-y-2 text-[12.5px]">
+              {r.cases.map((c) => (
+                <li key={c.id}>
+                  <Link to={`/cases/${c.id}`} className="flex items-center justify-between gap-3 rounded-ctl px-2 py-1.5 hover:bg-row-hover">
+                    <span className="min-w-0 truncate text-ink">#{c.id} <Ioc value={c.title} mono={false} /></span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className={`rounded px-1.5 text-[11px] font-semibold ${SEVERITY_TONE[c.severity] ?? SEVERITY_TONE.low}`}>{c.severity}</span>
+                      <span className="text-ink-faint">{c.status}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-ink-muted">No case you can read mentions it.</p>
+          )}
+        </article>
+
+        <article className="rounded-card border border-line bg-card p-4">
+          <h3 className="mb-2 flex items-center gap-2 text-[14px] font-semibold"><ShieldOff className="h-4 w-4 text-ink-muted" /> Blocking</h3>
+          <p className="text-[13.5px] font-medium text-ink">Never blocked</p>
+          <p className="mt-1 text-[12.5px] text-ink-muted">Private and reserved addresses are always on the never-block list, so the firewall feed can't cut off your own network.</p>
+        </article>
+      </div>
+    </>
+  );
+}
+
 export default function Verify({ me }: { me?: Me }) {
   usePage("Threat intel", "Verify");
   const [params, setParams] = useSearchParams();
@@ -125,6 +243,7 @@ export default function Verify({ me }: { me?: Me }) {
   const [local, setLocal] = useState<Local>();
   const [cards, setCards] = useState<Record<string, ProviderCard | { pending: true; title: string }>>({});
   const [result, setResult] = useState<VerifyDone>();
+  const [internal, setInternal] = useState<InternalResult>();
   const [error, setError] = useState<string>();
   const [running, setRunning] = useState(false);
   const abort = useRef<AbortController>();
@@ -137,6 +256,7 @@ export default function Verify({ me }: { me?: Me }) {
     setRunning(true);
     setError(undefined);
     setResult(undefined);
+    setInternal(undefined);
     setQuery(undefined);
     setLocal(undefined);
     setCards({});
@@ -154,6 +274,8 @@ export default function Verify({ me }: { me?: Me }) {
           setResult(ev);
           setLocal({ known: ev.known, asset: ev.asset, allowlist: ev.allowlist, related: ev.related });
           setCards(Object.fromEntries(ev.cards.map((c) => [c.enricher, c])));
+        } else if (ev.event === "internal") {
+          setInternal(ev);
         } else {
           setError(ev.message);
         }
@@ -201,6 +323,8 @@ export default function Verify({ me }: { me?: Me }) {
       </Card>
 
       {error && <p role="alert" className="rounded-card border border-down/30 bg-down/[0.06] px-4 py-3 text-[13.5px] text-down">{error}</p>}
+
+      {internal && <InternalView r={internal} />}
 
       {query && (
         <Card>
