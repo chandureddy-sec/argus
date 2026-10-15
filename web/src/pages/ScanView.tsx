@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import InfraGraph from "../components/InfraGraph";
 import { ModePill, SevPill } from "../components/recon";
 import { Empty, Failed, Skeleton } from "../components/states";
-import { Card, Segmented, token } from "../components/ui";
+import { Card, Segmented, useToken } from "../components/ui";
 import { post, useApi, useText, type GeoPoint, type Me, type Report } from "../lib/api";
 import { dateTime } from "../lib/format";
 import { usePage } from "../lib/page";
@@ -38,7 +38,7 @@ function Hosts({ rep }: { rep: Report }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} className="ctl h-8 w-full pl-9 text-[13px]" placeholder="Filter by host, IP or network owner" />
         </label>
         <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink-muted">
-          <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={live} onChange={(e) => setLive(e.target.checked)} /> Live only
+          <input type="checkbox" className="h-4 w-4 accent-accent" checked={live} onChange={(e) => setLive(e.target.checked)} /> Live only
         </label>
         <span className="ml-auto text-[12.5px] text-ink-faint">
           {shown.length.toLocaleString()} of {nodes.length.toLocaleString()}
@@ -58,7 +58,7 @@ function Hosts({ rep }: { rep: Report }) {
           </thead>
           <tbody>
             {shown.slice(0, 500).map((n) => (
-              <tr key={n.hostname} className="border-b border-line/70 odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+              <tr key={n.hostname} className="border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
                 <td className="py-3 pl-6 font-mono text-[13px]">{n.hostname}</td>
                 <td className="py-3 font-mono text-[12.5px] text-ink-muted">{(n.resolved_ips ?? []).slice(0, 3).join(", ") || "–"}{(n.resolved_ips?.length ?? 0) > 3 && ` +${n.resolved_ips!.length - 3}`}</td>
                 <td className="py-3 text-ink-muted">
@@ -71,7 +71,7 @@ function Hosts({ rep }: { rep: Report }) {
                   {n.sources.length} source{n.sources.length === 1 ? "" : "s"}
                 </td>
                 <td className="py-3 pr-6">
-                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium ring-1 ${n.is_alive ? "bg-up/10 text-up ring-up/20" : "bg-ink-faint/15 text-ink-muted ring-line"}`}>
+                  <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-[12px] font-medium ring-1 ${n.is_alive ? "bg-up/10 text-up ring-up/20" : "bg-chip text-chip-ink ring-line"}`}>
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
                     {n.is_alive ? "Live" : "No answer"}
                   </span>
@@ -135,6 +135,7 @@ function Ports({ rep }: { rep: Report }) {
 
 function MapTab({ refId }: { refId: string }) {
   const geo = useApi<{ points: GeoPoint[]; missing: number }>("recon/report/geo", { ref: refId });
+  const token = useToken();
   const land = useText("recon/worldmap");
   const [hover, setHover] = useState<GeoPoint>();
   if (geo.error && !geo.data) return <Failed error={geo.error} onRetry={geo.reload} />;
@@ -150,8 +151,8 @@ function MapTab({ refId }: { refId: string }) {
             const r = 4 + 10 * Math.sqrt(p.ips.length / max);
             return (
               <g key={`${p.x},${p.y}`} onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(undefined)} className="cursor-pointer">
-                <circle cx={p.x} cy={p.y} r={r * 2.2} fill={token(p.exposed ? "down" : "accent", 0.12)} />
-                <circle cx={p.x} cy={p.y} r={r} fill={token(p.exposed ? "down" : "accent", 0.85)} stroke="#fff" strokeOpacity={0.6} strokeWidth={1} />
+                <circle cx={p.x} cy={p.y} r={r * 2.2} fill={token(p.exposed ? "down" : "teal", 0.14)} />
+                <circle cx={p.x} cy={p.y} r={r} fill={token(p.exposed ? "down" : "teal", 0.9)} stroke={token("card")} strokeOpacity={0.9} strokeWidth={1} />
               </g>
             );
           })}
@@ -192,7 +193,7 @@ function Sources({ rep }: { rep: Report }) {
         </thead>
         <tbody>
           {runs.map((s) => (
-            <tr key={s.name} className="border-b border-line/70 odd:bg-white/[0.012]">
+            <tr key={s.name} className="border-b border-line/70 odd:bg-zebra">
               <td className="py-3 pl-6 font-medium">{s.name}</td>
               <td className="py-3 text-ink-muted">{s.purpose}</td>
               <td className="py-3 text-right tabular-nums">{s.results.toLocaleString()}</td>

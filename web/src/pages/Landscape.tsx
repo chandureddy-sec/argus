@@ -183,7 +183,7 @@ export default function Landscape() {
         </Card>
         <Card>
           <CardHead title="Where the infrastructure is" sub={d ? `${d.geoLocated.toLocaleString()} located IPs` : "Located indicator IPs"} />
-          {d ? <Bars rows={countries.map(([c, n]) => ({ label: c, count: n }))} tone="bg-accent-soft" /> : <Skeleton className="h-40" />}
+          {d ? <Bars rows={countries.map(([c, n]) => ({ label: c, count: n }))} tone="bg-teal" /> : <Skeleton className="h-40" />}
         </Card>
       </div>
 

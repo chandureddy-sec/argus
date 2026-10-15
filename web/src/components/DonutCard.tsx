@@ -2,15 +2,17 @@ import { useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useApi, type Types } from "../lib/api";
 import { Empty, Failed, Skeleton } from "./states";
-import { Card, CardHead, Select, compact, reducedMotion, token } from "./ui";
+import { Card, CardHead, Select, compact, reducedMotion, useToken } from "./ui";
 
-const RING_COLORS = ["accent", "accent-soft", "accent-muted"];
+/** The reference pie set: sage, plum, grey-teal. */
+const RING_COLORS = ["sage", "plum", "grey-teal"];
 
 /** Concentric rings for the three largest indicator types, each filled to its share of
  * the total. A small share still gets a visible arc (MIN_ARC); the tooltip shows the real count. */
 const MIN_ARC = 4; // percent of the circle
 export default function DonutCard() {
   const [scope, setScope] = useState("Active");
+  const token = useToken();
   const { data, error, reload } = useApi<Types>("types", { scope });
   const rings = (data?.items ?? []).slice(0, 3).map((r, i) => ({ ...r, color: RING_COLORS[i] }));
   const others = (data?.items ?? []).slice(3);
@@ -52,7 +54,7 @@ export default function DonutCard() {
                       isAnimationActive={!reducedMotion}
                     >
                       <Cell fill={token(r.color)} />
-                      <Cell fill={token("line", 0.7)} />
+                      <Cell fill={token("line")} />
                     </Pie>
                   );
                 })}

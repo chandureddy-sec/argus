@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useApi, type Collection } from "../lib/api";
 import { Failed, Skeleton } from "./states";
-import { Card, CardHead, Legend, Select, reducedMotion, token } from "./ui";
+import { Card, CardHead, Legend, Select, reducedMotion, useToken } from "./ui";
 
 type Day = Collection["days"][number];
 
@@ -22,6 +22,7 @@ function Tip({ active, payload }: { active?: boolean; payload?: { payload: Day }
 /** Feed pulls per weekday. Becomes scan activity once the ReconX engine runs in the stack. */
 export default function BarChartCard() {
   const [week, setWeek] = useState("This week");
+  const token = useToken();
   const { data, error, reload } = useApi<Collection>("collection", { week });
   return (
     <Card delay={220} className="flex flex-col">
@@ -33,8 +34,8 @@ export default function BarChartCard() {
       </CardHead>
       <Legend
         items={[
-          { name: "Pulled", color: "accent" },
-          { name: "Skipped or failed", color: "accent-muted" },
+          { name: "Pulled", color: "teal" },
+          { name: "Skipped or failed", color: "terracotta" },
         ]}
       />
       <div className="mt-auto h-[270px] w-full pt-4">
@@ -48,9 +49,9 @@ export default function BarChartCard() {
               <CartesianGrid vertical={false} />
               <XAxis dataKey="day" axisLine={false} tickLine={false} tickMargin={10} />
               <YAxis axisLine={false} tickLine={false} width={44} allowDecimals={false} />
-              <Tooltip content={<Tip />} cursor={{ fill: token("accent", 0.06), radius: 8 }} />
-              <Bar dataKey="ok" fill={token("accent")} radius={[6, 6, 2, 2]} maxBarSize={18} animationDuration={800} isAnimationActive={!reducedMotion} />
-              <Bar dataKey="other" fill={token("accent-muted", 0.85)} radius={[6, 6, 2, 2]} maxBarSize={18} animationDuration={1000} isAnimationActive={!reducedMotion} />
+              <Tooltip content={<Tip />} cursor={{ fill: token("ink", 0.05), radius: 8 }} />
+              <Bar dataKey="ok" fill={token("teal")} radius={[6, 6, 2, 2]} maxBarSize={18} animationDuration={800} isAnimationActive={!reducedMotion} />
+              <Bar dataKey="other" fill={token("terracotta")} radius={[6, 6, 2, 2]} maxBarSize={18} animationDuration={1000} isAnimationActive={!reducedMotion} />
             </BarChart>
           </ResponsiveContainer>
         )}

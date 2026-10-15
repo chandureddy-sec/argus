@@ -223,8 +223,8 @@ export default function FeedView({ me }: { me?: Me }) {
                     <CartesianGrid vertical={false} />
                     <XAxis dataKey="when" axisLine={false} tickLine={false} minTickGap={20} />
                     <YAxis axisLine={false} tickLine={false} width={48} allowDecimals={false} />
-                    <Tooltip cursor={{ fill: token("accent", 0.06) }} contentStyle={{ background: token("card-2"), border: `1px solid ${token("line")}`, borderRadius: 10, fontSize: 13 }} />
-                    <Bar dataKey="new" name="new indicators" fill={token("accent")} radius={[4, 4, 1, 1]} maxBarSize={16} isAnimationActive={!reducedMotion} />
+                    <Tooltip cursor={{ fill: token("ink", 0.05) }} contentStyle={{ background: token("card-2"), border: `1px solid ${token("line")}`, borderRadius: 10, fontSize: 13 }} />
+                    <Bar dataKey="new" name="new indicators" fill={token("teal")} radius={[4, 4, 1, 1]} maxBarSize={16} isAnimationActive={!reducedMotion} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -2,7 +2,7 @@ import { Maximize2, Minus, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
 import { useApi } from "../lib/api";
 import { Empty, Failed, Skeleton } from "./states";
-import { token } from "./ui";
+import { useToken } from "./ui";
 
 interface GNode {
   id: string;
@@ -30,14 +30,14 @@ interface Graph {
 
 // Colour per kind, from the design tokens; the scanned domain is the accent.
 const KIND: Record<GNode["kind"], { label: string; color: string; ring: number }> = {
-  domain: { label: "Domain", color: "accent", ring: 0 },
-  host: { label: "Host", color: "accent-soft", ring: 1 },
-  cname: { label: "CNAME target", color: "accent-muted", ring: 1 },
+  domain: { label: "Domain", color: "olive-gold", ring: 0 },
+  host: { label: "Host", color: "teal", ring: 1 },
+  cname: { label: "CNAME target", color: "grey-teal", ring: 1 },
   ns: { label: "Name server", color: "ink-muted", ring: 1 },
   mx: { label: "Mail server", color: "ink-muted", ring: 1 },
-  ip: { label: "IP address", color: "up", ring: 2 },
-  asn: { label: "Network (ASN)", color: "warn", ring: 3 },
-  provider: { label: "Provider", color: "down", ring: 3 },
+  ip: { label: "IP address", color: "sage", ring: 2 },
+  asn: { label: "Network (ASN)", color: "terracotta", ring: 3 },
+  provider: { label: "Provider", color: "plum", ring: 3 },
 };
 
 interface P {
@@ -114,6 +114,7 @@ function layout(g: Graph): Map<string, P> {
 
 export default function InfraGraph({ refId }: { refId: string }) {
   const [historical, setHistorical] = useState(false);
+  const token = useToken();
   const { data, error, reload, loading } = useApi<Graph>("recon/report/graph", { ref: refId, historical: historical ? "true" : undefined });
   const pos = useMemo(() => (data ? layout(data) : new Map<string, P>()), [data]);
   const [view, setView] = useState({ x: 0, y: 0, s: 1 });
@@ -187,7 +188,7 @@ export default function InfraGraph({ refId }: { refId: string }) {
           <span className="w-5 border-t border-dashed border-ink-faint" /> inferred
         </span>
         <label className="ml-auto flex items-center gap-2">
-          <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={historical} onChange={(e) => setHistorical(e.target.checked)} /> Include hosts that no longer resolve
+          <input type="checkbox" className="h-4 w-4 accent-accent" checked={historical} onChange={(e) => setHistorical(e.target.checked)} /> Include hosts that no longer resolve
         </label>
       </div>
       <div className="relative overflow-hidden rounded-card border border-line bg-bg">
@@ -215,7 +216,7 @@ export default function InfraGraph({ refId }: { refId: string }) {
                 y1={a.y}
                 x2={b.x}
                 y2={b.y}
-                stroke={token(lit && neighbours ? "accent-soft" : "accent-muted", neighbours ? (lit ? 0.9 : 0.12) : 0.38)}
+                stroke={token(lit && neighbours ? "accent-soft" : "ink-faint", neighbours ? (lit ? 0.9 : 0.12) : 0.38)}
                 strokeWidth={u * (lit && neighbours ? 1.8 : 1.1)}
                 strokeDasharray={e.evidence === "inferred" ? `${4 * u} ${4 * u}` : undefined}
               />
