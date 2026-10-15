@@ -119,8 +119,6 @@
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
   .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover; box-shadow: var(--shadow-sel); }
   .btn-ghost { @apply btn border border-ctl-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
-  /* defang brackets around a separator: present, but quiet (see Ioc in intel.tsx) */
-  .fang { color: rgb(var(--ink-faint) / 0.5); font-size: 0.78em; letter-spacing: -0.1em; }
   .ctl { @apply h-9 rounded-ctl border border-ctl-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
 }
 

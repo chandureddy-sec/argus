@@ -7,7 +7,7 @@ import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
 import { send, useV1, type IndicatorDetail, type Me } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
-import { BLOCKABLE, defang, TYPE_LABEL, verdictOf } from "../lib/ioc";
+import { BLOCKABLE, TYPE_LABEL, verdictOf } from "../lib/ioc";
 import { usePage } from "../lib/page";
 
 function Breakdown({ ind }: { ind: IndicatorDetail }) {
@@ -68,7 +68,7 @@ function Breakdown({ ind }: { ind: IndicatorDetail }) {
                 <tr key={i} className="border-b border-line/60">
                   <td className="py-2">
                     <span className={s.kind === "malicious" ? "text-down" : s.kind === "suspicious" ? "text-warn" : "text-up"}>{s.kind}</span>{" "}
-                    <span className="text-ink-muted">{defang(s.text)}</span>
+                    <span className="text-ink-muted">{s.text}</span>
                   </td>
                   <td className="py-2 text-right tabular-nums">{s.confidence}</td>
                   <td className="py-2 text-right tabular-nums">×{s.weight.toFixed(2)}</td>
@@ -95,7 +95,7 @@ function Notes({ id, canWrite }: { id: number; canWrite: boolean }) {
         <ul className="space-y-3">
           {notes.data.map((n) => (
             <li key={n.id} className="rounded-ctl border border-line bg-card-2/40 p-3">
-              <p className="whitespace-pre-wrap text-[13.5px] text-ink">{defang(n.body)}</p>
+              <p className="whitespace-pre-wrap text-[13.5px] text-ink">{n.body}</p>
               <p className="mt-1 text-[12px] text-ink-faint">
                 {n.author} · {ago(n.created_at)}
               </p>
@@ -276,7 +276,7 @@ export default function IndicatorView({ me }: { me?: Me }) {
                     .map(([k, v]) => (
                       <div key={k} className="contents">
                         <dt className="text-ink-faint">{k.replace(/_/g, " ")}</dt>
-                        <dd className="break-all text-ink-muted">{defang(String(v)).slice(0, 300)}</dd>
+                        <dd className="break-all text-ink-muted">{String(v).slice(0, 300)}</dd>
                       </div>
                     ))}
                 </dl>

@@ -1,17 +1,8 @@
-/* Indicators on screen are defanged (inert when copied); refanging happens only
- * on an explicit "Copy" click. The server already defangs what it sends; this
- * covers free text such as feed context. */
-
-const IPV4 = /\b(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\b/g;
-const DOMAIN = /\b((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+)([a-z]{2,24})\b/gi;
-
-export function defang(text: string): string {
-  if (text.includes("[.]")) return text; // already defanged
-  return text
-    .replace(/\bhttp(s?):\/\//gi, "hxxp$1[://]")
-    .replace(IPV4, "$1[.]$2[.]$3[.]$4")
-    .replace(DOMAIN, (_m, labels: string, tld: string) => `${labels.slice(0, -1).replace(/\./g, "[.]")}[.]${tld}`);
-}
+/* Values are shown in their normal form (10.10.10.10, http://...). The API
+ * still defangs what it sends (exports and the REST API keep that), so the app
+ * turns its defang markers back into the real characters as data arrives
+ * (live() in lib/api.ts). Only the exact markers the server writes are undone:
+ * [.] [:] [@] [://] and the hxxp / fxp schemes in front of "://". */
 
 export function refang(text: string): string {
   return text
@@ -19,8 +10,16 @@ export function refang(text: string): string {
     .replace(/\[\.\]/g, ".")
     .replace(/\[:\]/g, ":")
     .replace(/\[@\]/g, "@")
-    .replace(/^hxxp/i, "http")
-    .replace(/^fxp/i, "ftp");
+    .replace(/\bhxxp(s?)(?=:\/\/)/gi, "http$1")
+    .replace(/\bfxp(?=:\/\/)/gi, "ftp");
+}
+
+/** refang() on every string in a JSON value (object keys are left alone). */
+export function live<T>(v: T): T {
+  if (typeof v === "string") return refang(v) as T;
+  if (Array.isArray(v)) return v.map(live) as T;
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, live(x)])) as T;
+  return v;
 }
 
 export async function copyRefanged(text: string): Promise<boolean> {

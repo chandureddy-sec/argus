@@ -7,7 +7,6 @@ import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
 import { send, useV1, type CaseDetail, type CaseItem, type Me } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
-import { defang } from "../lib/ioc";
 import { usePage } from "../lib/page";
 
 function Item({ it, canEdit, onRemove }: { it: CaseItem; canEdit: boolean; onRemove: () => void }) {
@@ -18,7 +17,7 @@ function Item({ it, canEdit, onRemove }: { it: CaseItem; canEdit: boolean; onRem
       <span className="w-24 shrink-0 pt-0.5 text-[11.5px] uppercase tracking-wide text-ink-faint">{it.kind}</span>
       <div className="min-w-0 flex-1">
         {it.kind === "note" ? (
-          <p className="whitespace-pre-wrap text-[13.5px]">{defang(it.note)}</p>
+          <p className="whitespace-pre-wrap text-[13.5px]">{it.note}</p>
         ) : (
           <>
             <p className="flex flex-wrap items-center gap-2">
@@ -33,7 +32,7 @@ function Item({ it, canEdit, onRemove }: { it: CaseItem; canEdit: boolean; onRem
               {snap.priority != null && <Score n={snap.priority} />}
               <TlpTag tlp={it.tlp} />
             </p>
-            {it.note && <p className="mt-1 text-[13px] text-ink-muted">{defang(it.note)}</p>}
+            {it.note && <p className="mt-1 text-[13px] text-ink-muted">{it.note}</p>}
             {snap.sources?.length ? <p className="mt-1 text-[12px] text-ink-faint">reported by {snap.sources.join(", ")}</p> : null}
           </>
         )}

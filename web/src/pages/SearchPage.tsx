@@ -48,7 +48,7 @@ export default function SearchPage() {
           <label className="relative flex-1">
             <span className="sr-only">Search</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <input value={text} onChange={(e) => setText(e.target.value)} className="ctl h-11 w-full pl-10 text-[14.5px]" placeholder="185.220.101[.]34, CVE-2024-3400, T1059, Emotet, tag:phishing" autoFocus maxLength={300} />
+            <input value={text} onChange={(e) => setText(e.target.value)} className="ctl h-11 w-full pl-10 text-[14.5px]" placeholder="185.220.101.34, CVE-2024-3400, T1059, Emotet, tag:phishing" autoFocus maxLength={300} />
           </label>
           <button className="btn-primary h-11 px-5" disabled={!text.trim()}>Search</button>
         </form>

@@ -1,35 +1,10 @@
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
-import { copyRefanged, TLPS } from "../lib/ioc";
+import { copyRefanged, refang, TLPS } from "../lib/ioc";
 
-/** Defang markers: [.] [:] [@] [://] and the hxxp/fxp schemes. */
-const FANG = /(\[(?:\.|:|@|:\/\/)\]|hxxps?|fxp)/;
-
-/** A defanged value that still reads normally: the brackets are drawn small and
- * faint (and hidden from screen readers) around a full-strength separator, so
- * 152[.]59[.]198[.]233 reads almost as 152.59.198.233. Copying it still copies
- * the defanged text; CopyButton gives the live value. */
+/** An indicator value in its normal form (10.10.10.10, http://...). */
 export function Ioc({ value, className = "", mono = true }: { value: string; className?: string; mono?: boolean }) {
-  const parts = value.split(FANG);
-  return (
-    <span className={`${mono ? "break-all font-mono" : "break-words"} ${className}`}>
-      {parts.map((p, i) =>
-        i % 2 === 0 ? (
-          p
-        ) : p.startsWith("[") ? (
-          <span key={i}>
-            <span className="fang" aria-hidden="true">[</span>
-            {p.slice(1, -1)}
-            <span className="fang" aria-hidden="true">]</span>
-          </span>
-        ) : (
-          <span key={i} className="text-ink-faint">
-            {p}
-          </span>
-        ),
-      )}
-    </span>
-  );
+  return <span className={`${mono ? "break-all font-mono" : "break-words"} ${className}`}>{refang(value)}</span>;
 }
 
 export function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
@@ -38,7 +13,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
     <button
       type="button"
       className="btn-ghost h-8 text-[12.5px]"
-      title="Copies the live (refanged) value"
+      title="Copies the value"
       onClick={async () => {
         setDone(await copyRefanged(value));
         setTimeout(() => setDone(undefined), 1500);

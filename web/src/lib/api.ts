@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { live } from "./ioc";
 
 /* Everything the app reads comes from /app/api with the session cookie.
  * A 401 means the session ended: go to the sign-in page and come back. */
@@ -25,7 +26,7 @@ export async function get<T>(path: string, params: Params = {}): Promise<T> {
     throw new Error("signed out");
   }
   if (!r.ok) throw new Error(`${r.status} ${r.statusText || "error"}`);
-  return (await r.json()) as T;
+  return live(await r.json()) as T;
 }
 
 export interface Loaded<T> {
@@ -149,7 +150,7 @@ export async function post<T>(path: string, body: unknown = {}): Promise<T> {
     toLogin();
     throw new Error("signed out");
   }
-  const data = await r.json().catch(() => ({}));
+  const data = live(await r.json().catch(() => ({})));
   if (!r.ok) {
     const detail = (data as { detail?: unknown }).detail;
     throw new Error(typeof detail === "string" ? detail : Array.isArray(detail) ? "Check the form: some values aren't valid" : `${r.status} error`);
@@ -326,7 +327,7 @@ export async function send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", url: 
     toLogin();
     throw new Error("signed out");
   }
-  const data = await r.json().catch(() => ({}));
+  const data = live(await r.json().catch(() => ({})));
   if (!r.ok) {
     const detail = (data as { detail?: unknown }).detail;
     const msg =
@@ -344,7 +345,7 @@ export function useV1<T>(path: string, params: Params = {}): Loaded<T> {
 /** Read newline-delimited JSON events from a streaming response. */
 export async function readEvents<T>(r: Response, onEvent: (e: T) => void): Promise<void> {
   if (!r.ok || !r.body) {
-    const data = await r.json().catch(() => ({}));
+    const data = live(await r.json().catch(() => ({})));
     const detail = (data as { detail?: unknown }).detail;
     throw new Error(typeof detail === "string" ? detail : `${r.status} error`);
   }
@@ -359,11 +360,11 @@ export async function readEvents<T>(r: Response, onEvent: (e: T) => void): Promi
     while (i >= 0) {
       const line = buf.slice(0, i).trim();
       buf = buf.slice(i + 1);
-      if (line) onEvent(JSON.parse(line) as T);
+      if (line) onEvent(live(JSON.parse(line)) as T);
       i = buf.indexOf("\n");
     }
   }
-  if (buf.trim()) onEvent(JSON.parse(buf) as T);
+  if (buf.trim()) onEvent(live(JSON.parse(buf)) as T);
 }
 
 // ── threat intel shapes (/api/v1 and /app/api) ───────────────────────────────

@@ -213,7 +213,7 @@ export default function Blocklist({ me }: { me?: Me }) {
           <Card>
             <CardHead title="Block now" sub="IPs, CIDR ranges, domains or URLs, one per line. Each is checked against your own assets and the never-block list first." />
             <form onSubmit={add} className="space-y-3">
-              <textarea value={values} onChange={(e) => setValues(e.target.value)} rows={5} className="ctl h-auto w-full py-2 font-mono text-[13px]" placeholder={"203.0.113[.]7\nbad-domain[.]example"} disabled={!analyst} />
+              <textarea value={values} onChange={(e) => setValues(e.target.value)} rows={5} className="ctl h-auto w-full py-2 font-mono text-[13px]" placeholder={"203.0.113.7\nbad-domain.example"} disabled={!analyst} />
               <input value={note} onChange={(e) => setNote(e.target.value)} className="ctl w-full" placeholder="Why (ticket, alert, case)" maxLength={500} disabled={!analyst} />
               <button className="btn-primary w-full" disabled={!analyst || !values.trim() || busy === "add"}>
                 {busy === "add" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />} Block in monitor mode

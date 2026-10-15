@@ -6,7 +6,6 @@ import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead, Segmented } from "../components/ui";
 import { useDebounced, useV1, type AssetOut } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
-import { defang } from "../lib/ioc";
 import { usePage } from "../lib/page";
 
 const TABS = ["Assets", "Software", "Imports"] as const;
@@ -79,10 +78,10 @@ function AssetList() {
             {data?.items.map((a) => (
               <tr key={a.id} className={`border-b border-line/70 odd:bg-zebra ${a.indicator?.status === "active" ? "bg-down/[0.04]" : ""}`}>
                 <td className="py-3 pl-6">
-                  <Ioc value={defang(a.value)} className="text-[13px]" />
+                  <Ioc value={a.value} className="text-[13px]" />
                   <span className="block text-[12px] text-ink-faint">{a.kind} · from {a.origin}</span>
                 </td>
-                <td className="py-3 font-mono text-[12.5px] text-ink-muted">{defang(a.target)}</td>
+                <td className="py-3 font-mono text-[12.5px] text-ink-muted">{a.target}</td>
                 <td className="max-w-[260px] py-3 text-[12.5px] text-ink-muted">
                   {a.products.length ? a.products.slice(0, 3).map((p) => p.split(":").slice(3, 6).filter((x) => x && x !== "*").join(" ")).join(", ") : "–"}
                   {a.products.length > 3 && ` +${a.products.length - 3}`}
@@ -168,7 +167,7 @@ function Imports() {
       {data.map((i) => (
         <li key={i.id} className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-3 text-[13.5px] sm:px-6">
           <Radar className="h-4 w-4 text-accent-soft" />
-          <span className="font-mono">{defang(i.target)}</span>
+          <span className="font-mono">{i.target}</span>
           <span className="text-ink-muted">scanned {ago(i.scanned_at)}, imported {ago(i.imported_at)} by {i.imported_by}</span>
           <span className="ml-auto text-[12.5px] text-ink-faint">
             {Object.entries(i.counts)

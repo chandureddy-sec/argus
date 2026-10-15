@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useApi, useDebounced, type Family, type IndicatorRow, type Page } from "../lib/api";
+import { refang } from "../lib/ioc";
 import { Empty, Failed, Skeleton } from "./states";
 import { Card, CardHead, Select } from "./ui";
 
@@ -29,14 +30,8 @@ const PILL: Record<IndicatorRow["status"], [string, string]> = {
 const SIZE = 8;
 const DATE = new Intl.DateTimeFormat("en", { month: "short", day: "2-digit", year: "numeric" });
 
-/** Defanged values stay inert when copied; the brackets are dimmed so they read normally. */
 function Ioc({ value }: { value: string }) {
-  const parts = value.split(/(\[\.\]|\[:\]|\[@\]|\[:\/\/\]|hxxps?)/);
-  return (
-    <span className="break-all font-mono text-[13px] text-ink">
-      {parts.map((p, i) => (/^\[|^hxxp/.test(p) ? <span key={i} className="text-ink-faint">{p}</span> : <span key={i}>{p}</span>))}
-    </span>
-  );
+  return <span className="break-all font-mono text-[13px] text-ink">{refang(value)}</span>;
 }
 
 function Score({ n }: { n: number | null }) {

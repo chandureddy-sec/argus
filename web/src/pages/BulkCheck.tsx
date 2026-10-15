@@ -18,7 +18,7 @@ export function csvCell(v: unknown): string {
 }
 
 function downloadCsv(rows: BulkRow[]) {
-  const head = ["value_defanged", "type", "verdict", "score", "action", "sources", "country", "providers", "our_asset", "blocked"];
+  const head = ["value", "type", "verdict", "score", "action", "sources", "country", "providers", "our_asset", "blocked"];
   const lines = rows.map((r) =>
     [r.query.value, r.query.type, r.verdict, r.score, r.action, r.sources.join(";"), r.country ?? "",
      r.signals.map((x) => `${x.name}:${x.kind}`).join(";"), r.asset ? "yes" : "", r.block ? r.block.mode : ""].map(csvCell).join(","),
@@ -122,7 +122,7 @@ export default function BulkCheck({ me }: { me?: Me }) {
       <Card>
         <CardHead title="Bulk check" sub="Paste anything (an alert, a log, an email, a list) or upload text files. Every IP, domain, URL, hash and email in it is checked." />
         <form onSubmit={run} className="space-y-4">
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} className="ctl h-auto w-full py-3 font-mono text-[13px]" placeholder={"185.220.101[.]34\nhxxp://bad.example/payload\n44d88612fea8a8f36de82e1278abb02f"} spellCheck={false} />
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} className="ctl h-auto w-full py-3 font-mono text-[13px]" placeholder={"185.220.101.34\nhttp://bad.example/payload\n44d88612fea8a8f36de82e1278abb02f"} spellCheck={false} />
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
             <label className="btn-ghost h-9 cursor-pointer">
               <FileUp className="h-4 w-4" /> {files.length ? `${files.length} file${files.length === 1 ? "" : "s"}` : "Upload files"}
@@ -176,7 +176,7 @@ export default function BulkCheck({ me }: { me?: Me }) {
                 label="Show"
               />
               {summary && rows.length > 0 && (
-                <button className="btn-ghost ml-auto h-8 text-[13px]" onClick={() => downloadCsv(shown)} title="Values stay defanged in the file">
+                <button className="btn-ghost ml-auto h-8 text-[13px]" onClick={() => downloadCsv(shown)} title="Download the results as a spreadsheet (CSV)">
                   <Download className="h-3.5 w-3.5" /> Export CSV
                 </button>
               )}
