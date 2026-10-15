@@ -120,7 +120,7 @@ function Group({ item }: { item: Item }) {
             const active = isActive(path, c);
             const cls2 = `relative flex h-9 items-center justify-between rounded-ctl px-3 text-[13.5px] transition-colors ${
               active
-                ? "bg-accent/10 font-medium text-ink before:absolute before:-left-[13px] before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-accent"
+                ? "bg-tint font-medium text-ink before:absolute before:-left-[13px] before:top-1/2 before:h-5 before:w-[2px] before:-translate-y-1/2 before:rounded-full before:bg-accent"
                 : "text-ink-muted hover:bg-card-2 hover:text-ink"
             }`;
             return (

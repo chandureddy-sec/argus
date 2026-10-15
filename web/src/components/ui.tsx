@@ -1,60 +1,47 @@
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
-import { useScope } from "../lib/page";
+import { useTheme } from "../lib/theme";
 
 /** Working product name: one constant, so the final name is a one-line change. */
 export const PRODUCT = { name: "Argus", tagline: "Recon + threat intel" };
 
 /** A colour token as a concrete CSS colour. SVG presentation attributes (chart
  * fills, gradient stops) don't reliably resolve var(), so tokens are read from
- * :root (or, for a page scope like "ti", from a hidden element carrying that
- * class) once; the CSS variables stay the single source. */
+ * :root once per theme; the CSS variables in index.css stay the single source. */
 const cache = new Map<string, string>();
-const probes = new Map<string, Element>();
-function host(scope: string): Element {
-  if (!scope) return document.documentElement;
-  let el = probes.get(scope);
-  if (!el) {
-    el = document.createElement("div");
-    el.className = scope;
-    el.setAttribute("hidden", "");
-    document.body.appendChild(el);
-    probes.set(scope, el);
-  }
-  return el;
-}
-export function token(name: string, alpha = 1, scope = ""): string {
-  const key = `${scope}:${name}`;
+export function token(name: string, alpha = 1): string {
+  const key = `${document.documentElement.dataset.theme ?? ""}:${name}`;
   let rgb = cache.get(key);
   if (rgb === undefined) {
-    rgb = getComputedStyle(host(scope)).getPropertyValue(`--${name}`).trim() || "255 255 255";
+    rgb = getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim() || "128 128 128";
     cache.set(key, rgb);
   }
   return `rgb(${rgb} / ${alpha})`;
 }
 
-/** token() bound to the current page's colour scope. */
+/** token() for components: re-renders them when the theme changes. */
 export function useToken(): (name: string, alpha?: number) => string {
-  const scope = useScope();
-  return (name, alpha = 1) => token(name, alpha, scope);
+  useTheme();
+  return token;
 }
 
 export function Logo({ size = 32 }: { size?: number }) {
+  const token = useToken();
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
       <defs>
         <linearGradient id="lg-mark" x1="8" y1="56" x2="56" y2="8" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#1F6BFF" />
-          <stop offset="1" stopColor="#7DB2FF" />
+          <stop offset="0" stopColor={token("accent")} />
+          <stop offset="1" stopColor={token("olive-gold")} />
         </linearGradient>
       </defs>
-      <rect x="3" y="3" width="58" height="58" rx="17" fill="#0B1324" />
+      <rect x="3" y="3" width="58" height="58" rx="17" fill={token("card-2")} />
       <rect x="3" y="3" width="58" height="58" rx="17" fill="none" stroke="url(#lg-mark)" strokeWidth="2.5" />
       {/* a lens over a radar sweep: recon + threat intel */}
       <circle cx="29" cy="33" r="13" fill="none" stroke="url(#lg-mark)" strokeWidth="4.5" />
       <path d="M29 33 L38.5 23.5" stroke="url(#lg-mark)" strokeWidth="4.5" strokeLinecap="round" />
       <path d="M38.5 42.5 L46 50" stroke="url(#lg-mark)" strokeWidth="5" strokeLinecap="round" />
-      <circle cx="48" cy="16" r="4" fill="#4C8DFF" />
+      <circle cx="48" cy="16" r="4" fill={token("terracotta")} />
     </svg>
   );
 }
@@ -157,7 +144,7 @@ export function Segmented<T extends string>({
 export function Avatar({ initials, className = "" }: { initials: string; className?: string }) {
   return (
     <span
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent to-accent-soft text-[12px] font-semibold text-white ring-2 ring-card ${className}`}
+      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-[12px] font-semibold text-on-accent ring-2 ring-card ${className}`}
     >
       {initials}
     </span>
@@ -169,7 +156,7 @@ export function Legend({ items }: { items: { name: string; color: string }[] }) 
     <ul className="flex flex-wrap items-center gap-4">
       {items.map((i) => (
         <li key={i.name} className="flex items-center gap-2 text-[13px] text-ink-muted">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: token(i.color) }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: `rgb(var(--${i.color}))` }} />
           {i.name}
         </li>
       ))}

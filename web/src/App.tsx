@@ -3,7 +3,8 @@ import { BrowserRouter, Link, Route, Routes, useLocation } from "react-router-do
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import { useApi, type Me } from "./lib/api";
-import { CrumbsProvider, ScopeProvider, scopeFor, usePage } from "./lib/page";
+import { CrumbsProvider, usePage } from "./lib/page";
+import { ThemeProvider } from "./lib/theme";
 import Assets from "./pages/Assets";
 import Attack from "./pages/Attack";
 import EntityView from "./pages/EntityView";
@@ -49,7 +50,6 @@ function Shell() {
   const [crumbs, setCrumbs] = useState<string[]>(["Reports"]);
   const me = useApi<Me>("me").data;
   const loc = useLocation();
-  const scope = scopeFor(loc.pathname);
   useEffect(() => setMenu(false), [loc.pathname]); // close the phone menu after navigating
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
@@ -62,38 +62,36 @@ function Shell() {
         <Sidebar open={menu} onClose={() => setMenu(false)} me={me} />
         <div className="flex min-h-full flex-col lg:pl-[240px]">
           <Topbar onMenu={() => setMenu(true)} me={me} crumbs={crumbs} />
-          <main className={`flex-1 ${scope}`}>
-            <ScopeProvider value={scope}>
-              <Routes>
-                <Route path="/" element={<Reports />} />
-                <Route path="/scans" element={<Scans me={me} />} />
-                <Route path="/scans/new" element={<NewScan me={me} />} />
-                <Route path="/scans/job/:id" element={<Job me={me} />} />
-                <Route path="/scans/view/:ref" element={<ScanView me={me} />} />
-                <Route path="/scans/compare" element={<Compare />} />
-                <Route path="/monitors" element={<Monitors me={me} />} />
-                <Route path="/assets" element={<Assets />} />
-                <Route path="/verify" element={<Verify me={me} />} />
-                <Route path="/bulk" element={<BulkCheck me={me} />} />
-                <Route path="/indicators" element={<Indicators />} />
-                <Route path="/indicators/:id" element={<IndicatorView me={me} />} />
-                <Route path="/blocklist" element={<Blocklist me={me} />} />
-                <Route path="/cases" element={<Cases me={me} />} />
-                <Route path="/cases/:id" element={<CaseView me={me} />} />
-                <Route path="/feeds" element={<Feeds me={me} />} />
-                <Route path="/feeds/new" element={<FeedForm me={me} />} />
-                <Route path="/feeds/:name" element={<FeedView me={me} />} />
-                <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/landscape" element={<Landscape />} />
-                <Route path="/vulnerabilities" element={<Vulnerabilities />} />
-                <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />
-                <Route path="/attack" element={<Attack />} />
-                <Route path="/entities/:ref" element={<EntityView />} />
-                <Route path="/search" element={<SearchPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </ScopeProvider>
+          <main className="flex-1">
+            <Routes>
+              <Route path="/" element={<Reports />} />
+              <Route path="/scans" element={<Scans me={me} />} />
+              <Route path="/scans/new" element={<NewScan me={me} />} />
+              <Route path="/scans/job/:id" element={<Job me={me} />} />
+              <Route path="/scans/view/:ref" element={<ScanView me={me} />} />
+              <Route path="/scans/compare" element={<Compare />} />
+              <Route path="/monitors" element={<Monitors me={me} />} />
+              <Route path="/assets" element={<Assets />} />
+              <Route path="/verify" element={<Verify me={me} />} />
+              <Route path="/bulk" element={<BulkCheck me={me} />} />
+              <Route path="/indicators" element={<Indicators />} />
+              <Route path="/indicators/:id" element={<IndicatorView me={me} />} />
+              <Route path="/blocklist" element={<Blocklist me={me} />} />
+              <Route path="/cases" element={<Cases me={me} />} />
+              <Route path="/cases/:id" element={<CaseView me={me} />} />
+              <Route path="/feeds" element={<Feeds me={me} />} />
+              <Route path="/feeds/new" element={<FeedForm me={me} />} />
+              <Route path="/feeds/:name" element={<FeedView me={me} />} />
+              <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/landscape" element={<Landscape />} />
+              <Route path="/vulnerabilities" element={<Vulnerabilities />} />
+              <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />
+              <Route path="/attack" element={<Attack />} />
+              <Route path="/entities/:ref" element={<EntityView />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </main>
         </div>
       </div>
@@ -103,11 +101,13 @@ function Shell() {
 
 export default function App() {
   return (
-    <BrowserRouter basename="/app">
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Shell />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter basename="/app">
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="*" element={<Shell />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }

@@ -1,5 +1,5 @@
-/** Design tokens live in src/index.css as CSS variables (RGB triplets), so a
- * theme change is one edit there; Tailwind only maps names onto them. */
+/** Design tokens live in src/index.css as CSS variables (RGB triplets), one set
+ * per theme (light/dark); Tailwind only maps names onto them. */
 const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
 /** @type {import('tailwindcss').Config} */
@@ -27,14 +27,27 @@ export default {
         tint: "var(--tint)",
         "row-hover": "var(--row-hover)",
         zebra: "var(--zebra)",
+        scrim: "var(--scrim)",
+        knob: v("knob"),
+        // data viz (Matte Rich): primary line, bar pair, pie set
+        "olive-gold": v("olive-gold"),
+        teal: v("teal"),
+        terracotta: v("terracotta"),
+        sage: v("sage"),
+        plum: v("plum"),
+        "grey-teal": v("grey-teal"),
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "SFMono-Regular", "Consolas", "monospace"],
       },
+      // 12% is used for tinted chips and pills (bg-down/12); not in the default scale
+      opacity: { 12: "0.12" },
       borderRadius: { card: "16px", ctl: "10px" },
       boxShadow: {
-        glow: "0 0 0 1px rgb(var(--accent) / 0.35), 0 8px 24px -8px rgb(var(--accent) / 0.55)",
+        // matte: a quiet lift for selected tabs, no coloured glow
+        glow: "var(--shadow-sel)",
+        pop: "var(--shadow-pop)",
       },
       keyframes: {
         rise: { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "none" } },

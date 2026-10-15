@@ -15,61 +15,114 @@
   font-display: swap;
 }
 
-/* Design tokens: RGB triplets so Tailwind can add opacity (bg-accent/10).
-   Change the theme here; components never hard-code a colour. */
-:root {
-  --bg: 5 11 24;           /* #050B18 page */
-  --card: 11 19 36;        /* #0B1324 cards, sidebar */
-  --card-2: 15 26 49;      /* #0F1A31 hover rows, inputs */
-  --line: 22 33 58;        /* #16213A borders */
-  --accent: 31 107 255;    /* #1F6BFF the one bright blue */
-  --accent-soft: 76 141 255;  /* #4C8DFF chart secondary */
-  --accent-muted: 143 163 200; /* #8FA3C8 chart tertiary */
-  --ink: 255 255 255;
-  --ink-muted: 124 139 168;   /* #7C8BA8 labels */
-  --ink-faint: 84 99 128;
-  --up: 34 197 94;
-  --down: 244 63 94;
-  --warn: 245 158 11;
-
-  /* Role tokens: name what a colour is for, so a page scope (ti-palette.css)
-     can retheme it. Here they resolve to exactly the colours above. */
-  --on-accent: 255 255 255;            /* text/icons on an accent fill */
-  --accent-hover: var(--accent-soft);  /* primary button hover fill */
-  --ctl-line: var(--line);             /* input and button borders */
-  --info: var(--accent);               /* status: monitor, new, P3 */
-  --info-soft: var(--accent-soft);
-  --chip: rgb(var(--ink-faint) / 0.15); /* neutral chip fill */
-  --chip-ink: var(--ink-muted);         /* neutral chip text */
-  --tint: rgb(var(--accent) / 0.1);     /* decorative accent chip fill */
-  --row-hover: rgb(var(--accent) / 0.06);
-  --zebra: rgb(255 255 255 / 0.012);
+/* Design tokens: the "Matte Rich" theme in two modes. Values are RGB triplets
+   so Tailwind can add opacity (bg-accent/10); the full-colour ones (chip, tint,
+   row-hover, zebra, scrim, shadows) carry their own alpha. Components never
+   hard-code a colour: change the look here. lib/theme.tsx sets data-theme on
+   <html>; dark is also the fallback before it runs. Contrast is checked for
+   every text/surface pair (>= 4.5:1 text, >= 3:1 controls and chart marks). */
+:root,
+:root[data-theme="dark"] {
+  --bg: 27 30 38;            /* #1b1e26 deep navy-charcoal */
+  --card: 37 42 52;          /* #252a34 charcoal-blue surfaces, sidebar */
+  --card-2: 45 51 62;        /* #2d333e inputs, table heads, popovers */
+  --line: 54 60 72;          /* #363c48 dividers */
+  --ctl-line: 111 118 134;   /* #6f7686 input and button borders */
+  --ink: 236 231 220;        /* #ece7dc soft grey-beige */
+  --ink-muted: 194 190 179;  /* #c2beb3 labels */
+  --ink-faint: 175 172 162;  /* #afaca2 hints */
+  --accent: 143 154 91;      /* #8f9a5b muted olive: buttons, active icons */
+  --accent-soft: 195 196 135;  /* #c3c487 olive text and links */
+  --accent-hover: 163 173 108; /* #a3ad6c */
+  --on-accent: 27 30 38;
+  /* data viz */
+  --olive-gold: 194 180 100; /* #c2b464 primary line */
+  --teal: 100 179 172;       /* #64b3ac */
+  --terracotta: 225 147 107; /* #e1936b */
+  --sage: 159 179 143;       /* #9fb38f */
+  --plum: 205 151 181;       /* #cd97b5 */
+  --grey-teal: 122 156 161;  /* #7a9ca1 */
+  --accent-muted: var(--grey-teal); /* chart secondary */
+  /* status */
+  --up: 127 191 165;         /* #7fbfa5 muted teal-green: clean, active */
+  --warn: 233 169 107;       /* #e9a96b soft orange: suspicious */
+  --down: 235 150 128;       /* #eb9680 muted terracotta: malicious */
+  --info: 207 162 193;       /* #cfa2c1 plum: monitor, new */
+  --info-soft: var(--info);
+  /* fills and depth */
+  --chip: rgb(194 190 179 / 0.14);
+  --chip-ink: var(--ink-muted);
+  --tint: rgb(143 154 91 / 0.14);
+  --row-hover: rgb(143 154 91 / 0.08);
+  --zebra: rgb(236 231 220 / 0.018);
+  --scrim: rgb(12 14 18 / 0.62);
+  --knob: 236 231 220;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025) inset, 0 10px 30px -18px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 16px 40px -12px rgb(0 0 0 / 0.55);
+  --shadow-sel: 0 1px 2px rgb(0 0 0 / 0.35);
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: 235 230 220;         /* #ebe6dc warm off-white beige */
+  --card: 250 248 243;       /* #faf8f3 cream-white surfaces, sidebar */
+  --card-2: 242 238 229;     /* #f2eee5 inputs, table heads, popovers */
+  --line: 225 219 207;       /* #e1dbcf dividers */
+  --ctl-line: 143 135 120;   /* #8f8778 input and button borders */
+  --ink: 42 44 46;           /* #2a2c2e deep charcoal */
+  --ink-muted: 92 90 84;     /* #5c5a54 */
+  --ink-faint: 100 97 90;    /* #64615a */
+  --accent: 95 106 52;       /* #5f6a34 deep olive */
+  --accent-soft: 83 93 43;   /* #535d2b olive text and links */
+  --accent-hover: 79 89 41;  /* #4f5929 */
+  --on-accent: 250 248 243;
+  --olive-gold: 141 133 54;  /* #8d8536 */
+  --teal: 47 110 107;        /* #2f6e6b */
+  --terracotta: 161 79 45;   /* #a14f2d */
+  --sage: 113 140 102;       /* #718c66 */
+  --plum: 135 78 109;        /* #874e6d */
+  --grey-teal: 90 127 132;   /* #5a7f84 */
+  --accent-muted: var(--grey-teal);
+  --up: 45 107 88;           /* #2d6b58 */
+  --warn: 138 80 15;         /* #8a500f */
+  --down: 167 67 44;         /* #a7432c */
+  --info: 127 74 108;        /* #7f4a6c */
+  --info-soft: var(--info);
+  --chip: rgb(92 90 84 / 0.12);
+  --chip-ink: var(--ink-muted);
+  --tint: rgb(95 106 52 / 0.12);
+  --row-hover: rgb(95 106 52 / 0.07);
+  --zebra: rgb(42 44 46 / 0.022);
+  --scrim: rgb(42 40 34 / 0.38);
+  --knob: 250 248 243;
+  --shadow-card: 0 1px 2px rgb(70 60 40 / 0.06), 0 10px 28px -16px rgb(70 60 40 / 0.18);
+  --shadow-pop: 0 16px 40px -12px rgb(70 60 40 / 0.25);
+  --shadow-sel: 0 1px 2px rgb(70 60 40 / 0.18);
+  color-scheme: light;
 }
 
 @layer base {
   html, body, #root { height: 100%; }
   body {
     @apply bg-bg text-ink font-sans antialiased;
+    transition: background-color .2s ease, color .2s ease;
     font-feature-settings: "cv11", "ss01", "tnum";
   }
-  ::selection { background: rgb(var(--accent) / 0.35); }
+  ::selection { background: rgb(var(--accent) / 0.3); }
   :focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 2px; }
   * { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
 }
 
 @layer components {
-  .card { @apply rounded-card border border-line bg-card; }
+  .card { @apply rounded-card border border-line bg-card; box-shadow: var(--shadow-card); }
   .label { @apply text-[13px] text-ink-muted; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover shadow-[0_6px_20px_-8px_rgb(var(--accent)/0.8)]; }
+  .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover; box-shadow: var(--shadow-sel); }
   .btn-ghost { @apply btn border border-ctl-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
   .ctl { @apply h-9 rounded-ctl border border-ctl-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
 }
 
-/* Charts: a soft glow under the lines, quiet grid. */
-.glow-line path.recharts-curve.recharts-area-curve,
-.glow-line path.recharts-line-curve { filter: drop-shadow(0 0 6px rgb(var(--accent) / 0.55)); }
+/* Charts: matte lines, quiet grid. */
 .recharts-cartesian-grid line { stroke: rgb(var(--line)); }
 .recharts-text { fill: rgb(var(--ink-muted)); font-size: 12px; }
 .recharts-surface:focus, .recharts-wrapper:focus, .recharts-sector:focus { outline: none; }
