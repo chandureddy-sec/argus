@@ -45,13 +45,29 @@ def test_log_redaction_and_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_cli_validate_profile(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
-    args = ["--profile", str(ROOT / "config/org_profile.yaml"), "--pirs", str(ROOT / "config/pirs.yaml")]
+    args = [
+        "--profile",
+        str(ROOT / "tests/fixtures/example_org_profile.yaml"),
+        "--pirs",
+        str(ROOT / "tests/fixtures/example_pirs.yaml"),
+    ]
     assert main(["validate-profile", *args]) == 0
     assert "3 PIRs" in capsys.readouterr().out
 
     bad = tmp_path / "p.yaml"
     bad.write_text("org: {name: A, domains: ['bad domain']}", encoding="utf-8")
-    assert main(["validate-profile", "--profile", str(bad), "--pirs", str(ROOT / "config/pirs.yaml")]) == 1
+    assert (
+        main(
+            [
+                "validate-profile",
+                "--profile",
+                str(bad),
+                "--pirs",
+                str(ROOT / "tests/fixtures/example_pirs.yaml"),
+            ]
+        )
+        == 1
+    )
     assert "not a valid domain" in capsys.readouterr().err
 
 

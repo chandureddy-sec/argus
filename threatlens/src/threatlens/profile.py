@@ -113,7 +113,7 @@ class PIR(_Strict):
 
 
 class PIRSet(_Strict):
-    pirs: list[PIR] = Field(min_length=1)
+    pirs: list[PIR] = Field(default_factory=list)  # none until the organisation writes some
 
     @model_validator(mode="after")
     def _unique_ids(self) -> PIRSet:

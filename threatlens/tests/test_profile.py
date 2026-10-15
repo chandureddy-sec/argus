@@ -17,8 +17,8 @@ from threatlens.profile import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE_PROFILE = ROOT / "config" / "org_profile.yaml"
-EXAMPLE_PIRS = ROOT / "config" / "pirs.yaml"
+EXAMPLE_PROFILE = ROOT / "tests" / "fixtures" / "example_org_profile.yaml"
+EXAMPLE_PIRS = ROOT / "tests" / "fixtures" / "example_pirs.yaml"
 
 
 def write(tmp_path: Path, name: str, text: str) -> Path:
@@ -93,8 +93,7 @@ def test_pirs_validation() -> None:
         PIRSet.model_validate(pirs({**ok, "watch": {"techniques": ["T15"]}}))
     with pytest.raises(ValueError, match="Input should be"):
         PIRSet.model_validate(pirs({**ok, "watch": {"match": ["emails"]}}))
-    with pytest.raises(ValueError, match="at least 1 item"):
-        PIRSet.model_validate({"pirs": []})
+    assert PIRSet.model_validate({"pirs": []}).pirs == []  # none yet is a valid state
     sub = PIRSet.model_validate(pirs({**ok, "watch": {"techniques": ["T1566.001"]}}))
     assert sub.pirs[0].watch.techniques == ["T1566.001"]
 
@@ -148,3 +147,16 @@ def test_any_text_either_loads_or_raises_profile_error(tmp_path: Path, text: str
     p.write_text(text, encoding="utf-8", errors="surrogatepass")
     with contextlib.suppress(ProfileError):
         load_profile(p)
+
+
+def test_shipped_config_is_valid_and_holds_no_example_data() -> None:
+    """config/ is the organisation's own profile: it must load, and must not carry
+    the synthetic Example Corp values (those live in tests/fixtures)."""
+    profile = load_profile(ROOT / "config" / "org_profile.yaml")
+    load_pirs(ROOT / "config" / "pirs.yaml", profile)
+    org = profile.org
+    assert "example" not in org.name.lower()
+    assert "synthetic" not in org.name.lower()
+    assert not [d for d in org.domains if d.split(".")[0] == "example"]
+    docs = ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")  # RFC 5737
+    assert not [r for r in org.ip_ranges if r in docs]

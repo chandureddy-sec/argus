@@ -130,7 +130,7 @@ async def test_patch_priority_uses_the_stack(sm: SM) -> None:
     async with sm() as s:
         rows = {v.cve_id: v for v in (await s.scalars(select(Vulnerability))).all()}
     kev = rows["CVE-2099-0001"]
-    assert kev.patch_priority == "P1"  # KEV + fortinet:fortios in config/org_profile.yaml
+    assert kev.patch_priority == "P1"  # KEV + fortinet:fortios in the example profile
     assert kev.patch_breakdown is not None
     assert any("affects our stack" in r["reason"] for r in kev.patch_breakdown["reasons"])
     assert rows["CVE-2099-0002"].patch_priority == "P3"  # CVSS 9.8 + in stack = 45 points

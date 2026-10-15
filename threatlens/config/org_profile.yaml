@@ -1,14 +1,24 @@
-# Organization profile (SYNTHETIC example — replace with your organization's values).
-# Validated by `threatlens validate-profile`. No secrets belong in this file.
+# Organization profile: who "we" are. Validated by `threatlens validate-profile`.
+# No secrets belong in this file. Fill in what applies; every list may stay empty.
+# Until it is filled in, nothing is treated as "ours" except the assets your
+# ReconX scans find (those always count as ours).
+#
+#   sectors:    [fintech, healthcare, ...]        industries you work in
+#   geography:  [IN, US, ...]                     ISO country codes you operate in
+#   domains:    [yourcompany.com]                 your registered domains
+#   brands:     ["Your Brand"]                    names phishers might imitate
+#   ip_ranges:  ["198.51.100.0/24"]               public ranges you own (CIDR)
+#   vendors:    [microsoft, fortinet, ...]        vendors whose advisories matter
+#   tech_stack:                                   products you run (CPE 2.3)
+#     - { product: "FortiGate", cpe: "cpe:2.3:o:fortinet:fortios:*" }
+#
+# A filled-in example lives in tests/fixtures/example_org_profile.yaml.
 org:
-  name: "Example Corp (SYNTHETIC)"
-  sectors: [it_services, fintech]
-  geography: [IN, US, SG]
-  domains: [example.com, example.in]
-  brands: ["Example Corp", "ExamplePay"]
-  ip_ranges: ["203.0.113.0/24"]          # RFC 5737 documentation range
-  vendors: [microsoft, cisco, fortinet, palo_alto, vmware, atlassian]
-  tech_stack:
-    - { product: "Windows Server 2022", cpe: "cpe:2.3:o:microsoft:windows_server_2022:*" }
-    - { product: "FortiGate",           cpe: "cpe:2.3:o:fortinet:fortios:*" }
-    - { product: "Apache Tomcat",       cpe: "cpe:2.3:a:apache:tomcat:*" }
+  name: "My organisation"
+  sectors: []
+  geography: []
+  domains: []
+  brands: []
+  ip_ranges: []
+  vendors: []
+  tech_stack: []

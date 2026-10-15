@@ -142,7 +142,7 @@ Windows PowerShell sets the integration flag with `$env:TL_INTEGRATION=1`.
 
 ```text
 threatlens/
-├── config/            org_profile.yaml, pirs.yaml (SYNTHETIC examples)
+├── config/            org_profile.yaml, pirs.yaml (your organisation; blank until filled in)
 ├── migrations/        Alembic (async)
 ├── src/threatlens/    api/, net/ (hardened HTTP), ioc/, connectors/, kb/, enrich/, ui/, collect, allowlist,
 │                      auth, jobs, worker, cli, settings, logs, profile, db, models

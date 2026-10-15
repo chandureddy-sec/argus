@@ -180,7 +180,7 @@ async def test_observed_stack_extends_the_profile(sm: SM) -> None:
         ("cpe:2.3:o:linux:linux_kernel", "linux", "linux_kernel"),
     ]
     pairs = {(v, p) for _, v, p in stack}
-    assert {("apache", "http_server"), ("fortinet", "fortios")} <= pairs  # observed + config/org_profile.yaml
+    assert {("apache", "http_server"), ("fortinet", "fortios")} <= pairs  # observed + the example profile
 
 
 async def no_sleep(_: float) -> None:

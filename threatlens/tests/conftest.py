@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 
@@ -12,6 +13,11 @@ from threatlens.db import Base, make_engine, make_sessionmaker
 from threatlens.net.http import SafeHttp
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# Tests run against the synthetic "Example Corp" profile; the shipped config/ is
+# the real (initially blank) one. Set before any Settings is built.
+os.environ.setdefault("TL_PROFILE_PATH", str(FIXTURES / "example_org_profile.yaml"))
+os.environ.setdefault("TL_PIRS_PATH", str(FIXTURES / "example_pirs.yaml"))
 
 
 def fixture_bytes(name: str) -> bytes:
