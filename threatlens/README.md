@@ -3,7 +3,7 @@
 Self-hosted threat intelligence platform: collects open-source threat data,
 scores it against your organization's profile and Priority Intelligence
 Requirements, explains every verdict, and shares it in standard formats.
-Lives alongside [ReconX](../README.md), which feeds it the organization's real
+Part of [Argus](../README.md); lives alongside [ReconX](../docs/RECONX.md), which feeds it the organization's real
 assets (see [ADR 0002](docs/adr/0002-monorepo-and-reconx-link.md)).
 
 **Status:** Phases 0-4 complete and Docker-verified: collection, knowledge base, enrichment, the ReconX link, and scoring/trust/TLP/feedback. See [PLAN.md](PLAN.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
