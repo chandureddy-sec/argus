@@ -16,7 +16,7 @@ const TONE: Record<string, string> = {
   info: "border-line bg-card",
   off: "border-line bg-card opacity-70",
 };
-const DOT: Record<string, string> = { mal: "bg-down", sus: "bg-warn", ok: "bg-up", info: "bg-accent-soft", off: "bg-ink-faint" };
+const DOT: Record<string, string> = { mal: "bg-down", sus: "bg-warn", ok: "bg-up", info: "bg-info-soft", off: "bg-ink-faint" };
 
 function ProviderView({ c }: { c: ProviderCard }) {
   return (
@@ -97,7 +97,7 @@ function OurIntel({ local }: { local: Local }) {
         <p className="text-[13.5px] text-ink-muted">Not in our intel yet: no feed has reported it.</p>
       )}
       {local.asset && (
-        <p className="mt-3 rounded-ctl bg-accent/10 px-2.5 py-1.5 text-[12.5px] text-accent-soft">
+        <p className="mt-3 rounded-ctl bg-tint px-2.5 py-1.5 text-[12.5px] text-accent-soft">
           Our asset ({local.asset.kind} of <Ioc value={local.asset.target} mono={false} />): investigate it, don't block it.
         </p>
       )}
@@ -105,7 +105,7 @@ function OurIntel({ local }: { local: Local }) {
       {local.related.length > 0 && (
         <p className="mt-3 flex flex-wrap gap-1.5">
           {local.related.map((r) => (
-            <Link key={r.ref} to={`/entities/${encodeURIComponent(r.ref)}`} className="rounded bg-card-2 px-2 py-0.5 text-[12px] text-ink-muted ring-1 ring-line hover:text-accent-soft">
+            <Link key={r.ref} to={`/entities/${encodeURIComponent(r.ref)}`} className="rounded bg-chip px-2 py-0.5 text-[12px] text-chip-ink ring-1 ring-line hover:text-accent-soft">
               {r.label}
             </Link>
           ))}
@@ -191,7 +191,7 @@ export default function Verify({ me }: { me?: Me }) {
           </label>
           <TlpSelect value={tlp} onChange={setTlp} />
           <label className="flex items-center gap-2 text-[13px] text-ink-muted" title="Off: only our intel and saved answers, nothing is sent out">
-            <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={providers} onChange={(e) => setProviders(e.target.checked)} /> Ask providers
+            <input type="checkbox" className="h-4 w-4 accent-accent" checked={providers} onChange={(e) => setProviders(e.target.checked)} /> Ask providers
           </label>
           <button className="btn-primary h-11 px-5" disabled={!q.trim() || running}>
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Verify

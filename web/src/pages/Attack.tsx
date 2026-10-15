@@ -15,9 +15,9 @@ interface Matrix {
 function heat(n: number, peak: number): string {
   if (!n) return "bg-card-2/50 text-ink-faint hover:text-ink-muted";
   const t = n / Math.max(1, peak);
-  if (t > 0.75) return "bg-accent text-white";
-  if (t > 0.5) return "bg-accent/70 text-white";
-  if (t > 0.25) return "bg-accent/45 text-ink";
+  if (t > 0.75) return "bg-accent text-on-accent";
+  if (t > 0.5) return "bg-accent/70 text-on-accent";
+  if (t > 0.25) return "bg-accent/55 text-on-accent";
   return "bg-accent/25 text-ink";
 }
 
@@ -33,7 +33,7 @@ export default function Attack() {
           sub={data ? `Shaded by how many of the ${data.families} malware families your feeds point at use each technique` : "Techniques used by the malware your feeds see"}
         >
           <label className="flex items-center gap-2 text-[13px] text-ink-muted">
-            <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> Only techniques in use
+            <input type="checkbox" className="h-4 w-4 accent-accent" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> Only techniques in use
           </label>
         </CardHead>
         <div className="flex flex-wrap items-center gap-3 text-[12px] text-ink-muted">

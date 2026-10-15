@@ -57,8 +57,8 @@ export default function Cases({ me }: { me?: Me }) {
             <ul className="divide-y divide-line/70 border-t border-line">
               {list.data.map((c) => (
                 <li key={c.id}>
-                  <Link to={`/cases/${c.id}`} className="group flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 hover:bg-accent/[0.05] sm:px-6">
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent/10 text-accent-soft ring-1 ring-accent/20">
+                  <Link to={`/cases/${c.id}`} className="group flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-4 hover:bg-row-hover sm:px-6">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-tint text-accent-soft ring-1 ring-accent/20">
                       <Briefcase className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">

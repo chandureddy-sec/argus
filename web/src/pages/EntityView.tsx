@@ -79,7 +79,7 @@ function Group({ title, items }: { title: string; items: Neighbors["items"] }) {
           return (
             <li key={`${i.node.ref}-${i.edge.rel_type}`} className="bg-card">
               {href ? (
-                <Link to={href} className="block px-5 py-3 hover:bg-accent/[0.05]">
+                <Link to={href} className="block px-5 py-3 hover:bg-row-hover">
                   {inner}
                 </Link>
               ) : (
@@ -126,7 +126,7 @@ export default function EntityView() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0 max-w-4xl">
               <p className="mb-2 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-muted">
-                <span className="rounded bg-accent/10 px-2 py-0.5 font-medium text-accent-soft">{TYPE_LABEL[e.type] ?? e.type}</span>
+                <span className="rounded bg-tint px-2 py-0.5 font-medium text-accent-soft">{TYPE_LABEL[e.type] ?? e.type}</span>
                 {e.external_id && <span className="font-mono">{e.external_id}</span>}
                 {e.revoked && <span className="text-down">revoked</span>}
                 {e.deprecated && <span className="text-warn">deprecated</span>}
@@ -138,7 +138,7 @@ export default function EntityView() {
               {(e.platforms.length > 0 || e.tactics.length > 0) && (
                 <p className="mt-3 flex flex-wrap gap-1.5">
                   {[...e.tactics, ...e.platforms].map((t) => (
-                    <span key={t} className="rounded bg-card-2 px-2 py-0.5 text-[12px] text-ink-muted ring-1 ring-line">{t}</span>
+                    <span key={t} className="rounded bg-chip px-2 py-0.5 text-[12px] text-chip-ink ring-1 ring-line">{t}</span>
                   ))}
                 </p>
               )}

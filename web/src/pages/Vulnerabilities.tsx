@@ -22,7 +22,7 @@ export interface VulnRow {
   patch_score: number | null;
 }
 
-export const PRIO_TONE: Record<string, string> = { P1: "bg-down/15 text-down", P2: "bg-warn/15 text-warn", P3: "bg-accent/10 text-accent-soft", P4: "bg-ink-faint/15 text-ink-muted" };
+export const PRIO_TONE: Record<string, string> = { P1: "bg-down/15 text-down", P2: "bg-warn/15 text-warn", P3: "bg-info/10 text-info-soft", P4: "bg-chip text-chip-ink" };
 const SIZE = 25;
 const SORTS: [string, string][] = [["Patch priority", "patch"], ["Exploit likelihood (EPSS)", "epss"], ["Severity (CVSS)", "cvss"], ["Added to KEV", "kev_date"], ["Published", "published"]];
 const PRIOS = ["All priorities", "P1", "P2", "P3", "P4"];
@@ -78,7 +78,7 @@ export default function Vulnerabilities() {
               />
             </label>
             <label className="flex items-center gap-2 text-[13px] text-ink-muted">
-              <input type="checkbox" className="h-4 w-4 accent-[#F43F5E]" checked={kev} onChange={(e) => set("kev", e.target.checked ? "true" : "")} /> Known exploited only
+              <input type="checkbox" className="h-4 w-4 accent-down" checked={kev} onChange={(e) => set("kev", e.target.checked ? "true" : "")} /> Known exploited only
             </label>
             <Select value={prio || "All priorities"} options={PRIOS} onChange={(v) => set("patch_priority", v === "All priorities" ? "" : v)} label="Patch priority" />
             <Select value={SORTS.find(([, v]) => v === sort)?.[0] ?? SORTS[0][0]} options={SORTS.map(([l]) => l)} onChange={(l) => set("sort", SORTS.find(([x]) => x === l)?.[1] ?? "patch")} label="Sort" />
@@ -106,7 +106,7 @@ export default function Vulnerabilities() {
                   </tr>
                 ))}
               {data?.items.map((v) => (
-                <tr key={v.cve_id} className="group border-b border-line/70 odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+                <tr key={v.cve_id} className="group border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
                   <td className="whitespace-nowrap py-3 pl-6">
                     <Link to={`/vulnerabilities/${v.cve_id}`} className="font-mono text-[13px] group-hover:text-accent-soft">
                       {v.cve_id}

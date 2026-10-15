@@ -155,7 +155,7 @@ export default function VulnView({ me }: { me?: Me }) {
                 </a>
                 <ExternalLink className="h-3 w-3 shrink-0 text-ink-faint" />
                 {r.tags?.slice(0, 3).map((t) => (
-                  <span key={t} className="shrink-0 rounded bg-card-2 px-1.5 text-[11px] text-ink-faint">{t}</span>
+                  <span key={t} className="shrink-0 rounded bg-chip px-1.5 text-[11px] text-chip-ink">{t}</span>
                 ))}
               </li>
             ))}

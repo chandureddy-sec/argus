@@ -31,7 +31,7 @@ function downloadCsv(rows: BulkRow[]) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-const SIG: Record<string, string> = { malicious: "bg-down/15 text-down", suspicious: "bg-warn/15 text-warn", benign: "bg-up/15 text-up", info: "bg-ink-faint/15 text-ink-muted" };
+const SIG: Record<string, string> = { malicious: "bg-down/15 text-down", suspicious: "bg-warn/15 text-warn", benign: "bg-up/15 text-up", info: "bg-chip text-chip-ink" };
 
 export default function BulkCheck({ me }: { me?: Me }) {
   usePage("Threat intel", "Bulk check");
@@ -130,10 +130,10 @@ export default function BulkCheck({ me }: { me?: Me }) {
             </label>
             <TlpSelect value={tlp} onChange={setTlp} />
             <label className="flex items-center gap-2 text-[13px] text-ink-muted" title="Off: only our intel and saved answers; nothing is sent out and no quota is spent">
-              <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={providers} onChange={(e) => setProviders(e.target.checked)} /> Ask providers
+              <input type="checkbox" className="h-4 w-4 accent-accent" checked={providers} onChange={(e) => setProviders(e.target.checked)} /> Ask providers
             </label>
             <label className="flex items-center gap-2 text-[13px] text-ink-muted" title="Malicious results go on the blocklist in monitor mode as they arrive">
-              <input type="checkbox" className="h-4 w-4 accent-[#F43F5E]" checked={autoblock} disabled={!analyst} onChange={(e) => setAutoblock(e.target.checked)} /> Block malicious automatically
+              <input type="checkbox" className="h-4 w-4 accent-down" checked={autoblock} disabled={!analyst} onChange={(e) => setAutoblock(e.target.checked)} /> Block malicious automatically
             </label>
             <div className="ml-auto flex gap-2">
               {running && (
@@ -211,9 +211,9 @@ export default function BulkCheck({ me }: { me?: Me }) {
               </thead>
               <tbody>
                 {shown.map((r) => (
-                  <tr key={r.query.value} className="border-b border-line/70 odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+                  <tr key={r.query.value} className="border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
                     <td className="py-3 pl-6">
-                      {analyst && <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={picked.has(r.query.value)} onChange={() => toggle(r.query.value)} aria-label={`Pick ${r.query.value}`} />}
+                      {analyst && <input type="checkbox" className="h-4 w-4 accent-accent" checked={picked.has(r.query.value)} onChange={() => toggle(r.query.value)} aria-label={`Pick ${r.query.value}`} />}
                     </td>
                     <td className="max-w-[360px] py-3 pr-4">
                       <a href={`/app/verify?q=${encodeURIComponent(r.query.value)}`} className="hover:text-accent-soft">
@@ -243,9 +243,9 @@ export default function BulkCheck({ me }: { me?: Me }) {
                     </td>
                     <td className="py-3 pr-6">
                       <span className="flex flex-wrap gap-1">
-                        {r.asset && <span className="rounded bg-accent/10 px-1.5 text-[11.5px] text-accent-soft">our asset</span>}
-                        {r.block && <span className={`rounded px-1.5 text-[11.5px] ${r.block.mode === "enforce" ? "bg-down/15 text-down" : "bg-accent/10 text-accent-soft"}`}>blocked</span>}
-                        {r.analystVerdict && <span className="rounded bg-ink-faint/15 px-1.5 text-[11.5px] text-ink-muted">{r.analystVerdict === "tp" ? "flagged" : "not malicious"}</span>}
+                        {r.asset && <span className="rounded bg-tint px-1.5 text-[11.5px] text-accent-soft">our asset</span>}
+                        {r.block && <span className={`rounded px-1.5 text-[11.5px] ${r.block.mode === "enforce" ? "bg-down/15 text-down" : "bg-info/10 text-info-soft"}`}>blocked</span>}
+                        {r.analystVerdict && <span className="rounded bg-chip px-1.5 text-[11.5px] text-chip-ink">{r.analystVerdict === "tp" ? "flagged" : "not malicious"}</span>}
                       </span>
                     </td>
                   </tr>

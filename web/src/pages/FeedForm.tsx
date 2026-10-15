@@ -187,7 +187,7 @@ export default function FeedForm({ me }: { me?: Me }) {
               </Field>
               {hasSecret && (
                 <label className="flex items-center gap-2 text-[13px] text-ink-muted sm:col-span-2">
-                  <input type="checkbox" className="h-4 w-4 accent-[#F43F5E]" checked={f.clear_secret} onChange={(e) => set("clear_secret", e.target.checked)} /> Remove the stored key
+                  <input type="checkbox" className="h-4 w-4 accent-down" checked={f.clear_secret} onChange={(e) => set("clear_secret", e.target.checked)} /> Remove the stored key
                 </label>
               )}
             </fieldset>

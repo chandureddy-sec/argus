@@ -12,10 +12,10 @@ const VIEWS = ["Live", "Enforced", "Monitor", "Awaiting approval", "Expired", "L
 const VIEW_KEY: Record<(typeof VIEWS)[number], string> = { Live: "live", Enforced: "enforce", Monitor: "monitor", "Awaiting approval": "pending", Expired: "expired", Lifted: "lifted", All: "all" };
 const STATE: Record<string, [string, string]> = {
   enforce: ["Enforced", "bg-down/12 text-down ring-down/25"],
-  monitor: ["Monitor", "bg-accent/10 text-accent-soft ring-accent/20"],
+  monitor: ["Monitor", "bg-info/10 text-info-soft ring-info/20"],
   pending: ["Awaiting approval", "bg-warn/10 text-warn ring-warn/25"],
-  expired: ["Expired", "bg-ink-faint/15 text-ink-muted ring-line"],
-  lifted: ["Lifted", "bg-ink-faint/15 text-ink-muted ring-line"],
+  expired: ["Expired", "bg-chip text-chip-ink ring-line"],
+  lifted: ["Lifted", "bg-chip text-chip-ink ring-line"],
 };
 const REASON: Record<string, string> = { known_bad: "Known bad", suspect: "Suspect", manual: "Manual" };
 
@@ -145,10 +145,10 @@ export default function Blocklist({ me }: { me?: Me }) {
                     </tr>
                   ))}
                 {list.data?.items.map((b) => {
-                  const [label, tone] = STATE[b.state] ?? [b.state, "bg-ink-faint/15 text-ink-muted ring-line"];
+                  const [label, tone] = STATE[b.state] ?? [b.state, "bg-chip text-chip-ink ring-line"];
                   const live = b.state === "enforce" || b.state === "monitor" || b.state === "pending";
                   return (
-                    <tr key={b.id} id={`block-${b.id}`} className="border-b border-line/70 odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+                    <tr key={b.id} id={`block-${b.id}`} className="border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
                       <td className="max-w-[300px] py-3 pl-6 pr-4">
                         <Ioc value={b.value} className="text-[13px]" />
                         <span className="mt-0.5 flex items-center gap-2 text-[12px] text-ink-faint">

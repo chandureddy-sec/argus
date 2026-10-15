@@ -40,9 +40,9 @@ export function Switch({ s, admin, onChange }: { s: SourceOut; admin: boolean; o
           setBusy(false);
         }
       }}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${s.enabled ? "bg-accent" : "bg-line"} ${busy ? "opacity-60" : ""}`}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${s.enabled ? "bg-accent" : "bg-ctl-line"} ${busy ? "opacity-60" : ""}`}
     >
-      <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform ${s.enabled ? "translate-x-[22px]" : "translate-x-[3px]"}`} />
+      <span className={`inline-block h-[18px] w-[18px] rounded-full shadow transition-transform ${s.enabled ? "translate-x-[22px] bg-on-accent" : "translate-x-[3px] bg-ink"}`} />
     </button>
   );
 }
@@ -60,7 +60,7 @@ function Row({ s, admin, reload, onPull, pulling }: { s: SourceOut; admin: boole
         </span>
       </Link>
       <span className="w-10 text-center">
-        <span className={`rounded px-1.5 py-0.5 text-[12px] font-semibold ${s.reliability === "A" ? "bg-up/10 text-up" : s.reliability === "B" ? "bg-warn/10 text-warn" : "bg-card-2 text-ink-muted"}`} title={s.reliability_note}>
+        <span className={`rounded px-1.5 py-0.5 text-[12px] font-semibold ${s.reliability === "A" ? "bg-up/10 text-up" : s.reliability === "B" ? "bg-warn/10 text-warn" : "bg-chip text-chip-ink"}`} title={s.reliability_note}>
           {s.reliability}
         </span>
       </span>

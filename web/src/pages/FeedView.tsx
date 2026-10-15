@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Ioc, Score } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
-import { Card, CardHead, reducedMotion, token } from "../components/ui";
+import { Card, CardHead, reducedMotion, useToken } from "../components/ui";
 import { send, useV1, type Me, type RunOut, type SourceOut } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
 import { TYPE_LABEL } from "../lib/ioc";
@@ -26,6 +26,7 @@ const RUN_LABEL: Record<string, string> = { not_modified: "no change (304)", unc
 export default function FeedView({ me }: { me?: Me }) {
   const { name = "" } = useParams();
   const nav = useNavigate();
+  const token = useToken();
   const sources = useV1<SourceOut[]>("sources");
   const s = sources.data?.find((x) => x.name === name);
   usePage("Platform", "Feed catalog", s?.title ?? name);
@@ -245,7 +246,7 @@ export default function FeedView({ me }: { me?: Me }) {
                 </thead>
                 <tbody>
                   {runs.data.slice(0, 30).map((r, i) => (
-                    <tr key={i} className="border-b border-line/60 odd:bg-white/[0.012]">
+                    <tr key={i} className="border-b border-line/60 odd:bg-zebra">
                       <td className="py-2.5 pl-6 text-ink-muted" title={dateTime(r.started_at)}>{ago(r.started_at)}</td>
                       <td className={`py-2.5 ${RUN_TONE[r.status] ?? "text-ink-muted"}`}>
                         {RUN_LABEL[r.status] ?? r.status}
@@ -275,7 +276,7 @@ export default function FeedView({ me }: { me?: Me }) {
           <ul className="divide-y divide-line/70 border-t border-line">
             {contrib.data.top.map((t) => (
               <li key={t.id}>
-                <Link to={`/indicators/${t.id}`} className="flex items-center gap-4 px-5 py-2.5 hover:bg-accent/[0.05] sm:px-6">
+                <Link to={`/indicators/${t.id}`} className="flex items-center gap-4 px-5 py-2.5 hover:bg-row-hover sm:px-6">
                   <Ioc value={t.value} className="min-w-0 flex-1 truncate text-[13px]" />
                   <span className="text-[12px] text-ink-faint">{TYPE_LABEL[t.type] ?? t.type}</span>
                   <Score n={t.priority_score} />

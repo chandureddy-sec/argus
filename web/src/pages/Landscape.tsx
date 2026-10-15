@@ -62,8 +62,8 @@ function Bars({ rows, tone = "bg-accent" }: { rows: { label: string; count: numb
 }
 
 const ACT_ICON: Record<string, typeof Flame> = { "Case opened": Briefcase, "Case closed": CircleCheck, "Feed failed": AlertOctagon, Collected: Database, "Added to KEV": Bug };
-const ACT_TONE: Record<string, string> = { pink: "text-accent-soft bg-accent/10", lime: "text-up bg-up/10", red: "text-down bg-down/10", cyan: "text-accent-soft bg-accent/10", amber: "text-warn bg-warn/10" };
-const PRIO: Record<string, string> = { P1: "bg-down/15 text-down", P2: "bg-warn/15 text-warn", P3: "bg-accent/10 text-accent-soft", P4: "bg-ink-faint/15 text-ink-muted" };
+const ACT_TONE: Record<string, string> = { pink: "text-accent-soft bg-tint", lime: "text-up bg-up/10", red: "text-down bg-down/10", cyan: "text-accent-soft bg-tint", amber: "text-warn bg-warn/10" };
+const PRIO: Record<string, string> = { P1: "bg-down/15 text-down", P2: "bg-warn/15 text-warn", P3: "bg-info/10 text-info-soft", P4: "bg-chip text-chip-ink" };
 
 function VulnRow({ v }: { v: Vuln }) {
   return (
@@ -127,7 +127,7 @@ export default function Landscape() {
             <ul className="divide-y divide-line/70 border-t border-line">
               {d.queue.map((q) => (
                 <li key={q.id}>
-                  <Link to={`/indicators/${q.id}`} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-5 py-3 hover:bg-accent/[0.05] sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:px-6">
+                  <Link to={`/indicators/${q.id}`} className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 px-5 py-3 hover:bg-row-hover sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:px-6">
                     <span className="min-w-0">
                       <Ioc value={q.value.length > 80 ? `${q.value.slice(0, 78)}…` : q.value} className="text-[13px]" />
                       <span className="block truncate text-[12px] text-ink-faint">
@@ -157,7 +157,7 @@ export default function Landscape() {
                 <li key={p.id} className="rounded-ctl border border-line bg-card-2/40 p-3">
                   <p className="flex items-center justify-between gap-2 text-[12px]">
                     <span className="font-mono text-ink-faint">{p.id}</span>
-                    <span className={`rounded-full px-2 py-0.5 font-semibold ${p.state === "action" ? "bg-down/15 text-down" : p.state === "active" ? "bg-warn/15 text-warn" : "bg-ink-faint/15 text-ink-muted"}`}>{p.state === "action" ? "act now" : p.state}</span>
+                    <span className={`rounded-full px-2 py-0.5 font-semibold ${p.state === "action" ? "bg-down/15 text-down" : p.state === "active" ? "bg-warn/15 text-warn" : "bg-chip text-chip-ink"}`}>{p.state === "action" ? "act now" : p.state}</span>
                   </p>
                   <p className="mt-1 text-[13px] text-ink">{p.question}</p>
                   <p className="mt-1 text-[12px] text-ink-muted">

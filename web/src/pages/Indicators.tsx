@@ -97,7 +97,7 @@ export default function Indicators() {
                   </tr>
                 ))}
               {data?.items.map((r) => (
-                <tr key={r.id} className="group border-b border-line/70 odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+                <tr key={r.id} className="group border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
                   <td className="max-w-[420px] py-3 pl-6 pr-4">
                     <Link to={`/indicators/${r.id}`} className="block">
                       <Ioc value={r.defanged.length > 90 ? `${r.defanged.slice(0, 88)}…` : r.defanged} className="text-[13px] text-ink group-hover:text-accent-soft" />
@@ -111,7 +111,7 @@ export default function Indicators() {
                   <td className="max-w-[220px] py-3">
                     <span className="flex flex-wrap gap-1">
                       {r.labels.slice(0, 3).map((l) => (
-                        <span key={l} className="rounded bg-card-2 px-1.5 py-px text-[11.5px] text-ink-muted ring-1 ring-line">
+                        <span key={l} className="rounded bg-chip px-1.5 py-px text-[11.5px] text-chip-ink ring-1 ring-line">
                           {l}
                         </span>
                       ))}

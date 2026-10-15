@@ -191,7 +191,7 @@ export default function IndicatorView({ me }: { me?: Me }) {
               {ind.labels.length > 0 && (
                 <p className="mt-2 flex flex-wrap gap-1.5">
                   {ind.labels.map((l) => (
-                    <span key={l} className="rounded bg-card-2 px-2 py-0.5 text-[12px] text-ink-muted ring-1 ring-line">
+                    <span key={l} className="rounded bg-chip px-2 py-0.5 text-[12px] text-chip-ink ring-1 ring-line">
                       {l}
                     </span>
                   ))}

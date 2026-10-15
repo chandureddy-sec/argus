@@ -77,7 +77,7 @@ export default function SearchPage() {
               <ul className="divide-y divide-line/70 border-t border-line">
                 {data.indicators.map((i) => (
                   <li key={i.id}>
-                    <Link to={`/indicators/${i.id}`} className="flex items-center gap-4 px-5 py-2.5 hover:bg-accent/[0.05] sm:px-6">
+                    <Link to={`/indicators/${i.id}`} className="flex items-center gap-4 px-5 py-2.5 hover:bg-row-hover sm:px-6">
                       <span className="min-w-0 flex-1">
                         <Ioc value={i.value} className="text-[13px]" />
                         <span className="block text-[12px] text-ink-faint">{TYPE_LABEL[i.type] ?? i.type} · {i.labels.join(", ")}</span>
@@ -96,7 +96,7 @@ export default function SearchPage() {
               <ul className="divide-y divide-line/70 border-t border-line">
                 {data.entities.map((e) => (
                   <li key={e.ref}>
-                    <Link to={`/entities/${encodeURIComponent(e.ref)}`} className="flex items-center justify-between gap-3 px-5 py-2.5 text-[13.5px] hover:bg-accent/[0.05] sm:px-6">
+                    <Link to={`/entities/${encodeURIComponent(e.ref)}`} className="flex items-center justify-between gap-3 px-5 py-2.5 text-[13.5px] hover:bg-row-hover sm:px-6">
                       <span>{e.name}</span>
                       <span className="text-[12px] text-ink-faint">{e.id ?? ""} · {e.type}</span>
                     </Link>
@@ -111,7 +111,7 @@ export default function SearchPage() {
               <ul className="divide-y divide-line/70 border-t border-line">
                 {data.cves.map((v) => (
                   <li key={v.cve}>
-                    <Link to={`/vulnerabilities/${v.cve}`} className="block px-5 py-2.5 hover:bg-accent/[0.05] sm:px-6">
+                    <Link to={`/vulnerabilities/${v.cve}`} className="block px-5 py-2.5 hover:bg-row-hover sm:px-6">
                       <span className="flex items-center gap-2">
                         <span className="font-mono text-[13px]">{v.cve}</span>
                         {v.priority && <span className={`rounded px-1.5 text-[11px] font-bold ${PRIO_TONE[v.priority]}`}>{v.priority}</span>}
@@ -130,7 +130,7 @@ export default function SearchPage() {
               <ul className="divide-y divide-line/70 border-t border-line">
                 {data.cases.map((c) => (
                   <li key={c.id}>
-                    <Link to={`/cases/${c.id}`} className="flex items-center justify-between gap-3 px-5 py-2.5 text-[13.5px] hover:bg-accent/[0.05] sm:px-6">
+                    <Link to={`/cases/${c.id}`} className="flex items-center justify-between gap-3 px-5 py-2.5 text-[13.5px] hover:bg-row-hover sm:px-6">
                       <span><span className="text-ink-faint">#{c.id}</span> {c.title}</span>
                       <SevPill sev={c.severity} />
                     </Link>
