@@ -52,7 +52,9 @@ export default {
       keyframes: {
         rise: { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "none" } },
       },
-      animation: { rise: "rise .45s cubic-bezier(.2,.7,.2,1) both" },
+      // "backwards", not "both": a finished animation must not keep its transform,
+      // or the card would trap position:fixed children (dialogs) inside it.
+      animation: { rise: "rise .45s cubic-bezier(.2,.7,.2,1) backwards" },
     },
   },
   plugins: [],

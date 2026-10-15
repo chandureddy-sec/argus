@@ -24,6 +24,8 @@ function system(): Theme {
 /** Set before the first render so the page never flashes the other theme. */
 export function applyTheme(t: Theme = stored() ?? system()): Theme {
   document.documentElement.dataset.theme = t;
+  // the browser's own bars (mobile address bar, PWA title) follow the page
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "light" ? "#ebe6dc" : "#1b1e26");
   return t;
 }
 

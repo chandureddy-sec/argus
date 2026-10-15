@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "../lib/theme";
 
 /** Working product name: one constant, so the final name is a one-line change. */
@@ -172,3 +173,15 @@ export function compact(n: number): string {
 /** True when the user asked the OS for less motion; charts then draw without animating. */
 export const reducedMotion =
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** A modal dialog's backdrop, rendered at the end of <body> so no card (an
+ * animated or transformed ancestor would trap position:fixed) can clip it or
+ * paint over it. Tall dialogs scroll. */
+export function Overlay({ children, label }: { children: ReactNode; label?: string }) {
+  return createPortal(
+    <div role="dialog" aria-modal="true" aria-label={label} className="fixed inset-0 z-50 overflow-y-auto bg-scrim backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center p-4">{children}</div>
+    </div>,
+    document.body,
+  );
+}

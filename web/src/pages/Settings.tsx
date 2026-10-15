@@ -22,7 +22,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { CopyButton, Ioc } from "../components/intel";
 import { Failed, Skeleton } from "../components/states";
-import { Avatar, Card, CardHead } from "../components/ui";
+import { Avatar, Card, CardHead, Overlay } from "../components/ui";
 import {
   post,
   send,
@@ -401,7 +401,7 @@ function TeamSection({ me }: { me?: Me }) {
 
       {/* Modal: Add User */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm">
+        <Overlay>
           <div className="card w-full max-w-md animate-rise p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-[16px] font-semibold">
@@ -500,12 +500,12 @@ function TeamSection({ me }: { me?: Me }) {
               </div>
             </form>
           </div>
-        </div>
+        </Overlay>
       )}
 
       {/* Modal: Change Role & Clearance */}
       {roleModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm">
+        <Overlay>
           <div className="card w-full max-w-md animate-rise p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-[16px] font-semibold">Change permissions: {roleModalUser.name}</h3>
@@ -565,12 +565,12 @@ function TeamSection({ me }: { me?: Me }) {
               </div>
             </form>
           </div>
-        </div>
+        </Overlay>
       )}
 
       {/* Modal: Reset Password */}
       {pwModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm">
+        <Overlay>
           <div className="card w-full max-w-md animate-rise p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-[16px] font-semibold">
@@ -627,7 +627,7 @@ function TeamSection({ me }: { me?: Me }) {
               </div>
             </form>
           </div>
-        </div>
+        </Overlay>
       )}
     </Card>
   );
@@ -851,7 +851,7 @@ function SecuritySection({ me }: { me?: Me }) {
 
         {/* 2FA Setup Modal */}
         {setupData && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm">
+          <Overlay>
             <div className="card w-full max-w-lg animate-rise p-6 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="flex items-center gap-2 text-[16px] font-semibold">
@@ -928,12 +928,12 @@ function SecuritySection({ me }: { me?: Me }) {
                 </form>
               </div>
             </div>
-          </div>
+          </Overlay>
         )}
 
         {/* Modal: Disable 2FA */}
         {showDisableModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm">
+          <Overlay>
             <div className="card w-full max-w-md animate-rise p-6 shadow-2xl">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-[16px] font-semibold text-down">Disable Two-Factor Authentication</h3>
@@ -980,7 +980,7 @@ function SecuritySection({ me }: { me?: Me }) {
                 </div>
               </form>
             </div>
-          </div>
+          </Overlay>
         )}
       </Card>
 
@@ -1438,7 +1438,7 @@ function AuditLogSection() {
 
       {/* Modal: JSON Details Inspector */}
       {inspectItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-scrim p-4 backdrop-blur-sm">
+        <Overlay>
           <div className="card w-full max-w-lg animate-rise p-6 shadow-2xl">
             <div className="mb-3 flex items-center justify-between">
               <div>
@@ -1472,7 +1472,7 @@ function AuditLogSection() {
               </button>
             </div>
           </div>
-        </div>
+        </Overlay>
       )}
     </Card>
   );
