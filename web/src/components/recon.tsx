@@ -4,7 +4,7 @@ import { useApi, type EngineStatus } from "../lib/api";
 export function ModePill({ mode }: { mode: string }) {
   const tone =
     mode === "passive"
-      ? "bg-accent/10 text-accent-soft ring-accent/20"
+      ? "bg-info/10 text-info-soft ring-info/20"
       : mode === "active"
         ? "bg-warn/10 text-warn ring-warn/25"
         : "bg-down/10 text-down ring-down/20";
@@ -15,8 +15,8 @@ const SEV: Record<string, string> = {
   critical: "bg-down/15 text-down ring-down/30",
   high: "bg-down/10 text-down ring-down/20",
   medium: "bg-warn/10 text-warn ring-warn/25",
-  low: "bg-accent/10 text-accent-soft ring-accent/20",
-  info: "bg-ink-faint/15 text-ink-muted ring-line",
+  low: "bg-info/10 text-info-soft ring-info/20",
+  info: "bg-chip text-chip-ink ring-line",
 };
 
 export function SevPill({ sev }: { sev: string }) {

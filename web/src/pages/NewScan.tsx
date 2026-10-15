@@ -21,7 +21,7 @@ const ABOUT: Record<Mode, string> = {
 function Toggle({ checked, onChange, label, hint, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint: string; disabled?: boolean }) {
   return (
     <label className={`flex items-start gap-3 rounded-ctl border border-line bg-card-2/40 p-3.5 ${disabled ? "opacity-50" : "cursor-pointer hover:border-accent/40"}`}>
-      <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#1F6BFF]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="mt-0.5 h-4 w-4 accent-accent" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <span>
         <span className="block text-[14px] font-medium text-ink">{label}</span>
         <span className="block text-[12.5px] text-ink-muted">{hint}</span>
@@ -112,7 +112,7 @@ export default function NewScan({ me }: { me?: Me }) {
                 </p>
               )}
               <label className="flex cursor-pointer items-start gap-3">
-                <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[#F59E0B]" checked={authorized} disabled={!admin} onChange={(e) => setAuthorized(e.target.checked)} />
+                <input type="checkbox" className="mt-0.5 h-4 w-4 accent-warn" checked={authorized} disabled={!admin} onChange={(e) => setAuthorized(e.target.checked)} />
                 <span className="text-[13.5px] text-ink">
                   I am authorised to actively test <b className="font-mono">{clean || "this domain"}</b> and the systems it resolves to.
                   <span className="block text-[12.5px] text-ink-muted">Recorded in the audit log with your name.</span>

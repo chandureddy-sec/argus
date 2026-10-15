@@ -74,9 +74,9 @@ export default function Scans({ me }: { me?: Me }) {
               {rows.map((r) => {
                 const ref = scanRef(r);
                 return (
-                  <tr key={ref} className="group border-b border-line/70 transition-colors odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+                  <tr key={ref} className="group border-b border-line/70 transition-colors odd:bg-zebra hover:bg-row-hover">
                     <td className="py-3.5 pl-6">
-                      <input type="checkbox" className="h-4 w-4 accent-[#1F6BFF]" checked={picked.includes(ref)} onChange={() => toggle(ref)} aria-label={`Pick ${r.target} ${dateTime(r.timestamp)} to compare`} />
+                      <input type="checkbox" className="h-4 w-4 accent-accent" checked={picked.includes(ref)} onChange={() => toggle(ref)} aria-label={`Pick ${r.target} ${dateTime(r.timestamp)} to compare`} />
                     </td>
                     <td className="py-3.5">
                       <Link to={`/scans/view/${encodeURIComponent(ref)}`} className="flex items-center gap-3">

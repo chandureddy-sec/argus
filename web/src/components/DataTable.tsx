@@ -21,10 +21,10 @@ const TYPES: [string, string][] = [["All types", ""], ["IP addresses", "ip"], ["
 const STATUSES: [string, string][] = [["All statuses", ""], ["Active", "active"], ["Expired", "expired"], ["Not malicious", "false_positive"], ["Revoked", "revoked"]];
 const PILL: Record<IndicatorRow["status"], [string, string]> = {
   active: ["Active", "bg-up/10 text-up ring-up/20"],
-  new: ["New", "bg-accent/10 text-accent-soft ring-accent/20"],
+  new: ["New", "bg-info/10 text-info-soft ring-info/20"],
   expired: ["Expired", "bg-down/10 text-down ring-down/20"],
-  false_positive: ["Not malicious", "bg-ink-faint/15 text-ink-muted ring-line"],
-  revoked: ["Revoked", "bg-ink-faint/15 text-ink-muted ring-line"],
+  false_positive: ["Not malicious", "bg-chip text-chip-ink ring-line"],
+  revoked: ["Revoked", "bg-chip text-chip-ink ring-line"],
 };
 const SIZE = 8;
 const DATE = new Intl.DateTimeFormat("en", { month: "short", day: "2-digit", year: "numeric" });
@@ -119,7 +119,7 @@ export default function DataTable() {
               const Icon = ICON[r.type] ?? Shapes;
               const [label, pill] = PILL[r.status] ?? PILL.active;
               return (
-                <tr key={r.id} className="group border-b border-line/70 transition-colors odd:bg-white/[0.012] hover:bg-accent/[0.06]">
+                <tr key={r.id} className="group border-b border-line/70 transition-colors odd:bg-zebra hover:bg-row-hover">
                   <td className="py-3.5 pl-6 text-ink-faint tabular-nums">{(page - 1) * SIZE + i + 1}</td>
                   <td className="py-3.5 pr-4">
                     <a href={`/app/indicators/${r.id}`} className="flex items-center gap-3">

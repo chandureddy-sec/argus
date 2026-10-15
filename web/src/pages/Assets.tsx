@@ -48,7 +48,7 @@ function AssetList() {
       <div className="flex flex-wrap items-center gap-3 px-5 pb-4 sm:px-6">
         <Segmented value={kind} options={KINDS} onChange={setKind} label="Kind" />
         <label className="flex items-center gap-2 text-[13px] text-ink-muted">
-          <input type="checkbox" className="h-4 w-4 accent-[#F43F5E]" checked={flagged} onChange={(e) => setFlagged(e.target.checked)} /> Flagged by threat intel only
+          <input type="checkbox" className="h-4 w-4 accent-down" checked={flagged} onChange={(e) => setFlagged(e.target.checked)} /> Flagged by threat intel only
         </label>
         <label className="relative ml-auto w-full sm:w-64">
           <span className="sr-only">Filter</span>
@@ -77,7 +77,7 @@ function AssetList() {
                 </tr>
               ))}
             {data?.items.map((a) => (
-              <tr key={a.id} className={`border-b border-line/70 odd:bg-white/[0.012] ${a.indicator?.status === "active" ? "bg-down/[0.04]" : ""}`}>
+              <tr key={a.id} className={`border-b border-line/70 odd:bg-zebra ${a.indicator?.status === "active" ? "bg-down/[0.04]" : ""}`}>
                 <td className="py-3 pl-6">
                   <Ioc value={defang(a.value)} className="text-[13px]" />
                   <span className="block text-[12px] text-ink-faint">{a.kind} · from {a.origin}</span>
@@ -141,7 +141,7 @@ function Software() {
         </thead>
         <tbody>
           {data.map((p) => (
-            <tr key={`${p.vendor}/${p.product}`} className="border-b border-line/70 odd:bg-white/[0.012]">
+            <tr key={`${p.vendor}/${p.product}`} className="border-b border-line/70 odd:bg-zebra">
               <td className="py-3 pl-6">
                 <span className="font-medium">{p.product.replace(/_/g, " ")}</span>
                 <span className="block text-[12px] text-ink-faint">{p.vendor}</span>

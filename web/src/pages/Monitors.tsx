@@ -88,7 +88,7 @@ export default function Monitors({ me }: { me?: Me }) {
                 </thead>
                 <tbody>
                   {monitors.map((m) => (
-                    <tr key={m.id} className="border-b border-line/70 odd:bg-white/[0.012]">
+                    <tr key={m.id} className="border-b border-line/70 odd:bg-zebra">
                       <td className="py-3 pl-6">
                         <span className="font-mono">{m.target}</span>
                         {m.webhook_kind && <span className="ml-2 rounded bg-accent/10 px-1.5 text-[11.5px] text-accent-soft">{m.webhook_kind}</span>}

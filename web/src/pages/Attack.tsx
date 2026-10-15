@@ -11,14 +11,14 @@ interface Matrix {
   columns: { tactic: { id: string; name: string }; hits: number; cells: { id: string; name: string; count: number }[] }[];
 }
 
-/** Heat: none → faint card, then four steps of the accent blue. */
+/** Heat: none → faint card, then four steps of the olive accent (text contrast >= 4.5:1 in both themes). */
 function heat(n: number, peak: number): string {
   if (!n) return "bg-card-2/50 text-ink-faint hover:text-ink-muted";
   const t = n / Math.max(1, peak);
   if (t > 0.75) return "bg-accent text-on-accent";
-  if (t > 0.5) return "bg-accent/70 text-on-accent";
-  if (t > 0.25) return "bg-accent/55 text-on-accent";
-  return "bg-accent/25 text-ink";
+  if (t > 0.5) return "bg-accent/55 text-ink";
+  if (t > 0.25) return "bg-accent/35 text-ink";
+  return "bg-accent/15 text-ink";
 }
 
 export default function Attack() {

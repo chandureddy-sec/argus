@@ -18,7 +18,7 @@ export function every(minutes: number): string {
 }
 
 export function Health({ s }: { s: SourceOut }) {
-  const tone = !s.enabled ? "bg-ink-faint" : s.health === "ok" ? "bg-up shadow-[0_0_8px_rgb(var(--up)/0.6)]" : s.health === "failing" ? "bg-down" : s.health === "degraded" ? "bg-warn" : "bg-ink-faint";
+  const tone = !s.enabled ? "bg-ink-faint" : s.health === "ok" ? "bg-up" : s.health === "failing" ? "bg-down" : s.health === "degraded" ? "bg-warn" : "bg-ink-faint";
   return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${tone}`} title={s.enabled ? s.health : "switched off"} />;
 }
 
@@ -42,7 +42,7 @@ export function Switch({ s, admin, onChange }: { s: SourceOut; admin: boolean; o
       }}
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${s.enabled ? "bg-accent" : "bg-ctl-line"} ${busy ? "opacity-60" : ""}`}
     >
-      <span className={`inline-block h-[18px] w-[18px] rounded-full shadow transition-transform ${s.enabled ? "translate-x-[22px] bg-on-accent" : "translate-x-[3px] bg-ink"}`} />
+      <span className={`inline-block h-[18px] w-[18px] rounded-full shadow transition-transform ${s.enabled ? "translate-x-[22px]" : "translate-x-[3px]"} bg-knob`} />
     </button>
   );
 }
