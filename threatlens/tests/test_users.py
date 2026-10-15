@@ -102,10 +102,23 @@ def test_cli_users(
     assert cli.main(["users", "disable", "chandu reddy"]) == 0
     assert cli.main(["users", "passwd"]) == 2
     assert cli.main(["users", "enable", "nobody"]) == 2
-    capsys.readouterr()
+    assert cli.main(["users", "setup-2fa", "chandu reddy"]) == 0
+    setup_out = capsys.readouterr().out
+    assert "2FA enabled for chandu reddy" in setup_out
+    assert "Secret:" in setup_out
+    assert "otpauth://totp/" in setup_out
+
     assert cli.main(["users", "list"]) == 0
     listing = capsys.readouterr().out
     assert "chandu reddy" in listing
     assert "analyst" in listing
+    assert "enabled" in listing  # 2FA enabled column
+
+    assert cli.main(["users", "reset-2fa", "chandu reddy"]) == 0
+    assert "2FA reset for chandu reddy" in capsys.readouterr().out
+
+    assert cli.main(["users", "list"]) == 0
+    listing = capsys.readouterr().out
+    assert "chandu reddy" in listing
     assert "disabled" in listing
     assert PW not in listing

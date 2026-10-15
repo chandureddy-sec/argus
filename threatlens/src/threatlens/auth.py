@@ -136,14 +136,15 @@ class RateLimiter(Protocol):
 
 class MemoryRateLimiter:
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
-        self._counts: dict[tuple[str, int], int] = {}
+        self._counts: dict[tuple[str, int, int], int] = {}  # (bucket, window length, window)
         self._clock = clock
 
     async def hit(self, bucket: str, limit: int, window_s: int = 60) -> int:
         now = self._clock()
         window = int(now // window_s)
-        key = (bucket, window)
-        self._counts = {k: v for k, v in self._counts.items() if k[1] >= window}  # drop old windows
+        key = (bucket, window_s, window)
+        # Drop finished windows, each by its own length: buckets may use different ones.
+        self._counts = {k: v for k, v in self._counts.items() if k[2] >= int(now // k[1])}
         self._counts[key] = self._counts.get(key, 0) + 1
         if self._counts[key] > limit:
             return max(1, int((window + 1) * window_s - now))

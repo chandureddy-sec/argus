@@ -16,7 +16,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from threatlens import __version__
+from threatlens import __version__, totp
 from threatlens import tlp as tlp_rules
 from threatlens.auth import ROLE_RANK, create_key, revoke_key
 from threatlens.collect import RunSummary
@@ -32,7 +32,16 @@ from threatlens.kb import KB_REGISTRY
 from threatlens.models import TLP_LEVELS, ApiKey, AuditLog, Source, User
 from threatlens.profile import ProfileError, load_pirs, load_profile
 from threatlens.settings import get_settings
-from threatlens.users import UserError, create_user, set_clearance, set_disabled, set_password, set_role
+from threatlens.users import (
+    UserError,
+    create_user,
+    reset_totp,
+    set_clearance,
+    set_disabled,
+    set_password,
+    set_role,
+    set_totp_secret,
+)
 
 # Indicator feeds and knowledge sources (ATT&CK, NVD, EPSS, OSV).
 ALL_SOURCES = sorted({*REGISTRY, *KB_REGISTRY})
@@ -377,14 +386,26 @@ async def _users(args: argparse.Namespace) -> int:
             elif args.action in ("disable", "enable"):
                 row = await set_disabled(s, args.name, args.action == "disable")
                 print(f"{row.name} {args.action}d")
+            elif args.action == "reset-2fa":
+                row = await reset_totp(s, args.name)
+                print(f"2FA reset for {row.name}; they can now sign in with password only")
+            elif args.action == "setup-2fa":
+                secret = totp.generate_secret()
+                row = await set_totp_secret(s, args.name, secret)
+                url = totp.otpauth_url(row.name, secret, issuer="ThreatLens")
+                print(f"2FA enabled for {row.name}")
+                print(f"Secret: {secret}")
+                print(f"Otpauth URL: {url}")
             else:
                 rows = (await s.scalars(select(User).order_by(User.login))).all()
                 print(
-                    f"{'name':<24} {'role':<8} {'clearance':<17} {'created':<17} {'last sign-in':<17} state"
+                    f"{'name':<24} {'role':<8} {'clearance':<17} {'2FA':<8} "
+                    f"{'created':<17} {'last sign-in':<17} state"
                 )
                 for u in rows:
                     print(
                         f"{u.name:<24} {u.role:<8} {tlp_rules.clearance_for(u.role, u.tlp_clearance):<17} "
+                        f"{'enabled' if u.totp_secret else '-':<8} "
                         f"{_when(u.created_at):<17} {_when(u.last_login_at):<17} "
                         f"{'disabled' if u.disabled_at else 'active'}"
                     )
@@ -465,7 +486,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     k.set_defaults(func=_run(_keys))
 
     us = sub.add_parser("users", help="manage analyst UI accounts (username + password)")
-    us.add_argument("action", choices=["create", "passwd", "role", "clearance", "disable", "enable", "list"])
+    us.add_argument(
+        "action",
+        choices=[
+            "create",
+            "passwd",
+            "role",
+            "clearance",
+            "disable",
+            "enable",
+            "reset-2fa",
+            "setup-2fa",
+            "list",
+        ],
+    )
     us.add_argument("name", nargs="?", help='username; quote it if it has spaces: "chandu reddy"')
     us.add_argument("--role", choices=list(ROLE_RANK), help="create: default viewer; role: required")
     us.add_argument("--password-stdin", action="store_true", help="read the password from stdin")

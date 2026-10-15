@@ -818,6 +818,10 @@ class Disable2FaIn(BaseModel):
 @router.get("/settings/2fa")
 async def two_factor_status(who: Viewer, request: Request) -> dict[str, Any]:
     """Get 2FA status for the currently authenticated user."""
+    if who.kind != "user":
+        raise HTTPException(
+            400, "Two-factor authentication is only available for user accounts, not API keys."
+        )
     async with _sm(request)() as s:
         target = await users.get_user_by_id(s, who.key_id)
     if target is None:
@@ -828,6 +832,10 @@ async def two_factor_status(who: Viewer, request: Request) -> dict[str, Any]:
 @router.post("/settings/2fa/setup")
 async def two_factor_setup(who: Viewer, request: Request) -> dict[str, str]:
     """Generate a new TOTP secret, otpauth URL, and SVG QR code."""
+    if who.kind != "user":
+        raise HTTPException(
+            400, "Two-factor authentication is only available for user accounts, not API keys."
+        )
     secret = totp.generate_secret()
     url = totp.otpauth_url(who.name, secret, issuer="Argus")
     svg = totp.qr_svg(url)
@@ -837,6 +845,10 @@ async def two_factor_setup(who: Viewer, request: Request) -> dict[str, str]:
 @router.post("/settings/2fa/enable")
 async def two_factor_enable(who: Viewer, request: Request, body: Enable2FaIn) -> dict[str, Any]:
     """Verify code and activate TOTP for the current user."""
+    if who.kind != "user":
+        raise HTTPException(
+            400, "Two-factor authentication is only available for user accounts, not API keys."
+        )
     if not totp.verify_totp(body.secret, body.code):
         raise HTTPException(422, "Invalid verification code; check the code from your authenticator app.")
     async with _sm(request)() as s, s.begin():
@@ -847,12 +859,18 @@ async def two_factor_enable(who: Viewer, request: Request, body: Enable2FaIn) ->
 @router.post("/settings/2fa/disable")
 async def two_factor_disable(who: Viewer, request: Request, body: Disable2FaIn) -> dict[str, Any]:
     """Disable TOTP after verifying a code from the authenticator."""
+    if who.kind != "user":
+        raise HTTPException(
+            400, "Two-factor authentication is only available for user accounts, not API keys."
+        )
     async with _sm(request)() as s:
         target = await users.get_user_by_id(s, who.key_id)
     if target is None or not target.totp_secret:
         return {"ok": True, "status": "not_enabled"}
     if not totp.verify_totp(target.totp_secret, body.code):
         raise HTTPException(422, "Invalid verification code.")
+    if await request.app.state.limiter.hit(f"totp-disable:{target.id}:{body.code.strip()}", 1, 90):
+        raise HTTPException(401, "This two-factor code was already used. Please wait for the next code.")
     async with _sm(request)() as s, s.begin():
         await users.set_totp_secret(s, who.name, None, actor=who.name)
     return {"ok": True, "status": "disabled"}

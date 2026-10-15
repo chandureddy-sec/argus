@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import time
+
 import httpx
 
 from tests.test_cases import SAME, App
@@ -209,6 +211,34 @@ async def test_totp_two_factor_flow(app: App) -> None:
     assert r.status_code == 200
     assert r.json()["ok"] is True
     assert "tl_user" in r.cookies
+
+    # Replaying the exact same TOTP code within the window is blocked
+    await app.c.delete("/app/api/session", headers=SAME)
+    r = await app.c.post(
+        "/app/api/session",
+        json={"username": "secadmin", "password": "secadmin-password", "totp_code": code},
+        headers=SAME,
+    )
+    assert r.status_code == 401
+    assert "already used" in r.text
+
+    # The next step's code (a different one, within the accepted drift) still signs in
+    r = await app.c.post(
+        "/app/api/session",
+        json={
+            "username": "secadmin",
+            "password": "secadmin-password",
+            "totp_code": totp.totp_code(secret, time.time() + 30),
+        },
+        headers=SAME,
+    )
+    assert r.status_code == 200
+    assert r.json()["ok"] is True
+
+    # An API key is not a user account: no 2FA for it
+    r = await app.c.get("/app/api/settings/2fa", headers=app.h("viewer"))
+    assert r.status_code == 400
+    assert "only available for user accounts" in r.text
 
     # Admin reset-2fa for user
     r = await app.c.post(f"/app/api/settings/users/{admin_id}/reset-2fa", headers=SAME)

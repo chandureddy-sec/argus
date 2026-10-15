@@ -194,6 +194,12 @@ async def login(request: Request, body: LoginIn) -> Response:
             if not totp.verify_totp(user.totp_secret, body.totp_code):
                 log.warning("argus.totp_failed", user=user.name, client=client)
                 raise HTTPException(401, "Invalid two-factor authentication code.")
+            wait_replay = await limiter.hit(f"totp-login:{user.id}:{body.totp_code.strip()}", 1, 90)
+            if wait_replay:
+                log.warning("argus.totp_replayed", user=user.name, client=client)
+                raise HTTPException(
+                    401, "This two-factor code was already used. Please wait for the next code."
+                )
         tag = session.password_tag(user.password_hash) if user else ""
         uid = user.id if user else 0
     if user is None:
