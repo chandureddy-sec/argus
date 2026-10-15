@@ -1,20 +1,42 @@
 import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
+import { useScope } from "../lib/page";
 
 /** Working product name: one constant, so the final name is a one-line change. */
 export const PRODUCT = { name: "Argus", tagline: "Recon + threat intel" };
 
 /** A colour token as a concrete CSS colour. SVG presentation attributes (chart
  * fills, gradient stops) don't reliably resolve var(), so tokens are read from
- * :root once; the CSS variables in index.css stay the single source. */
+ * :root (or, for a page scope like "ti", from a hidden element carrying that
+ * class) once; the CSS variables stay the single source. */
 const cache = new Map<string, string>();
-export function token(name: string, alpha = 1): string {
-  let rgb = cache.get(name);
+const probes = new Map<string, Element>();
+function host(scope: string): Element {
+  if (!scope) return document.documentElement;
+  let el = probes.get(scope);
+  if (!el) {
+    el = document.createElement("div");
+    el.className = scope;
+    el.setAttribute("hidden", "");
+    document.body.appendChild(el);
+    probes.set(scope, el);
+  }
+  return el;
+}
+export function token(name: string, alpha = 1, scope = ""): string {
+  const key = `${scope}:${name}`;
+  let rgb = cache.get(key);
   if (rgb === undefined) {
-    rgb = getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim() || "255 255 255";
-    cache.set(name, rgb);
+    rgb = getComputedStyle(host(scope)).getPropertyValue(`--${name}`).trim() || "255 255 255";
+    cache.set(key, rgb);
   }
   return `rgb(${rgb} / ${alpha})`;
+}
+
+/** token() bound to the current page's colour scope. */
+export function useToken(): (name: string, alpha?: number) => string {
+  const scope = useScope();
+  return (name, alpha = 1) => token(name, alpha, scope);
 }
 
 export function Logo({ size = 32 }: { size?: number }) {
@@ -114,7 +136,7 @@ export function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="inline-flex rounded-ctl border border-line bg-card-2/60 p-0.5">
+    <div role="tablist" aria-label={label} className="inline-flex rounded-ctl border border-ctl-line bg-card-2/60 p-0.5">
       {options.map((o) => (
         <button
           key={o}
@@ -122,7 +144,7 @@ export function Segmented<T extends string>({
           aria-selected={o === value}
           onClick={() => onChange(o)}
           className={`h-7 rounded-[8px] px-3 text-[12.5px] font-medium transition-colors ${
-            o === value ? "bg-accent text-white shadow-glow" : "text-ink-muted hover:text-ink"
+            o === value ? "bg-accent text-on-accent shadow-glow" : "text-ink-muted hover:text-ink"
           }`}
         >
           {o}

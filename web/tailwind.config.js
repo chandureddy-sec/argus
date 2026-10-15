@@ -12,11 +12,21 @@ export default {
         card: v("card"),
         "card-2": v("card-2"),
         line: v("line"),
-        accent: { DEFAULT: v("accent"), soft: v("accent-soft"), muted: v("accent-muted") },
+        accent: { DEFAULT: v("accent"), soft: v("accent-soft"), muted: v("accent-muted"), hover: v("accent-hover") },
         ink: { DEFAULT: v("ink"), muted: v("ink-muted"), faint: v("ink-faint") },
         up: v("up"),
         down: v("down"),
         warn: v("warn"),
+        // Role tokens (see index.css). The last four are full colours with their
+        // alpha built in, so they take no /opacity modifier.
+        "on-accent": v("on-accent"),
+        "ctl-line": v("ctl-line"),
+        info: { DEFAULT: v("info"), soft: v("info-soft") },
+        "chip-ink": v("chip-ink"),
+        chip: "var(--chip)",
+        tint: "var(--tint)",
+        "row-hover": "var(--row-hover)",
+        zebra: "var(--zebra)",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "sans-serif"],

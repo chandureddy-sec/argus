@@ -31,6 +31,19 @@
   --up: 34 197 94;
   --down: 244 63 94;
   --warn: 245 158 11;
+
+  /* Role tokens: name what a colour is for, so a page scope (ti-palette.css)
+     can retheme it. Here they resolve to exactly the colours above. */
+  --on-accent: 255 255 255;            /* text/icons on an accent fill */
+  --accent-hover: var(--accent-soft);  /* primary button hover fill */
+  --ctl-line: var(--line);             /* input and button borders */
+  --info: var(--accent);               /* status: monitor, new, P3 */
+  --info-soft: var(--accent-soft);
+  --chip: rgb(var(--ink-faint) / 0.15); /* neutral chip fill */
+  --chip-ink: var(--ink-muted);         /* neutral chip text */
+  --tint: rgb(var(--accent) / 0.1);     /* decorative accent chip fill */
+  --row-hover: rgb(var(--accent) / 0.06);
+  --zebra: rgb(255 255 255 / 0.012);
   color-scheme: dark;
 }
 
@@ -49,9 +62,9 @@
   .card { @apply rounded-card border border-line bg-card; }
   .label { @apply text-[13px] text-ink-muted; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply btn bg-accent text-white hover:bg-accent-soft shadow-[0_6px_20px_-8px_rgb(var(--accent)/0.8)]; }
-  .btn-ghost { @apply btn border border-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
-  .ctl { @apply h-9 rounded-ctl border border-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
+  .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover shadow-[0_6px_20px_-8px_rgb(var(--accent)/0.8)]; }
+  .btn-ghost { @apply btn border border-ctl-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
+  .ctl { @apply h-9 rounded-ctl border border-ctl-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
 }
 
 /* Charts: a soft glow under the lines, quiet grid. */
