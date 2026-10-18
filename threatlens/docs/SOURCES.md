@@ -88,6 +88,16 @@ Machine-readable copy: each enricher's `EnricherInfo` (`src/threatlens/enrich/`)
 Not built: **Pulsedive** (optional in the spec); a local **MaxMind GeoLite2** database (RIPEstat
 serves GeoLite2 data, so no MaxMind account is needed; ADR 0005).
 
+## Phase 6 destinations and standards (verified 2026-10-18)
+| Destination / standard | What was checked | Where |
+|---|---|---|
+| STIX 2.1 TLP 2.0 markings | marking-definition ids and extension `extension-definition--60a3c5c5-0d10-413e-aab3-9e08dde9e88d` | oasis-open/cti-stix-common-objects, `extension-definition-specifications/tlp-2.0/examples` |
+| Microsoft Sentinel | `api.ti.sentinel.azure.com/workspaces/{id}/threat-intelligence-stix-objects:upload`, api-version 2024-02-01-preview (preview), token scope `https://management.azure.com/.default`, 100 objects/request, 100 requests/min, Sentinel Contributor role | learn.microsoft.com/azure/sentinel/stix-objects-api |
+| Splunk HEC | `/services/collector/event`, `Authorization: Splunk <token>`, batch = concatenated JSON events, metadata time/host/source/sourcetype/index/fields | help.splunk.com "Format events for HTTP Event Collector" |
+| MISP | `Authorization: <key>` header; `attributes/restSearch` filters (returnFormat, to_ids, published, timestamp, last, limit, page, includeEventTags, enforceWarninglist); `events/add` | MISP OpenAPI (`app/webroot/doc/openapi.yaml`, develop) |
+| Wazuh CDB lists | `key:value`; keys with `:` quoted; dotted IP prefixes; lists in `/var/ossec/etc/lists`, loaded at manager start; `address_match_key` lookup | documentation.wazuh.com, ruleset/cdb-list |
+| Elastic ECS | `threat.indicator.*` fields; `marking.tlp` accepts CLEAR and AMBER+STRICT | elastic.co ECS threat field reference |
+
 ## Open points
 * **OTX terms**: confirm the commercial and redistribution position once there is a
   key to read the account terms with. Until then both flags are off.

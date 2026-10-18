@@ -103,7 +103,7 @@ def flat(r: sel.Row) -> dict[str, object]:
         "score": round(r.ind.priority_score or 0, 1),
         "tlp": r.ind.tlp,
         "labels": "|".join(r.ind.labels or []),
-        "sources": "|".join(sorted(src.name for src in r.sources)) or "analyst",
+        "sources": "|".join(sorted(src.name for src in r.sources if src.redistribution)) or "analyst",
         "first_seen": stix.ts(r.obs.first_seen),
         "last_seen": stix.ts(r.obs.last_seen),
         "valid_until": stix.ts(r.ind.valid_until),

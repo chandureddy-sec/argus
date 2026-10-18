@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+"""Wazuh integratord → Argus: send each alert to Argus, which records a
+"seen in our environment" sighting for every known indicator in it and
+answers what each one is (docs/INTEGRATIONS.md, ADR 0019).
+
+Install on the Wazuh manager:
+    cp custom-argus /var/ossec/integrations/custom-argus
+    chown root:wazuh /var/ossec/integrations/custom-argus
+    chmod 750 /var/ossec/integrations/custom-argus
+
+and in /var/ossec/etc/ossec.conf:
+    <integration>
+      <name>custom-argus</name>
+      <hook_url>https://argus.example.org/api/v1/integrations/wazuh/alert</hook_url>
+      <api_key>tl_... (an analyst key; Argus Settings → API keys)</api_key>
+      <level>5</level>
+      <alert_format>json</alert_format>
+    </integration>
+
+integratord calls: custom-argus <alert file> <api key> <hook url>.
+Standard library only; the key is never logged.
+"""
+
+import json
+import sys
+import urllib.request
+
+LOG = "/var/ossec/logs/integrations.log"
+TIMEOUT_S = 10
+
+
+def log(msg: str) -> None:
+    try:
+        with open(LOG, "a", encoding="utf-8") as f:
+            f.write(f"custom-argus: {msg}\n")
+    except OSError:
+        pass
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 4:
+        log("usage: custom-argus <alert file> <api key> <hook url>")
+        return 2
+    alert_file, api_key, hook_url = argv[1], argv[2], argv[3]
+    if not hook_url.startswith(("https://", "http://")):
+        log("hook_url must be an http(s) URL")
+        return 2
+    with open(alert_file, encoding="utf-8") as f:
+        alert = json.load(f)
+    req = urllib.request.Request(  # noqa: S310 - the admin-configured Argus URL, checked above
+        hook_url,
+        data=json.dumps(alert).encode(),
+        headers={"Content-Type": "application/json", "X-API-Key": api_key},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # noqa: S310
+            answer = json.load(resp)
+    except Exception as e:  # noqa: BLE001 - integratord only reads our exit code and log
+        log(f"rule {alert.get('rule', {}).get('id')}: Argus unreachable ({type(e).__name__})")
+        return 1
+    for m in answer.get("matches", []):
+        log(f"rule {alert.get('rule', {}).get('id')}: {m.get('value')} is {m.get('verdict')} "
+            f"(score {m.get('score')}, action {m.get('action')})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -67,6 +67,7 @@ const NAV: Item[] = [
     children: [
       { label: "Cases", to: "/cases" },
       { label: "Blocklist", to: "/blocklist" },
+      { label: "Alerts", to: "/alerts" },
     ],
   },
   {
@@ -74,6 +75,7 @@ const NAV: Item[] = [
     icon: Settings,
     children: [
       { label: "Feed catalog", to: "/feeds" },
+      { label: "Integrations", to: "/integrations" },
       { label: "Settings", to: "/settings" },
       { label: "Audit log", to: "/audit" },
       { label: "Search", to: "/search" },

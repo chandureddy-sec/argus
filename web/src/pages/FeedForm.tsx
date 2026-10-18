@@ -21,6 +21,7 @@ interface Form {
   value_column: number;
   json_path: string;
   auth_header: string;
+  allow_internal?: boolean;
   secret: string;
   clear_secret: boolean;
   upstream: string;
@@ -28,7 +29,7 @@ interface Form {
 
 const EMPTY: Form = {
   title: "", url: "", format: "text", ioc_type: "auto", verdict: "malicious", confidence: 70, interval_minutes: 360,
-  tlp: "TLP:CLEAR", reliability: "C", comment_char: "#", value_column: 0, json_path: "", auth_header: "", secret: "",
+  tlp: "TLP:CLEAR", reliability: "C", comment_char: "#", value_column: 0, json_path: "", auth_header: "", allow_internal: false, secret: "",
   clear_secret: false, upstream: "",
 };
 const GRADES: [string, string][] = [["A", "A · completely reliable"], ["B", "B · usually reliable"], ["C", "C · fairly reliable"], ["D", "D · not usually reliable"], ["E", "E · unreliable"], ["F", "F · can't be judged"]];
@@ -112,6 +113,8 @@ export default function FeedForm({ me }: { me?: Me }) {
                   <option value="text">Plain text, one per line</option>
                   <option value="csv">CSV</option>
                   <option value="json">JSON</option>
+                  <option value="taxii">TAXII 2.1 collection (STIX indicators)</option>
+                  <option value="misp">MISP (attributes/restSearch)</option>
                 </select>
               </Field>
               <Field label="Indicator type">
@@ -130,6 +133,13 @@ export default function FeedForm({ me }: { me?: Me }) {
                 <Field label="Value column" hint="CSV only; the first column is 0">
                   <input value={f.value_column} onChange={(e) => set("value_column", Number(e.target.value))} type="number" min={0} max={255} className="ctl w-full" />
                 </Field>
+              )}
+              {(f.format === "taxii" || f.format === "misp") && (
+                <p className="text-[12.5px] text-ink-muted sm:col-span-2">
+                  {f.format === "taxii"
+                    ? "Paste the collection URL (…/collections/{id}/). Only new objects are pulled after the first run; markings on each indicator are kept."
+                    : "Paste https://your-misp/attributes/restSearch and the automation key below (header Authorization). Published to_ids attributes of the last 30 days, then only changes; tlp: tags are kept."}
+                </p>
               )}
               {f.format === "json" && (
                 <Field label="JSON field" hint="e.g. data.ip_address; empty for a list of strings">
@@ -185,6 +195,12 @@ export default function FeedForm({ me }: { me?: Me }) {
               <Field label="API key / token" hint="Stored encrypted; never shown again">
                 <input value={f.secret} onChange={(e) => set("secret", e.target.value)} type="password" autoComplete="new-password" className="ctl w-full" placeholder={hasSecret ? "Leave empty to keep the stored key" : "Sent in the header above"} maxLength={4000} />
               </Field>
+              <label className="flex items-start gap-2 text-[13px] text-ink-muted sm:col-span-2">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 accent-accent" checked={!!f.allow_internal} onChange={(e) => set("allow_internal", e.target.checked)} />
+                <span>
+                  The server is in our internal network (a MISP or TAXII server in the LAN). Private addresses are allowed for this feed only; link-local and cloud-metadata addresses stay blocked.
+                </span>
+              </label>
               {hasSecret && (
                 <label className="flex items-center gap-2 text-[13px] text-ink-muted sm:col-span-2">
                   <input type="checkbox" className="h-4 w-4 accent-down" checked={f.clear_secret} onChange={(e) => set("clear_secret", e.target.checked)} /> Remove the stored key
@@ -194,7 +210,7 @@ export default function FeedForm({ me }: { me?: Me }) {
 
             {error && <p role="alert" className="rounded-ctl border border-down/30 bg-down/[0.07] px-3 py-2 text-[13.5px] text-down">{error}</p>}
             <div className="flex items-center justify-between gap-3 border-t border-line pt-5">
-              <p className="text-[12px] text-ink-faint">Fetched like every feed: http(s) only, never a private address, at most 20 MB, at most every 5 minutes.</p>
+              <p className="text-[12px] text-ink-faint">Fetched like every feed: http(s) only, no private address unless allowed above, at most 20 MB, at most every 5 minutes.</p>
               <button className="btn-primary h-10 px-5" disabled={busy}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {name ? "Save changes" : "Add feed"}
               </button>

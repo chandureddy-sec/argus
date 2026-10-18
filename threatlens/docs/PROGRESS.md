@@ -12,7 +12,8 @@
 | Response (SecIncyte parity, step 1 of 4) | **complete** (Docker verified 2026-10-11) | Blocklist (monitor → enforce with four eyes, expiry, lift/extend), never-block guard checked on block and export, `/api/v1/blocks`, token-protected feed export (EDL text, CSV, JSON, STIX 2.1), Settings (policy, tokens). Migration 0009, ADR 0010. |
 | Investigate (SecIncyte parity, step 2 of 4) | **complete** (browser-verified 2026-10-11) | Verify an indicator (live provider cards, verdict, second-opinion links by TLP, Block / Flag malicious / Not malicious in place), Bulk check (file upload, rows streaming in, progress, filters, select threats, detail pane, block/flag/case on selected, auto-block), streaming lookup in the service, self-hosted `app.js` under CSP `script-src 'self'`. ADR 0011. |
 | Interactivity (SecIncyte parity, step 4 of 4) | **complete** (browser-verified 2026-10-18) | Threat map (zoom/pan, hover lists every IP at a place, filterable side list, feed landscape vs. blocked & flagged), chart drill-downs (area, bar, rings → filtered Indicators), activity calendar, threat journey (7 stages, indicator page + drawer from the Indicators list). ADR 0018. |
-| 6–9 | not started | see PLAN.md |
+| 6 Dissemination | **complete** (live-verified 2026-10-18) | STIX 2.1 with TLP 2.0 markings (validated by stix2-validator), read-only TAXII 2.1 server (4 TLP/confidence collections; consumed by the OASIS taxii2-client and by another ThreatLens's TAXII feed reader), licence/TLP-aware exports (EDL, CSV, JSON, STIX, Wazuh CDB), integrations (Splunk HEC, Elastic/ECS, Sentinel STIX upload, MISP push, webhook; MISP and TAXII pull as feed formats), SIEM sightings + Wazuh webhook, alert rules to Slack/Teams/Telegram/email/webhook (once, within TLP, rate-limited). Migration 0012, ADR 0019, docs/INTEGRATIONS.md. |
+| 7–9 | not started | see PLAN.md |
 
 ## Phase 0 log
 - 2026-10-08: scaffold, settings, structured logging, org profile + PIR validation, API health/readiness, worker heartbeat, Alembic baseline (pg_trgm, citext, app_meta), Dockerfile + Compose, CI workflow, pre-commit, PLAN, ADR 0001/0002, threat model, sources register, learning notes.
@@ -146,6 +147,26 @@ Feodo 5, CISA KEV 1,748, ATT&CK 20.0 (6,340 entities), URLhaus 33,521; `scripts/
 | Verdict recorded | 3.6 s | 2.3 s |
 | Case opened with the evidence | 3.9 s | 2.5 s |
 | PDF report downloaded | 5.0 s | 3.4 s |
+
+## Phase 6 log
+- 2026-10-18: `share/` package (select, stix, taxii, export, sinks, integrations, alerts, sightings), `api/share.py`, migration 0012 (integrations, integration_runs, alert_rules, alert_events; custom_feeds.allow_internal and formats taxii/misp), worker crons `push_integrations` and `evaluate_alerts`, Argus pages Integrations and Alerts, feed form TAXII/MISP + internal network, `scripts/sink.py`, `integrations/wazuh/custom-argus`.
+- Verified before building: OASIS TLP 2.0 marking ids, Sentinel STIX objects upload API (preview, ≤100 objects, 100 req/min), Splunk HEC format, MISP OpenAPI (restSearch, events/add, Authorization header), Wazuh CDB list format, ECS threat fields (marking.tlp accepts CLEAR and AMBER+STRICT).
+- Found and fixed:
+  * stix2-validator 3.3.1 on PyPI ships without its schemas: pinned 3.2.0.
+  * TAXII date-added headers at millisecond precision made a resumed pull repeat the last object: now microseconds.
+  * Exports listed our own SIEM as a "source": environment sources are now excluded from everything that leaves.
+  * The integration sink logged MISP's bare API key: now masked.
+  * SIEM sightings would have counted as feed reports in scoring: environment sources are excluded from scoring.
+- Migration 0012: upgrade, `alembic check` (no drift), downgrade, upgrade on a scratch Postgres database.
+
+### Live check (2026-10-18, throwaway instance, real Feodo / Tor exits / CISA KEV)
+| Check | Result |
+|---|---|
+| OASIS `taxii2-client` (HTTP Basic, key as password) | 4 collections; CLEAR ≥30: 1,214 objects in 7 pages in 0.17 s; valid STIX 2.1 |
+| Exports | ip.txt 1,210 lines, wazuh-ip.cdb 1,210, CSV 1,211, stix.json valid |
+| Splunk HEC / Elastic / MISP / webhook → sink | test OK; 1,210 sent each; second push 0 |
+| Alert rule "seen in our environment" → Slack sink | SIEM sighting of 50.16.16.211 → 1 raised, 1 delivered; second evaluation 0 |
+| Wazuh `custom-argus` script | exit 0; sighting recorded and shown in the threat journey |
 
 ## Phase 3b log
 - 2026-10-10: ReconX: `internal/threatlens` client (batches of 100, TLP, budget, clear errors), `ScanReport.threat_intel`, scan flags `--threatlens[=url]`, `--threatlens-tlp`, `--threatlens-budget`, `--threatlens-assets`, key-store entry + key test, HTML/Markdown sections, dashboard tab and scan option, `RunScanPipeline` option, monitor runs include ThreatLens when configured, rule `threat_intel_flagged`. Contract fixture recorded from the live API.

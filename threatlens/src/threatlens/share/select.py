@@ -99,6 +99,8 @@ async def page(
                 select(Sighting.indicator_id, Source)
                 .join(Source, Source.id == Sighting.source_id)
                 .where(Sighting.indicator_id.in_([i.id for i, _ in rows]))
+                # our own SIEM's sightings describe our network: never shared as a source
+                .where(Source.kind != "environment")
             )
         ).all():
             by_ind.setdefault(int(ind_id), []).append(src)

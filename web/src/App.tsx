@@ -14,6 +14,8 @@ import SearchPage from "./pages/SearchPage";
 import VulnView from "./pages/VulnView";
 import Vulnerabilities from "./pages/Vulnerabilities";
 import Blocklist from "./pages/Blocklist";
+import Alerts from "./pages/Alerts";
+import Integrations from "./pages/Integrations";
 import BulkCheck from "./pages/BulkCheck";
 import Cases from "./pages/Cases";
 import CaseView from "./pages/CaseView";
@@ -77,6 +79,8 @@ function Shell() {
               <Route path="/indicators" element={<Indicators />} />
               <Route path="/indicators/:id" element={<IndicatorView me={me} />} />
               <Route path="/blocklist" element={<Blocklist me={me} />} />
+              <Route path="/alerts" element={<Alerts me={me} />} />
+              <Route path="/integrations" element={<Integrations me={me} />} />
               <Route path="/cases" element={<Cases me={me} />} />
               <Route path="/cases/:id" element={<CaseView me={me} />} />
               <Route path="/feeds" element={<Feeds me={me} />} />

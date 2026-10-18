@@ -90,7 +90,7 @@ export default function Feeds({ me }: { me?: Me }) {
 
   const keep = (s: SourceOut) =>
     show === "All" || (show === "On" && s.enabled) || (show === "Off" && !s.enabled) || (show === "Need attention" && s.enabled && ["failing", "degraded"].includes(s.health)) || (show === "Yours" && s.custom);
-  const all = data ?? [];
+  const all = (data ?? []).filter((s) => s.kind !== "environment"); // our SIEMs: see Integrations
   const groups: [string, string, SourceOut[]][] = [
     ["Your feeds", "Added here; open one to edit or remove it", all.filter((s) => s.custom && keep(s))],
     ["Indicator feeds", "Built in; terms checked and recorded in docs/SOURCES.md", all.filter((s) => !s.custom && s.kind !== "enricher" && !KNOWLEDGE.has(s.name) && s.kind !== "knowledge" && s.kind !== "vulnerability" && keep(s))],

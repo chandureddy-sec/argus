@@ -34,12 +34,15 @@ from threatlens.models import (
 from threatlens.models import Observable as ObsRow
 from threatlens.net import guard
 from threatlens.net.http import SafeHttp
+from threatlens.scoring.store import rescore
+from threatlens.settings import Settings
 from threatlens.share import select as sel
 from threatlens.share import sinks, stix
 from threatlens.share.taxii import COLLECTIONS, MEDIA
 
 H = {"Accept": MEDIA}
 NOW = datetime.now(UTC)
+FIXTURE_DAY = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)  # the seeded feeds' day (tests.test_collect.Clock)
 
 
 async def _add(
@@ -673,6 +676,7 @@ async def test_alert_rate_limit_sends_a_digest(
 
 async def test_siem_sightings_record_known_values_only(app: App) -> None:
     await app.login("anna")
+    await rescore(app.sm, Settings(), now=FIXTURE_DAY)  # same clock before and after
     before = (await app.c.get(f"/api/v1/indicators?q={LIVE}")).json()["items"][0]["priority_score"]
     r = await app.c.post(
         "/api/v1/sightings",
@@ -696,10 +700,7 @@ async def test_siem_sightings_record_known_values_only(app: App) -> None:
         assert (
             await s.scalar(select(ObsRow).where(ObsRow.value == "45.33.32.156")) is None
         )  # logs aren't intel
-    from threatlens.scoring.store import rescore
-    from threatlens.settings import Settings
-
-    await rescore(app.sm, Settings())
+    await rescore(app.sm, Settings(), now=FIXTURE_DAY)
     after = (await app.c.get(f"/api/v1/indicators?q={LIVE}")).json()["items"][0]["priority_score"]
     assert after == before  # seeing it ourselves is not a report that it is malicious
     ind = await app.ind(LIVE)
@@ -730,6 +731,10 @@ async def test_wazuh_alert_webhook(app: App) -> None:
             .one()
         )
     assert sg.context["agent"] == "web-01"
+    tok = await _token(app)
+    doc = (await app.c.get(f"/feeds/{tok}/indicators/indicators.json")).json()
+    live = next(x for x in doc["indicators"] if x["value"] == LIVE)
+    assert "siem_wazuh" not in live["sources"]  # our telemetry never leaves as a "source"
 
 
 # ── network guard for internal destinations ──────────────────────────────────
