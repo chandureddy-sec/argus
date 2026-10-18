@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Link, Route, Routes, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
@@ -35,6 +35,11 @@ import Scans from "./pages/Scans";
 import Settings from "./pages/Settings";
 import Verify from "./pages/Verify";
 
+// Phase 8 pages load on first visit: the main bundle stays under the size budget.
+const Assistant = lazy(() => import("./pages/Assistant"));
+const Lookalikes = lazy(() => import("./pages/Lookalikes"));
+const Products = lazy(() => import("./pages/Products"));
+
 function NotFound() {
   usePage("Not found");
   return (
@@ -66,39 +71,44 @@ function Shell() {
         <div className="flex min-h-full flex-col lg:pl-[240px]">
           <Topbar onMenu={() => setMenu(true)} me={me} crumbs={crumbs} />
           <main className="flex-1">
-            <Routes>
-              <Route path="/" element={<Reports />} />
-              <Route path="/scans" element={<Scans me={me} />} />
-              <Route path="/scans/new" element={<NewScan me={me} />} />
-              <Route path="/scans/job/:id" element={<Job me={me} />} />
-              <Route path="/scans/view/:ref" element={<ScanView me={me} />} />
-              <Route path="/scans/compare" element={<Compare />} />
-              <Route path="/monitors" element={<Monitors me={me} />} />
-              <Route path="/assets" element={<Assets />} />
-              <Route path="/verify" element={<Verify me={me} />} />
-              <Route path="/bulk" element={<BulkCheck me={me} />} />
-              <Route path="/indicators" element={<Indicators />} />
-              <Route path="/indicators/:id" element={<IndicatorView me={me} />} />
-              <Route path="/blocklist" element={<Blocklist me={me} />} />
-              <Route path="/alerts" element={<Alerts me={me} />} />
-              <Route path="/integrations" element={<Integrations me={me} />} />
-              <Route path="/cases" element={<Cases me={me} />} />
-              <Route path="/cases/:id" element={<CaseView me={me} />} />
-              <Route path="/feeds" element={<Feeds me={me} />} />
-              <Route path="/feeds/new" element={<FeedForm me={me} />} />
-              <Route path="/feeds/:name" element={<FeedView me={me} />} />
-              <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/audit" element={<Settings initialTab="audit" />} />
-              <Route path="/landscape" element={<Landscape />} />
-              <Route path="/vulnerabilities" element={<Vulnerabilities />} />
-              <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />
-              <Route path="/attack" element={<Attack />} />
-              <Route path="/detections" element={<Detections me={me} />} />
-              <Route path="/entities/:ref" element={<EntityView />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route path="/" element={<Reports />} />
+                <Route path="/scans" element={<Scans me={me} />} />
+                <Route path="/scans/new" element={<NewScan me={me} />} />
+                <Route path="/scans/job/:id" element={<Job me={me} />} />
+                <Route path="/scans/view/:ref" element={<ScanView me={me} />} />
+                <Route path="/scans/compare" element={<Compare />} />
+                <Route path="/monitors" element={<Monitors me={me} />} />
+                <Route path="/assets" element={<Assets />} />
+                <Route path="/verify" element={<Verify me={me} />} />
+                <Route path="/bulk" element={<BulkCheck me={me} />} />
+                <Route path="/indicators" element={<Indicators />} />
+                <Route path="/indicators/:id" element={<IndicatorView me={me} />} />
+                <Route path="/blocklist" element={<Blocklist me={me} />} />
+                <Route path="/alerts" element={<Alerts me={me} />} />
+                <Route path="/integrations" element={<Integrations me={me} />} />
+                <Route path="/cases" element={<Cases me={me} />} />
+                <Route path="/cases/:id" element={<CaseView me={me} />} />
+                <Route path="/feeds" element={<Feeds me={me} />} />
+                <Route path="/feeds/new" element={<FeedForm me={me} />} />
+                <Route path="/feeds/:name" element={<FeedView me={me} />} />
+                <Route path="/feeds/:name/edit" element={<FeedForm me={me} />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/audit" element={<Settings initialTab="audit" />} />
+                <Route path="/landscape" element={<Landscape />} />
+                <Route path="/vulnerabilities" element={<Vulnerabilities />} />
+                <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />
+                <Route path="/attack" element={<Attack />} />
+                <Route path="/detections" element={<Detections me={me} />} />
+                <Route path="/products" element={<Products me={me} />} />
+                <Route path="/lookalikes" element={<Lookalikes me={me} />} />
+                <Route path="/assistant" element={<Assistant me={me} />} />
+                <Route path="/entities/:ref" element={<EntityView />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </div>

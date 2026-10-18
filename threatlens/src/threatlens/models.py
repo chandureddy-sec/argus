@@ -874,7 +874,7 @@ INTEGRATION_KINDS = (
     "email",
 )
 _KIND_CHECK = "kind IN (" + ",".join(f"'{k}'" for k in INTEGRATION_KINDS) + ")"
-ALERT_KINDS = ("score", "pir", "kev_asset", "environment")
+ALERT_KINDS = ("score", "pir", "kev_asset", "environment", "lookalike")
 
 
 class Integration(Base):
@@ -956,7 +956,7 @@ class AlertRule(Base):
     updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
 
     __table_args__ = (
-        CheckConstraint("kind IN ('score','pir','kev_asset','environment')", name="kind"),
+        CheckConstraint("kind IN ('score','pir','kev_asset','environment','lookalike')", name="kind"),
         CheckConstraint(
             "max_tlp IN ('TLP:CLEAR','TLP:GREEN','TLP:AMBER','TLP:AMBER+STRICT','TLP:RED')", name="max_tlp"
         ),
@@ -1027,3 +1027,79 @@ class RetroHunt(Base):
     queries: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # backend -> [queries]
 
     __table_args__ = (CheckConstraint(_TLP_CHECK, name="tlp"), Index("ix_retro_hunts_created", "created_at"))
+
+
+# ── intelligence products, lookalikes, AI drafts (Phase 8, ADR 0021/0022) ─────
+
+
+class Product(Base):
+    """A generated intelligence product. The content is the structure both
+    renderings come from; ``sha256`` makes regeneration checkable."""
+
+    __tablename__ = "products"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))  # daily | weekly | vulns | exec
+    period_start: Mapped[datetime] = _ts()
+    period_end: Mapped[datetime] = _ts()
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:CLEAR")
+    sha256: Mapped[str] = mapped_column(String(64))
+    content: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    generated_by: Mapped[str] = mapped_column(String(100), default="worker")
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("kind", "period_end"),
+        CheckConstraint("kind IN ('daily','weekly','vulns','exec')", name="kind"),
+        CheckConstraint(_TLP_CHECK, name="tlp"),
+    )
+
+
+class Lookalike(Base):
+    """A registered domain that imitates one of ours, from CT logs or our feeds."""
+
+    __tablename__ = "lookalikes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    domain: Mapped[str] = mapped_column(String(253))  # ours
+    candidate: Mapped[str] = mapped_column(String(253), unique=True)
+    fuzzer: Mapped[str] = mapped_column(String(32))
+    first_seen: Mapped[datetime] = _ts(default=utcnow)
+    last_seen: Mapped[datetime] = _ts(default=utcnow)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="new")  # new | confirmed | benign
+    reviewed_by: Mapped[str | None] = mapped_column(String(100))
+    reviewed_at: Mapped[datetime | None] = _ts()
+
+    __table_args__ = (
+        CheckConstraint("status IN ('new','confirmed','benign')", name="status"),
+        Index("ix_lookalikes_first_seen", "first_seen"),
+    )
+
+
+class AiDraft(Base):
+    """What the AI assistant extracted from a report: a draft until an analyst
+    approves it. Prompt, model and output are fingerprinted (ADR 0022)."""
+
+    __tablename__ = "ai_drafts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    actor: Mapped[str] = mapped_column(String(100))
+    title: Mapped[str] = mapped_column(String(300))
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:AMBER")
+    source_text: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(100))
+    prompt_sha256: Mapped[str] = mapped_column(String(64))
+    output_sha256: Mapped[str] = mapped_column(String(64))
+    result: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # accepted: summary, iocs, ttps
+    rejected: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list)  # dropped by validation
+    status: Mapped[str] = mapped_column(String(16), default="draft")  # draft | approved | rejected
+    reviewed_by: Mapped[str | None] = mapped_column(String(100))
+    reviewed_at: Mapped[datetime | None] = _ts()
+
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','approved','rejected')", name="status"),
+        CheckConstraint(_TLP_CHECK, name="tlp"),
+    )

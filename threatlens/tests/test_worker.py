@@ -36,5 +36,7 @@ def test_worker_settings_schedule_heartbeat() -> None:
         "cron:push_integrations",  # SIEM/TIP pushes (ADR 0019)
         "cron:evaluate_alerts",  # alert rules (ADR 0019)
         "cron:build_retro_hunts",  # retro-hunt packs (ADR 0020)
+        "cron:build_products",  # intelligence products (ADR 0021)
+        "cron:scan_lookalikes",  # lookalike domains (ADR 0021)
     }
     assert ws.redis_settings.host  # parsed from TL_REDIS_URL

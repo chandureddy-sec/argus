@@ -8,9 +8,11 @@ license = { text = "MIT" }
 authors = [{ name = "Chandu Reddy" }]
 dependencies = [
     "alembic>=1.20.0",
+    "anthropic>=1.15.0",
     "arq>=0.28.0",
     "asyncpg>=0.32.0",
     "cryptography>=46",
+    "dnstwist>=20250130",
     "fastapi>=0.143.0",
     "fpdf2>=2.8",
     "httpx>=0.28.1",
@@ -62,7 +64,7 @@ plugins = ["pydantic.mypy"]
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["arq.*", "qrcode.*", "suricataparser.*", "yara.*"]
+module = ["arq.*", "dnstwist.*", "qrcode.*", "suricataparser.*", "yara.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

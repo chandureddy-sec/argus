@@ -8,6 +8,8 @@ Rule kinds:
   our assets (its score breakdown has relevance hits), from ``min_score`` 30.
 * ``kev_asset``: CISA adds a CVE that affects software in our stack.
 * ``environment``: our SIEM saw a value we hold at ``min_score`` or more.
+* ``lookalike``: a new domain imitating ours turned up in CT logs or our
+  feeds (ADR 0021).
 
 Guarantees:
 
@@ -46,6 +48,7 @@ from threatlens.models import (
     Indicator,
     Integration,
     IntegrationRun,
+    Lookalike,
     Sighting,
     Source,
     Vulnerability,
@@ -91,7 +94,7 @@ def check_rule(
     if not 2 <= len(name.strip()) <= 100:
         raise AlertError("Name: 2 to 100 characters")
     if kind not in ALERT_KINDS:
-        raise AlertError("Kind: score, pir, kev_asset or environment")
+        raise AlertError("Kind: score, pir, kev_asset, environment or lookalike")
     if max_tlp not in TLP_LEVELS or max_tlp == "TLP:RED":
         raise AlertError("Most restricted marking: CLEAR to AMBER+STRICT (RED never leaves)")
     if not channels:
@@ -354,6 +357,35 @@ async def _environment(s: AsyncSession, r: AlertRule, since: datetime) -> list[C
     ]
 
 
+async def _lookalike(s: AsyncSession, since: datetime) -> list[Candidate]:
+    rows = (
+        await s.scalars(
+            select(Lookalike)
+            .where(Lookalike.first_seen > since, Lookalike.status == "new")
+            .order_by(Lookalike.first_seen, Lookalike.id)
+            .limit(PER_RUN)
+        )
+    ).all()
+    out = []
+    for lk in rows:
+        seen = sorted({str(e.get("source", "")) for e in lk.evidence or [] if e.get("source")})
+        out.append(
+            Candidate(
+                f"lookalike:{lk.candidate}",
+                f"Lookalike of {lk.domain}: {defang_text(lk.candidate)}",
+                [
+                    f"Technique: {lk.fuzzer}",
+                    f"Seen in: {', '.join('certificate logs' if x == 'ct' else 'our feeds' for x in seen)}",
+                    "Confirm and block it, or mark it benign, in Argus.",
+                ],
+                "/lookalikes",
+                "TLP:CLEAR",  # public CT data about our own brand
+                _aware(lk.first_seen),
+            )
+        )
+    return out
+
+
 async def candidates(s: AsyncSession, r: AlertRule, since: datetime, settings: Settings) -> list[Candidate]:
     if r.kind == "score":
         return await _score(s, r, since)
@@ -361,6 +393,8 @@ async def candidates(s: AsyncSession, r: AlertRule, since: datetime, settings: S
         return await _pir(s, r, since)
     if r.kind == "kev_asset":
         return await _kev_asset(s, r, since, settings)
+    if r.kind == "lookalike":
+        return await _lookalike(s, since)
     return await _environment(s, r, since)
 
 

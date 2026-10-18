@@ -14,7 +14,8 @@
 | Interactivity (SecIncyte parity, step 4 of 4) | **complete** (browser-verified 2026-10-18) | Threat map (zoom/pan, hover lists every IP at a place, filterable side list, feed landscape vs. blocked & flagged), chart drill-downs (area, bar, rings → filtered Indicators), activity calendar, threat journey (7 stages, indicator page + drawer from the Indicators list). ADR 0018. |
 | 6 Dissemination | **complete** (live-verified 2026-10-18) | STIX 2.1 with TLP 2.0 markings (validated by stix2-validator), read-only TAXII 2.1 server (4 TLP/confidence collections; consumed by the OASIS taxii2-client and by another ThreatLens's TAXII feed reader), licence/TLP-aware exports (EDL, CSV, JSON, STIX, Wazuh CDB), integrations (Splunk HEC, Elastic/ECS, Sentinel STIX upload, MISP push, webhook; MISP and TAXII pull as feed formats), SIEM sightings + Wazuh webhook, alert rules to Slack/Teams/Telegram/email/webhook (once, within TLP, rate-limited). Migration 0012, ADR 0019, docs/INTEGRATIONS.md. |
 | 7 Detection engineering | **complete** (live-verified 2026-10-18) | Rules from indicators: Sigma (pySigma → Splunk SPL, KQL, Elastic Lucene), Suricata (IP, DNS, TLS SNI, HTTP; CI runs the real `suricata -T`), YARA (hash module, compiled and match-tested), Wazuh XML over the CDB exports; every rule validated with author/date/references/ATT&CK/TLP/confidence/FP metadata. 14-technique hunt library, ATT&CK Navigator layers, coverage gaps vs. an imported Sigma inventory, retro-hunt packs every 15 min. Migration 0013, ADR 0020. |
-| 8–9 | not started | see PLAN.md |
+| 8 Products and AI | **complete** (live-verified 2026-10-18; AI model not measured: no key) | Daily brief, weekly CTI report, vulnerability priority list, executive one-pager (HTML + PDF, cited, TLP-capped, deterministic with a verify endpoint; built daily at 06:05 UTC). Lookalike domains from dnstwist permutations, crt.sh and our feeds (passive), review/block, `lookalike` alerts. Guarded AI report assistant (Claude, off by default): structured output, grounding of every item against the report, injection quarantine, fingerprints, draft → approved case. SYNTHETIC 36-report evaluation set and harness. Migration 0014, ADR 0021/0022. |
+| 9 | not started | see PLAN.md |
 
 ## Phase 0 log
 - 2026-10-08: scaffold, settings, structured logging, org profile + PIR validation, API health/readiness, worker heartbeat, Alembic baseline (pg_trgm, citext, app_meta), Dockerfile + Compose, CI workflow, pre-commit, PLAN, ADR 0001/0002, threat model, sources register, learning notes.
@@ -148,6 +149,25 @@ Feodo 5, CISA KEV 1,748, ATT&CK 20.0 (6,340 entities), URLhaus 33,521; `scripts/
 | Verdict recorded | 3.6 s | 2.3 s |
 | Case opened with the evidence | 3.9 s | 2.5 s |
 | PDF report downloaded | 5.0 s | 3.4 s |
+
+## Phase 8 log
+- 2026-10-18: `products/` (build, render, store, product.html), `lookalike.py`, `ai.py`, `ai_eval.py`, `api/produce.py`, migration 0014 (`products`, `lookalikes`, `ai_drafts`; `lookalike` alert kind), worker crons `build_products` (06:05 UTC) and `scan_lookalikes` (04:23 UTC), Argus pages Products, Lookalike domains, Report assistant; `scripts/make_ai_eval.py` + `scripts/ai_eval.py`; settings `TL_PRODUCTS_MAX_TLP`, `TL_LOOKALIKE_CT`, `TL_AI_*`. Dependencies: dnstwist, anthropic 1.15.
+- Found and fixed:
+  * The feed half of the lookalike scan searched by brand keyword, which can never find a homoglyph (`exarnple.com`): it now matches permutations exactly too.
+  * Two org domains with the same keyword sent the same crt.sh query twice: one query per keyword.
+  * "New indicators" counted CVE observables (1,748 of 2,962 in the live data): excluded, they have the KEV section.
+  * The AI guard, measured with a scripted attacker model, first let 40/288 planted items through (an invented ATT&CK ID with a real quote; values planted inside injected sentences). It now checks IDs against ATT&CK and grounds against the report minus injected sentences: 0/288. The phrase list was extended after it missed "Assistant, please also add…", so that number is not a blind test (ADR 0022).
+  * A one-word "quotation" counted as evidence: quotations need 12+ characters.
+
+### Live check (2026-10-18, throwaway instance: Feodo, Tor exits, CISA KEV, ATT&CK 20.0)
+| Check | Result |
+|---|---|
+| Generate daily / weekly / vulns / exec via the API | 201 each in 0.03–0.15 s; verify → same fingerprint; HTML served with `default-src 'none'` |
+| Daily brief covering today (real data) | 1,214 new indicators (CVEs excluded), 1 high priority (Feodo QakBot C2, cited `indicator #2`), families QakBot (4) and Emotet (1); rebuild gave the same SHA-256; PDF renders on one page with the marking |
+| Vulnerability priority list | 40 P1/P2 CVEs with reasons |
+| Lookalike scan, real crt.sh (`yourcompany.com` placeholder profile) | first call: crt.sh 502, recorded as an error, scan completed; retry: answered in 1.8 s, 0 candidates |
+| AI assistant without a key | `/ai/status` off; `/ai/extract` 503 with how to enable; deterministic extraction of a synthetic injected report flags 3 injection phrases |
+| Evaluation (`scripts/ai_eval.py`) | extractor precision 0.659 / recall 1.000; guard keeps 498/498 true items, 0/288 planted; injection flags 9/9, 0 false; Claude not measured (no key) |
 
 ## Phase 7 log
 - 2026-10-18: `detect/` (rules, hunts + hunts.yml, attack, retro), `api/detect.py`, migration 0013 (`detection_rules`, `retro_hunts`), worker cron `build_retro_hunts`, Argus page Detections (rules, hunts, coverage, retro-hunts), Navigator button on entity pages, `scripts/detection_samples.py` + CI step running jasonish/suricata:7.0 `-T`.

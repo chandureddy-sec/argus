@@ -110,6 +110,20 @@ class Settings(BaseSettings):
     # Alerts: at most this many messages per channel per hour; the rest are summarised.
     alert_max_per_hour: int = Field(default=20, ge=1, le=1000)
 
+    # Production and AI (Phase 8, ADR 0021, 0022).
+    # The most sensitive content a generated product may include.
+    products_max_tlp: Literal["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER"] = "TLP:GREEN"
+    # Lookalike-domain monitoring queries Certificate Transparency (crt.sh) by brand keyword.
+    lookalike_ct: bool = True
+    # The AI report assistant sends report text to the Claude API: off unless enabled.
+    # The key is TL_AI_API_KEY, or the Anthropic SDK's own (ANTHROPIC_API_KEY, `ant auth login`).
+    ai_enabled: bool = False
+    ai_api_key: SecretStr | None = None
+    ai_model: str = Field(default="claude-opus-5-5", pattern=r"^[a-z0-9.-]{3,100}$")
+    # Reports marked above this are never sent to the model; TLP:RED never is.
+    ai_max_tlp: Literal["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT"] = "TLP:GREEN"
+    ai_timeout_s: float = Field(default=180.0, gt=0, le=900)
+
 
 @lru_cache
 def get_settings() -> Settings:

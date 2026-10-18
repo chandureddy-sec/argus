@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ p.title }} · {{ p.org }}</title>
+<style>
+body{font:15px/1.5 Inter,system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1d2125;background:#fff}
+.tlp{font-weight:700;color:{{ color }};letter-spacing:.04em}
+h1{font-size:1.6rem;margin:.4rem 0}h2{font-size:1.15rem;margin:1.6rem 0 .5rem;border-bottom:1px solid #ddd;padding-bottom:.2rem}
+table{border-collapse:collapse;width:100%;font-size:.88rem}td,th{border-bottom:1px solid #eee;padding:.35rem .4rem;text-align:left;vertical-align:top}
+th{background:#f4f4f4}.muted{color:#666}.ref{font-family:ui-monospace,monospace;font-size:.82rem}a{color:#2f6e6b}
+.kpi{display:inline-block;margin:0 1.6rem .6rem 0}.kpi b{display:block;font-size:1.6rem}
+</style></head><body>
+<p class="tlp">{{ p.tlp }}</p>
+<p class="muted">{{ p.org }} · {{ p.period.start }} → {{ p.period.end }}</p>
+<h1>{{ p.title }}</h1>
+{% set b = p.body %}
+{% if p.kind in ('daily', 'weekly') %}
+<div>
+<span class="kpi"><b>{{ b.indicators.total }}</b>new indicators{% if b.previous %} (previous week {{ b.previous.indicators }}){% endif %}</span>
+<span class="kpi"><b>{{ b.indicators.high }}</b>high priority (60+)</span>
+<span class="kpi"><b>{{ b.kev.added }}</b>newly exploited CVEs ({{ b.kev.inStack }} in our stack)</span>
+<span class="kpi"><b>{{ b.cases.opened }}</b>cases opened, {{ b.cases.closed }} closed</span>
+<span class="kpi"><b>{{ b.alerts }}</b>alerts raised</span>
+</div>
+<h2>Highest-priority new indicators</h2>
+{% if b.indicators.top %}<table><tr><th>Indicator</th><th>Score</th><th>Labels</th><th>Sources</th></tr>
+{% for t in b.indicators.top %}<tr><td><span class="ref">{{ t.value }}</span><br><a class="ref" href="{{ base }}{{ t.link }}">{{ t.ref }}</a> · {{ t.type }} · {{ t.tlp }}</td><td>{{ t.score }}</td><td>{{ t.labels|join(', ') }}</td><td>{{ t.sources|join(', ') or 'analyst' }}</td></tr>{% endfor %}
+</table>{% else %}<p class="muted">None in the period.</p>{% endif %}
+{% if b.indicators.byType %}<p class="muted">By type: {% for t, n in b.indicators.byType %}{{ t }} {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+<h2>Malware families behind new indicators</h2>
+{% if b.families %}<ul>{% for f in b.families %}<li><a href="{{ base }}{{ f.link }}">{{ f.name }}</a> <span class="ref">{{ f.ref }}</span>: {{ f.indicators }} indicator(s)</li>{% endfor %}</ul>{% else %}<p class="muted">None linked.</p>{% endif %}
+<h2>Newly exploited vulnerabilities (CISA KEV)</h2>
+{% if b.kev['items'] %}<table><tr><th>CVE</th><th>Name</th><th>Due</th><th>Priority</th><th>Our stack</th></tr>
+{% for k in b.kev['items'] %}<tr><td><a class="ref" href="{{ base }}{{ k.link }}">{{ k.ref }}</a>{% if k.ransomware %} · ransomware{% endif %}</td><td>{{ k.name }}</td><td>{{ k.due or '' }}</td><td>{{ k.priority or '' }}</td><td>{{ 'yes' if k.inStack else '' }}</td></tr>{% endfor %}
+</table>{% else %}<p class="muted">None added in the period.</p>{% endif %}
+<h2>Investigations</h2>
+{% if b.cases['items'] %}<ul>{% for c in b.cases['items'] %}<li><a class="ref" href="{{ base }}{{ c.link }}">{{ c.ref }}</a> {{ c.title }} ({{ c.severity }}, {{ c.status }})</li>{% endfor %}</ul>{% else %}<p class="muted">No cases opened.</p>{% endif %}
+{% if b.lookalikes and b.lookalikes['items'] %}<h2>Lookalike domains</h2>
+<table><tr><th>Domain</th><th>Imitates</th><th>Technique</th><th>Seen in</th><th>Status</th></tr>
+{% for l in b.lookalikes['items'] %}<tr><td><span class="ref">{{ l.candidate }}</span><br><a class="ref" href="{{ base }}{{ l.link }}">{{ l.ref }}</a></td><td>{{ l.imitates }}</td><td>{{ l.technique }}</td><td>{{ l.sources|join(', ') }}</td><td>{{ l.status }}</td></tr>{% endfor %}
+</table>{% endif %}
+{% if b.feeds %}<h2>Collection problems</h2><ul>{% for f in b.feeds %}<li><a href="{{ base }}{{ f.link }}">{{ f.ref }}</a>: {{ f.failed }} of {{ f.runs }} pulls failed</li>{% endfor %}</ul>{% endif %}
+{% elif p.kind == 'vulns' %}
+<p>Vulnerabilities to patch first: P1 and P2, those in our software on top. Priority weighs active exploitation (CISA KEV), exploit likelihood (EPSS), severity (CVSS) and whether we run the product.</p>
+<table><tr><th>CVE</th><th>Priority</th><th>Why</th><th>Our stack</th><th>Due</th></tr>
+{% for v in b['items'] %}<tr><td><a class="ref" href="{{ base }}{{ v.link }}">{{ v.ref }}</a><br><span class="muted">{{ v.name }}</span></td><td>{{ v.priority }} ({{ v.score }})</td><td>{{ v.why|join('; ') }}{% if v.epss is not none %}<br>EPSS {{ v.epss }}{% endif %}{% if v.cvss is not none %} · CVSS {{ v.cvss }}{% endif %}</td><td>{{ 'yes' if v.inStack else '' }}</td><td>{{ v.due or '' }}</td></tr>{% endfor %}
+</table>
+{% else %}
+<div>
+<span class="kpi"><b>{{ b.indicators.high }}</b>new high-priority threats</span>
+<span class="kpi"><b>{{ b.kev.inStack }}</b>exploited flaws in our software</span>
+<span class="kpi"><b>{{ b.cases.opened }}</b>investigations opened</span>
+<span class="kpi"><b>{{ b.alerts }}</b>alerts</span>
+</div>
+<h2>What matters this week</h2>
+<ol>{% for r in b.risks %}<li><b>{{ r.risk }}</b> {{ r.action }}{% if r.refs %} <span class="ref">({% for x in r.refs %}{{ x }}{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}</li>{% endfor %}</ol>
+{% endif %}
+<p class="muted">Generated by Argus from stored records; every item links to its record. Fingerprint {{ p.sha256[:16] }}.</p>
+<p class="tlp">{{ p.tlp }}</p>
+</body></html>

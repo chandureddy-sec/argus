@@ -12,6 +12,11 @@
 * ``daily_scoring`` (daily) re-derives source weights from analyst feedback,
   recomputes patch priorities, and re-scores every indicator: decay and
   expiry (ADR 0008). Collection runs score what they touched as they go.
+* ``build_products`` (daily, 06:05 UTC) generates the daily brief and the
+  vulnerability priority list, and on Mondays (or the first run after) the
+  weekly CTI report and the executive one-pager (ADR 0021).
+* ``scan_lookalikes`` (daily) looks for domains imitating ours in CT logs and
+  our feeds (ADR 0021).
 
 Run with: ``arq threatlens.worker.WorkerSettings``
 """
@@ -130,6 +135,36 @@ async def build_retro_hunts(ctx: dict[str, Any]) -> dict[str, Any]:
     return {"pack": pack}
 
 
+async def build_products(ctx: dict[str, Any]) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    from threatlens.products import store
+
+    collector = ctx["collector"]
+    now = datetime.now(UTC)
+    out: dict[str, Any] = {}
+    for kind in await store.due(collector.sm, now):
+        row = await store.generate(collector.sm, collector.settings, kind, now)
+        out[kind] = row.id
+    if out:
+        log.info("products.built", products=out)
+    return out
+
+
+async def scan_lookalikes(ctx: dict[str, Any]) -> dict[str, Any]:
+    from threatlens import lookalike
+    from threatlens.net.http import SafeHttp
+
+    collector = ctx["collector"]
+    domains, ours = lookalike.org_domains(collector.settings)
+    if not domains:
+        return {"domains": [], "candidates": 0, "new": 0, "errors": []}
+    async with SafeHttp(timeout=90.0, retries=1) as http:
+        res = await lookalike.scan(collector.sm, http, domains, ours, use_ct=collector.settings.lookalike_ct)
+    log.info("lookalikes.scanned", **{k: v for k, v in res.items() if k != "domains"})
+    return res
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     s = get_settings()
     configure_logging(s.log_level, s.log_json)
@@ -166,6 +201,8 @@ class WorkerSettings:
         func(push_integrations, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(evaluate_alerts, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(build_retro_hunts, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(build_products, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(scan_lookalikes, keep_result=0, timeout=COLLECT_TIMEOUT_S),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),
@@ -177,6 +214,8 @@ class WorkerSettings:
         cron(push_integrations, minute=set(range(1, 60, 5)), unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(evaluate_alerts, minute=set(range(2, 60, 5)), unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(build_retro_hunts, minute={4, 19, 34, 49}, unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(build_products, hour=6, minute=5, unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(scan_lookalikes, hour=4, minute=23, unique=True, timeout=COLLECT_TIMEOUT_S),
     ]
     on_startup = startup
     on_shutdown = shutdown

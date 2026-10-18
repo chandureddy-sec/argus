@@ -23,6 +23,7 @@ from threatlens.api.catalog import router as catalog_router
 from threatlens.api.detect import router as detect_router
 from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
+from threatlens.api.produce import router as produce_router
 from threatlens.api.share import router as share_router
 from threatlens.api.v1 import router as v1_router
 from threatlens.argus_api import router as argus_router
@@ -155,6 +156,7 @@ def create_app(
     app.include_router(taxii_router)  # TAXII 2.1, read-only (ADR 0019)
     app.include_router(share_router)  # integrations, alert rules, sightings (ADR 0019)
     app.include_router(detect_router)  # detection engineering (ADR 0020)
+    app.include_router(produce_router)  # products, lookalikes, AI assistant (ADR 0021, 0022)
     app.include_router(webapp_api)  # before the app's catch-all route
     app.include_router(webapp_router)
     app.state.settings = settings

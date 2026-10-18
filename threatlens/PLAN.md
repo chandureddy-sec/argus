@@ -93,7 +93,7 @@ backoff + jitter, ETag/If-Modified-Since, raw-response archive.
 | 5 | Analyst UI (dashboard, IOC page, search, bulk lookup, cases) | **complete** (Argus pages, ADR 0013–0016; DEMO.md 2026-10-18) |
 | 6 | Dissemination: STIX 2.1/TAXII 2.1, MISP, blocklists, SIEM integrations, alerting | **complete** (ADR 0019, live-verified 2026-10-18) |
 | 7 | Detection engineering: Sigma/Suricata/YARA, hunt queries, Navigator, coverage gaps | **complete** (ADR 0020, live-verified 2026-10-18) |
-| 8 | Intelligence products, brand/lookalike monitoring, guarded AI assist | planned |
+| 8 | Intelligence products, brand/lookalike monitoring, guarded AI assist | **complete** (ADR 0021–0022, live-verified 2026-10-18; Claude precision not measured: no key) |
 | 9 | Hardening, load test, observability, backup, release v1.0.0 | planned |
 
 Each phase ends with a stop-and-review: what was built, how to verify it,

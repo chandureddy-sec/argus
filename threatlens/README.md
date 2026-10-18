@@ -93,6 +93,16 @@ curl -X POST -H "X-API-Key: tl_admin..." http://127.0.0.1:8000/api/v1/blocks/<id
 curl http://127.0.0.1:8000/feeds/tlf_.../ip.txt     # token from Platform → Settings → Feed export; also domain.txt, url.txt, blocks.csv, blocks.json, stix.json
 ```
 
+Products, lookalikes and the report assistant (Phase 8; ADR 0021, 0022):
+
+```bash
+curl -X POST -H "X-API-Key: tl_..." -H "content-type: application/json" -d '{"kind": "daily"}' http://127.0.0.1:8000/api/v1/products/generate   # daily | weekly | vulns | exec
+curl -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/products/<id>/pdf -o brief.pdf      # or /html; POST /verify rebuilds and compares fingerprints
+curl -X POST -H "X-API-Key: tl_..." http://127.0.0.1:8000/api/v1/lookalikes/scan            # needs org.domains in config/org_profile.yaml
+curl -X POST -H "X-API-Key: tl_..." -H "content-type: application/json" -d '{"title": "Vendor advisory", "text": "...", "tlp": "TLP:CLEAR"}' http://127.0.0.1:8000/api/v1/ai/extract   # TL_AI_ENABLED + a Claude key
+uv run python scripts/ai_eval.py          # the SYNTHETIC 36-report evaluation (add --model with a key)
+```
+
 Own assets from ReconX (scans of your own domains only; ADR 0006):
 
 ```bash

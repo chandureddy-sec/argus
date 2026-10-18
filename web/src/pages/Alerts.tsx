@@ -11,7 +11,7 @@ import { usePage } from "../lib/page";
 interface Rule {
   id: number;
   name: string;
-  kind: "score" | "pir" | "kev_asset" | "environment";
+  kind: "score" | "pir" | "kev_asset" | "environment" | "lookalike";
   enabled: boolean;
   params: { min_score?: number };
   channels: number[];
@@ -43,6 +43,7 @@ const KINDS: [Rule["kind"], string, string][] = [
   ["pir", "Matches our priorities", "An indicator matches a PIR, our sector, stack or assets"],
   ["kev_asset", "Exploited CVE in our stack", "CISA adds a CVE affecting software we run"],
   ["environment", "Seen in our environment", "Our SIEM saw a value we hold at the minimum score"],
+  ["lookalike", "Lookalike domain", "A new domain imitating ours appears in certificate logs or our feeds"],
 ];
 const DEFAULT_MIN: Record<string, number> = { score: 80, pir: 30, environment: 60 };
 const TLPS = ["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER", "TLP:AMBER+STRICT"];
