@@ -22,6 +22,7 @@ import csv
 import io
 import ipaddress
 import json
+import re
 from collections import Counter
 from collections.abc import AsyncIterator
 from typing import Annotated, Any, Literal
@@ -84,6 +85,13 @@ def _df(v: Any) -> Any:
     if isinstance(v, dict):
         return {k: _df(x) for k, x in v.items()}
     return v
+
+
+def sheet_safe(v: Any) -> str:
+    """A CSV cell a spreadsheet won't evaluate: text starting with = + - @ or a
+    tab/CR gets a leading apostrophe (OWASP CSV injection guidance)."""
+    t = "" if v is None else str(v)
+    return "'" + t if t[:1] in ("=", "+", "-", "@", "\t", "\r") else t
 
 
 def _line(obj: dict[str, Any]) -> bytes:
@@ -1213,10 +1221,13 @@ async def audit_export(
     writer = csv.writer(buf)
     writer.writerow(["ID", "Timestamp (UTC)", "Actor", "Action", "Target", "Details"])
     for r in rows:
-        writer.writerow([r.id, r.at.isoformat(), r.actor, r.action, r.target, json.dumps(r.details)])
+        cells = (r.id, r.at.isoformat(), r.actor, r.action, r.target, json.dumps(r.details))
+        # every cell goes through sheet_safe, which neutralises formulas
+        writer.writerow([sheet_safe(x) for x in cells])  # nosemgrep
     buf.seek(0)
 
-    filename = f"audit_log_{request.url.query.replace('=', '_').replace('&', '_') or 'all'}.csv"
+    tag = re.sub(r"[^A-Za-z0-9_.-]+", "_", request.url.query)[:80] or "all"
+    filename = f"audit_log_{tag}.csv"
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",

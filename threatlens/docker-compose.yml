@@ -92,7 +92,13 @@ services:
       TL_DATA_DIR: /app/data
     volumes: [rawdata:/app/data]  # the only writable path besides /tmp
     restart: unless-stopped
-    healthcheck: { disable: true }
+    # Healthy while the worker's heartbeat (written at start-up and every 5 min) is fresh.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time,redis; v=redis.Redis.from_url(os.environ['TL_REDIS_URL']).get('threatlens:worker:heartbeat'); raise SystemExit(0 if v and time.time()-int(v) < 600 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
