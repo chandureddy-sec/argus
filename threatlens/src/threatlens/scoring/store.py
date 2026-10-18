@@ -60,6 +60,7 @@ log = get_logger("threatlens.scoring")
 BATCH = 500
 # Being listed is context, not maliciousness (a Tor exit; a custom feed an admin marked "suspicious").
 SUSPICIOUS_FEED_KINDS = frozenset({"anonymizer", "custom-suspicious"})
+ENVIRONMENT_KINDS = frozenset({"environment"})  # SIEM/EDR sightings in our own systems
 LABEL_PENALTIES = {
     "shared-cdn": ("shared_cdn", "on a shared CDN edge range: blocking it affects many sites"),
     "popular-domain": ("popular_domain", "on a popular (Tranco top) domain"),
@@ -413,7 +414,8 @@ def indicator_score(
     signals: list[Signal] = []
     for sg in sightings:
         meta = ctx.sources.get(sg.source_id)
-        if meta is not None:
+        # Our own SIEM seeing a value is not a report that it is malicious (ADR 0019).
+        if meta is not None and meta.kind not in ENVIRONMENT_KINDS:
             signals.append(sighting_signal(meta, sg.confidence, sg.last_seen, sg.context))
     dead = False
     for e in enrichments:

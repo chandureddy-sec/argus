@@ -95,5 +95,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "respx>=0.23.1",
     "ruff>=0.16.10",
+    "stix2-validator==3.2.0",
+    "taxii2-client>=2.3.0",
     "types-pyyaml>=6.0.12.20260906",
 ]

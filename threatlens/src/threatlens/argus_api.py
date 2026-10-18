@@ -662,6 +662,7 @@ async def feed_form(who: Admin, request: Request, name: str) -> dict[str, Any]:
         "auth_header": feed.auth_header or "",
         "has_secret": bool(feed.auth_secret),
         "upstream": "" if src.upstream.startswith("custom:") else src.upstream,
+        "allow_internal": feed.allow_internal,
     }
 
 

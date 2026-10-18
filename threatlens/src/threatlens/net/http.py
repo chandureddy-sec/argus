@@ -75,7 +75,9 @@ class FetchResult:
         return hashlib.sha256(self.body).hexdigest()
 
 
-def make_transport(allow_addresses: frozenset[str] = frozenset()) -> httpx.AsyncHTTPTransport:
+def make_transport(
+    allow_addresses: frozenset[str] = frozenset(), *, internal: bool = False, loopback: bool = False
+) -> httpx.AsyncHTTPTransport:
     """An httpx transport whose connection pool uses the SSRF-guarded backend.
 
     httpx doesn't expose httpcore's ``network_backend`` argument, so the pool
@@ -91,7 +93,7 @@ def make_transport(allow_addresses: frozenset[str] = frozenset()) -> httpx.Async
         keepalive_expiry=30.0,
         http1=True,
         http2=False,
-        network_backend=GuardedBackend(allow_addresses),
+        network_backend=GuardedBackend(allow_addresses, internal=internal, loopback=loopback),
     )
     return transport
 
@@ -196,12 +198,13 @@ class SafeHttp:
         form: Mapping[str, str] | None = None,
         accept: frozenset[int] = frozenset(),
         max_bytes: int | None = None,
+        content: bytes | None = None,
     ) -> FetchResult:
         limit = max_bytes or self.max_bytes
         attempt = 0
         while True:
             try:
-                return await self._follow(method, url, params, headers, json, form, accept, limit)
+                return await self._follow(method, url, params, headers, json, form, accept, limit, content)
             except (BlockedAddressError, UnsafeURLError, ResponseTooLargeError):
                 raise  # never retry a policy refusal
             except FetchError as e:
@@ -234,11 +237,12 @@ class SafeHttp:
         form: Mapping[str, str] | None,
         accept: frozenset[int],
         limit: int,
+        content: bytes | None = None,
     ) -> FetchResult:
         for _ in range(self.max_redirects + 1):
             self._check_url(url)
             req = self._client.build_request(
-                method, url, params=params, headers=headers, json=json, data=form
+                method, url, params=params, headers=headers, json=json, data=form, content=content
             )
             resp = await self._client.send(req, stream=True)
             try:
@@ -246,7 +250,7 @@ class SafeHttp:
                     url = urljoin(str(resp.url), resp.headers["location"])
                     params = None  # already part of the URL we are leaving
                     if resp.status_code == 303 or (resp.status_code in (301, 302) and method == "POST"):
-                        method, json, form = "GET", None, None
+                        method, json, form, content = "GET", None, None, None
                     continue
                 return await self._read(resp, limit, accept)
             finally:

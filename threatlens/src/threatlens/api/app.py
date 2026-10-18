@@ -22,6 +22,7 @@ from threatlens.api.cases import router as cases_router
 from threatlens.api.catalog import router as catalog_router
 from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
+from threatlens.api.share import router as share_router
 from threatlens.api.v1 import router as v1_router
 from threatlens.argus_api import router as argus_router
 from threatlens.argus_intel import router as intel_router
@@ -35,6 +36,8 @@ from threatlens.logs import configure_logging, get_logger
 from threatlens.recon import Engine
 from threatlens.recon_api import router as recon_router
 from threatlens.settings import Environment, Settings, get_settings
+from threatlens.share.export import router as export_router
+from threatlens.share.taxii import router as taxii_router
 from threatlens.webapp import api as webapp_api
 from threatlens.webapp import router as webapp_router
 
@@ -142,11 +145,14 @@ def create_app(
     app.include_router(assets_router)
     app.include_router(cases_router)
     app.include_router(blocks_router)
+    app.include_router(export_router)  # /feeds/{token}/indicators/{fmt}, before /feeds/{token}/{fmt}
     app.include_router(feeds_router)
     app.include_router(recon_router)  # /app/api/recon, before the app's catch-all route
     app.include_router(argus_router)  # Argus-only JSON (verify/bulk streams, settings)
     app.include_router(intel_router)  # landscape, ATT&CK matrix, search
     app.include_router(views_router)  # threat map, calendar (ADR 0018)
+    app.include_router(taxii_router)  # TAXII 2.1, read-only (ADR 0019)
+    app.include_router(share_router)  # integrations, alert rules, sightings (ADR 0019)
     app.include_router(webapp_api)  # before the app's catch-all route
     app.include_router(webapp_router)
     app.state.settings = settings

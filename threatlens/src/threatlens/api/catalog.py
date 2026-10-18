@@ -28,7 +28,7 @@ Name = Annotated[str, Path(max_length=64)]
 class FeedIn(BaseModel):
     title: str = Field(min_length=3, max_length=80)
     url: str = Field(min_length=8, max_length=2000)
-    format: Literal["text", "csv", "json"] = "text"
+    format: Literal["text", "csv", "json", "taxii", "misp"] = "text"
     ioc_type: Literal["auto", "ip", "domain", "url", "hash"] = "auto"
     verdict: Literal["malicious", "suspicious"] = "malicious"
     confidence: int = Field(default=70, ge=0, le=100)
@@ -42,6 +42,7 @@ class FeedIn(BaseModel):
     secret: str = Field(default="", max_length=4000, description="sent in auth_header; stored encrypted")
     clear_secret: bool = False
     upstream: str = Field(default="", max_length=60, description="original producer, for corroboration")
+    allow_internal: bool = Field(default=False, description="may reach a server in an internal network")
 
 
 class EnabledIn(BaseModel):

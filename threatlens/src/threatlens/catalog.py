@@ -37,6 +37,7 @@ from threatlens.models import (
     utcnow,
 )
 from threatlens.models import Observable as ObsRow
+from threatlens.net import guard
 from threatlens.settings import Settings
 from threatlens.vault import VaultError, seal, unseal
 
@@ -77,6 +78,7 @@ class FeedForm:
     secret: str = ""
     clear_secret: bool = False
     upstream: str = ""
+    allow_internal: bool = False
 
 
 def builtin(name: str) -> bool:
@@ -102,10 +104,19 @@ def validate(f: FeedForm) -> FeedForm:
         ip = ipaddress.ip_address(parts.hostname)
     except ValueError:
         ip = None
-    if ip is not None and not ip.is_global:
-        raise CatalogError("Feed URL: private and internal addresses can't be fetched")
+    if (
+        ip is not None
+        and not ip.is_global
+        and not (f.allow_internal and (guard.is_internal(ip) or ip.is_loopback))
+    ):
+        raise CatalogError(
+            "Feed URL: private and internal addresses can't be fetched "
+            "(tick 'internal network' for a server in your LAN)"
+        )
     if f.format not in FORMATS:
-        raise CatalogError("Format: plain text, CSV or JSON")
+        raise CatalogError("Format: plain text, CSV, JSON, TAXII 2.1 or MISP")
+    if f.format == "misp" and not f.auth_header.strip():
+        f.auth_header = "Authorization"  # MISP's API key header
     if f.ioc_type not in FAMILIES:
         raise CatalogError("Indicator type: unknown")
     if f.verdict not in ("malicious", "suspicious"):
@@ -138,7 +149,7 @@ def validate(f: FeedForm) -> FeedForm:
     return f
 
 
-def spec_of(src: Source, feed: CustomFeed) -> FeedSpec:
+def spec_of(src: Source, feed: CustomFeed, *, loopback: bool = False) -> FeedSpec:
     return FeedSpec(
         name=src.name,
         title=src.title,
@@ -155,6 +166,8 @@ def spec_of(src: Source, feed: CustomFeed) -> FeedSpec:
         reliability=src.reliability,
         upstream=src.upstream,
         interval=timedelta(minutes=src.interval_minutes),
+        allow_internal=feed.allow_internal,
+        allow_loopback=feed.allow_internal and loopback,
     )
 
 
@@ -190,7 +203,7 @@ async def load_connector(s: AsyncSession, name: str, settings: Settings) -> type
             secret = unseal(settings, feed.auth_secret)
         except VaultError as e:
             problem = str(e)
-    cls = connector_for(spec_of(src, feed), secret)
+    cls = connector_for(spec_of(src, feed, loopback=settings.allow_loopback_destinations), secret)
     if problem is None:
         return cls
 
@@ -252,6 +265,7 @@ async def create(s: AsyncSession, f: FeedForm, *, actor: str, settings: Settings
             source_id=src.id, url=f.url, format=f.format, ioc_type=f.ioc_type, verdict=f.verdict,
             confidence=f.confidence, comment_char=f.comment_char, value_column=f.value_column,
             json_path=f.json_path or None, auth_header=f.auth_header or None, auth_secret=sealed,
+            allow_internal=f.allow_internal,
             created_by=actor[:100], updated_by=actor[:100], created_at=now, updated_at=now,
         )
     )  # fmt: skip
@@ -281,6 +295,7 @@ async def edit(s: AsyncSession, name: str, f: FeedForm, *, actor: str, settings:
     feed.url, feed.format, feed.ioc_type, feed.verdict = f.url, f.format, f.ioc_type, f.verdict
     feed.confidence, feed.comment_char, feed.value_column = f.confidence, f.comment_char, f.value_column
     feed.json_path, feed.auth_header = f.json_path or None, f.auth_header or None
+    feed.allow_internal = f.allow_internal
     feed.updated_by, feed.updated_at = actor[:100], utcnow()
     if reread:  # read the same document again with the new settings on the next pull
         src.checkpoint = {}

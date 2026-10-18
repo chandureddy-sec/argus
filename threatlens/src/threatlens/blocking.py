@@ -47,6 +47,7 @@ from threatlens.ioc.normalize import guess
 from threatlens.ioc.types import IOCType, Observable
 from threatlens.models import AllowlistEntry, AppSetting, Asset, AuditLog, Block, FeedToken, Indicator
 from threatlens.models import Observable as ObsRow
+from threatlens.share import stix
 
 POLICY_KEY = "blocking"
 POLICY_DEFAULTS: dict[str, Any] = {
@@ -559,13 +560,6 @@ FORMATS: dict[str, str] = {
     "blocks.json": "application/json",
     "stix.json": "application/stix+json;version=2.1",
 }
-# STIX 2.1 spec §7.2.1.4 TLP marking definitions (TLP 1.0 names; CLEAR = WHITE).
-STIX_TLP = {
-    "TLP:CLEAR": "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9",
-    "TLP:GREEN": "marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da",
-    "TLP:AMBER": "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
-    "TLP:AMBER+STRICT": "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82",
-}
 _NS = uuid.UUID("6f4f2b8e-0d7e-4c55-9a51-3c1f1b4c2a10")
 
 
@@ -631,10 +625,9 @@ def render(entries: Sequence[Block], fmt: str, now: datetime | None = None) -> s
                 "name": f"Blocked {b.kind}: {b.value}", "indicator_types": ["malicious-activity"],
                 "pattern": _stix_pattern(b), "pattern_type": "stix",
                 "valid_from": _iso(b.created_at), "valid_until": _iso(b.expires_at),
-                "object_marking_refs": [STIX_TLP[b.tlp]],
-                **({"x_threatlens_tlp": b.tlp} if b.tlp == "TLP:AMBER+STRICT" else {}),
+                "object_marking_refs": [stix.TLP2[b.tlp][0]],
             }
             for b in entries
         ]  # fmt: skip
-        return json.dumps({"type": "bundle", "id": f"bundle--{uuid.uuid4()}", "objects": objects}, indent=1)
+        return json.dumps(stix.bundle([*stix.markings_for(objects), *objects]), indent=1)
     raise BlockError(f"unknown export format {fmt!r}")

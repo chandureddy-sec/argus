@@ -834,7 +834,7 @@ class CustomFeed(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"), unique=True)
     url: Mapped[str] = mapped_column(Text)
-    format: Mapped[str] = mapped_column(String(8))  # text | csv | json
+    format: Mapped[str] = mapped_column(String(8))  # text | csv | json | taxii | misp
     ioc_type: Mapped[str] = mapped_column(String(16), default="auto")  # auto | ip | domain | url | hash
     verdict: Mapped[str] = mapped_column(String(16), default="malicious")  # malicious | suspicious
     confidence: Mapped[int] = mapped_column(Integer, default=70)
@@ -843,15 +843,143 @@ class CustomFeed(Base):
     json_path: Mapped[str | None] = mapped_column(String(200))  # e.g. "data.ip"
     auth_header: Mapped[str | None] = mapped_column(String(64))
     auth_secret: Mapped[str | None] = mapped_column(Text)
+    # An admin may let a feed reach an internal network (a MISP or TAXII server
+    # in the LAN). Link-local and cloud-metadata addresses stay blocked (ADR 0019).
+    allow_internal: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = _ts(default=utcnow)
     updated_by: Mapped[str] = mapped_column(String(100))
     updated_at: Mapped[datetime] = _ts(default=utcnow)
 
     __table_args__ = (
-        CheckConstraint("format IN ('text','csv','json')", name="format"),
+        CheckConstraint("format IN ('text','csv','json','taxii','misp')", name="format"),
         CheckConstraint("ioc_type IN ('auto','ip','domain','url','hash')", name="ioc_type"),
         CheckConstraint("verdict IN ('malicious','suspicious')", name="verdict"),
         CheckConstraint("confidence BETWEEN 0 AND 100", name="confidence"),
         CheckConstraint("value_column BETWEEN 0 AND 255", name="value_column"),
+    )
+
+
+# ── dissemination (Phase 6, ADR 0019) ────────────────────────────────────────
+
+INTEGRATION_KINDS = (
+    "splunk_hec",
+    "elastic",
+    "sentinel",
+    "misp",
+    "webhook",
+    "slack",
+    "teams",
+    "telegram",
+    "email",
+)
+_KIND_CHECK = "kind IN (" + ",".join(f"'{k}'" for k in INTEGRATION_KINDS) + ")"
+ALERT_KINDS = ("score", "pir", "kev_asset", "environment")
+
+
+class Integration(Base):
+    """An outbound connection an admin configured: a SIEM/TIP that receives
+    indicators (splunk_hec, elastic, sentinel, misp, webhook) or a channel that
+    receives alerts (slack, teams, telegram, email). Secrets live encrypted in
+    ``secret`` (threatlens.vault), never in ``config``."""
+
+    __tablename__ = "integrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    config: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    secret: Mapped[str | None] = mapped_column(Text)
+    allow_internal: Mapped[bool] = mapped_column(Boolean, default=False)
+    # What may be sent: indicators scoring at least this, marked at most this,
+    # of these types (empty = every type), and only redistributable ones.
+    min_score: Mapped[float] = mapped_column(Float, default=60.0)
+    max_tlp: Mapped[str] = mapped_column(String(20), default="TLP:GREEN")
+    types: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=60)
+    cursor: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    last_run_at: Mapped[datetime | None] = _ts()
+    last_status: Mapped[str | None] = mapped_column(String(16))
+    last_error: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        CheckConstraint(_KIND_CHECK, name="kind"),
+        CheckConstraint(
+            "max_tlp IN ('TLP:CLEAR','TLP:GREEN','TLP:AMBER','TLP:AMBER+STRICT','TLP:RED')", name="max_tlp"
+        ),
+        CheckConstraint("min_score BETWEEN 0 AND 100", name="min_score"),
+        CheckConstraint("interval_minutes BETWEEN 5 AND 10080", name="interval"),
+    )
+
+
+class IntegrationRun(Base):
+    """One push or test of an integration: what was sent and what went wrong."""
+
+    __tablename__ = "integration_runs"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    integration_id: Mapped[int] = mapped_column(ForeignKey("integrations.id", ondelete="CASCADE"))
+    trigger: Mapped[str] = mapped_column(String(16), default="schedule")  # schedule | manual | test | alert
+    started_at: Mapped[datetime] = _ts(default=utcnow)
+    finished_at: Mapped[datetime | None] = _ts()
+    status: Mapped[str] = mapped_column(
+        String(16), default="running"
+    )  # running | success | partial | failed | skipped
+    sent: Mapped[int] = mapped_column(Integer, default=0)
+    held_back: Mapped[int] = mapped_column(Integer, default=0)  # refused by TLP or licence
+    error: Mapped[str | None] = mapped_column(Text)
+    detail: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+
+    __table_args__ = (Index("ix_integration_runs_integration_started", "integration_id", "started_at"),)
+
+
+class AlertRule(Base):
+    """When to tell people: an indicator scoring at least N, one matching a PIR,
+    a newly exploited CVE in our stack, or a known-bad value seen by our SIEM."""
+
+    __tablename__ = "alert_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    params: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    channels: Mapped[list[int]] = mapped_column(JSONType, default=list)  # integration ids
+    max_tlp: Mapped[str] = mapped_column(String(20), default="TLP:AMBER")
+    cursor: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    updated_at: Mapped[datetime] = _ts(default=utcnow, onupdate=utcnow)
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('score','pir','kev_asset','environment')", name="kind"),
+        CheckConstraint(
+            "max_tlp IN ('TLP:CLEAR','TLP:GREEN','TLP:AMBER','TLP:AMBER+STRICT','TLP:RED')", name="max_tlp"
+        ),
+    )
+
+
+class AlertEvent(Base):
+    """One alert, raised once per (rule, subject): the dedup key makes a
+    re-run, a re-scored indicator or a second worker unable to repeat it."""
+
+    __tablename__ = "alert_events"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    rule_id: Mapped[int] = mapped_column(ForeignKey("alert_rules.id", ondelete="CASCADE"))
+    dedup_key: Mapped[str] = mapped_column(String(300))
+    title: Mapped[str] = mapped_column(String(300))
+    body: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:CLEAR")
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    delivered: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # integration id -> status
+
+    __table_args__ = (
+        UniqueConstraint("rule_id", "dedup_key"),
+        CheckConstraint(_TLP_CHECK, name="tlp"),
+        Index("ix_alert_events_created", "created_at"),
     )

@@ -98,6 +98,18 @@ class Settings(BaseSettings):
     rate_limit_analyst: int = Field(default=300, ge=1)
     rate_limit_admin: int = Field(default=600, ge=1)
 
+    # Dissemination (Phase 6, ADR 0019).
+    # The producer named in STIX bundles and on the TAXII discovery page.
+    org_identity: str = Field(default="Argus", min_length=1, max_length=100)
+    # Public base URL clients use to reach this server (TAXII discovery, export links).
+    public_url: str = "http://127.0.0.1:8000"
+    taxii_page_size: int = Field(default=500, ge=1, le=5000)
+    # Development and demos only: let integrations and feeds marked "internal network"
+    # reach this host itself (127.0.0.1 / ::1). Never needed in production.
+    allow_loopback_destinations: bool = False
+    # Alerts: at most this many messages per channel per hour; the rest are summarised.
+    alert_max_per_hour: int = Field(default=20, ge=1, le=1000)
+
 
 @lru_cache
 def get_settings() -> Settings:

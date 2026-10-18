@@ -226,11 +226,14 @@ async def test_export_formats(app: App) -> None:
     assert doc["count"] == 4
     bundle = json.loads(blocking.render(entries, "stix.json"))
     assert bundle["type"] == "bundle"
-    patterns = {o["pattern"] for o in bundle["objects"]}
+    inds = [o for o in bundle["objects"] if o["type"] == "indicator"]
+    patterns = {o["pattern"] for o in inds}
     assert f"[ipv4-addr:value = '{FREE}']" in patterns
     assert "[url:value = 'https://bad-site.top/path?q=\\'x\\'']" in patterns
-    assert all(o["object_marking_refs"] == [blocking.STIX_TLP["TLP:CLEAR"]] for o in bundle["objects"])
-    assert all(o["valid_until"] > o["valid_from"] for o in bundle["objects"])
+    clear = "marking-definition--94868c89-83c2-464b-929b-a1a8aa3c8487"  # TLP 2.0 CLEAR (OASIS)
+    assert all(o["object_marking_refs"] == [clear] for o in inds)
+    assert [o["id"] for o in bundle["objects"] if o["type"] == "marking-definition"] == [clear]
+    assert all(o["valid_until"] > o["valid_from"] for o in inds)
 
 
 async def test_export_respects_tlp_expiry_and_a_second_guard_check(app: App) -> None:

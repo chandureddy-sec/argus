@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import secrets
 import time
@@ -176,7 +177,17 @@ def _presented_key(request: Request) -> str | None:
         return key
     auth = request.headers.get("authorization", "")
     scheme, _, value = auth.partition(" ")
-    return value.strip() if scheme.lower() == "bearer" and value else None
+    if scheme.lower() == "bearer" and value:
+        return value.strip()
+    if scheme.lower() == "basic" and value:
+        # TAXII and MISP clients speak HTTP Basic: the API key is the password
+        # (or, for clients that only take one field, the user name).
+        try:
+            user, _, password = base64.b64decode(value.strip(), validate=True).decode("utf-8").partition(":")
+        except (ValueError, UnicodeDecodeError):
+            return None
+        return password or user or None
+    return None
 
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})

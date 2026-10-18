@@ -56,19 +56,54 @@ def is_public(ip: IPAddress) -> bool:
     return not any(ip in net for net in _EXTRA_BLOCKED if net.version == ip.version)
 
 
-def check_addresses(host: str, addresses: Iterable[str], allow: frozenset[str] = frozenset()) -> str:
+# Internal networks an admin may open for one integration or feed (a SIEM or
+# MISP inside the LAN). Link-local (169.254.0.0/16, fe80::/10: cloud metadata
+# lives there), multicast and unspecified addresses are never reachable.
+INTERNAL_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("100.64.0.0/10"),  # carrier-grade NAT, used by some VPNs
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+]
+LOOPBACK = [ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128")]
+
+
+def is_internal(ip: IPAddress) -> bool:
+    return any(ip in net for net in INTERNAL_NETWORKS if net.version == ip.version)
+
+
+def is_loopback(ip: IPAddress) -> bool:
+    return any(ip in net for net in LOOPBACK if net.version == ip.version)
+
+
+def check_addresses(
+    host: str,
+    addresses: Iterable[str],
+    allow: frozenset[str] = frozenset(),
+    *,
+    internal: bool = False,
+    loopback: bool = False,
+) -> str:
     """Return the first address to connect to, or raise if any is non-public.
 
     A name that resolves to *both* public and private addresses is refused:
     which one gets used is up to the resolver, so it must be treated as private.
+    ``internal`` additionally permits private LAN ranges and ``loopback`` the
+    host itself; both are per-integration admin choices, never the default.
     """
     addrs = list(dict.fromkeys(addresses))
     if not addrs:
         raise BlockedAddressError(f"{host}: no addresses")
     for a in addrs:
         ip = ipaddress.ip_address(a.split("%", 1)[0])  # drop IPv6 zone ids
-        if str(ip) not in allow and not is_public(ip):
-            raise BlockedAddressError(f"{host} resolves to non-public address {ip}")
+        if str(ip) in allow or is_public(ip):
+            continue
+        if internal and is_internal(ip):
+            continue
+        if loopback and is_loopback(ip):
+            continue
+        raise BlockedAddressError(f"{host} resolves to non-public address {ip}")
     return addrs[0]
 
 
@@ -76,9 +111,13 @@ class GuardedBackend(httpcore.AsyncNetworkBackend):
     """httpcore network backend that resolves names itself and refuses
     non-public destinations before opening the socket."""
 
-    def __init__(self, allow: frozenset[str] = frozenset()) -> None:
+    def __init__(
+        self, allow: frozenset[str] = frozenset(), *, internal: bool = False, loopback: bool = False
+    ) -> None:
         self._inner = httpcore.AnyIOBackend()
         self._allow = allow  # tests only: explicitly permitted addresses
+        self._internal = internal
+        self._loopback = loopback
 
     async def resolve(self, host: str, port: int) -> list[str]:
         try:
@@ -95,7 +134,13 @@ class GuardedBackend(httpcore.AsyncNetworkBackend):
         local_address: str | None = None,
         socket_options: Iterable[Any] | None = None,
     ) -> httpcore.AsyncNetworkStream:
-        address = check_addresses(host, await self.resolve(host, port), self._allow)
+        address = check_addresses(
+            host,
+            await self.resolve(host, port),
+            self._allow,
+            internal=self._internal,
+            loopback=self._loopback,
+        )
         # Connect to the vetted address. TLS still verifies the certificate
         # against the original host name, which httpcore passes as SNI.
         return await self._inner.connect_tcp(

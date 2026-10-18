@@ -91,6 +91,34 @@ async def daily_scoring(ctx: dict[str, Any]) -> dict[str, Any]:
     return await run_daily_scoring(collector.sm, collector.settings)
 
 
+async def push_integrations(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Push shareable indicators to every integration whose interval has passed (ADR 0019)."""
+    from threatlens.share import integrations
+
+    collector = ctx["collector"]
+    out: dict[str, Any] = {}
+    for ident in await integrations.due(collector.sm):
+        try:
+            res = await integrations.push(collector.sm, collector.settings, ident)
+        except integrations.IntegrationError as e:
+            res = {"status": "failed", "error": str(e)}
+        out[str(ident)] = {"status": res.get("status"), "sent": res.get("sent", 0)}
+    if out:
+        log.info("integrations.pushed", runs=out)
+    return out
+
+
+async def evaluate_alerts(ctx: dict[str, Any]) -> dict[str, int]:
+    """Raise and deliver alerts for every enabled rule (deduplicated, rate-limited)."""
+    from threatlens.share import alerts
+
+    collector = ctx["collector"]
+    res = await alerts.evaluate(collector.sm, collector.settings)
+    if res["raised"]:
+        log.info("alerts.evaluated", **res)
+    return res
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     s = get_settings()
     configure_logging(s.log_level, s.log_json)
@@ -124,6 +152,8 @@ class WorkerSettings:
         func(enrich_backlog, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(daily_scoring, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(import_recon_reports, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(push_integrations, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(evaluate_alerts, keep_result=0, timeout=COLLECT_TIMEOUT_S),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),
@@ -132,6 +162,8 @@ class WorkerSettings:
         cron(enrich_backlog, minute={7, 37}, unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(daily_scoring, hour=2, minute=47, unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(import_recon_reports, minute=set(range(3, 60, 10)), unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(push_integrations, minute=set(range(1, 60, 5)), unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(evaluate_alerts, minute=set(range(2, 60, 5)), unique=True, timeout=COLLECT_TIMEOUT_S),
     ]
     on_startup = startup
     on_shutdown = shutdown
