@@ -105,6 +105,10 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
+          # The Anthropic SDK's docstrings describe `{"type": ...}` request objects, which
+          # Trivy's gcp-service-account secret rule mistakes for a key (no key material).
+          # Only its source directory is skipped; its dist-info (vulnerability data) is scanned.
+          skip-dirs: app/.venv/lib/python3.12/site-packages/anthropic
       - name: SBOM (CycloneDX)
         uses: anchore/sbom-action@v0.24.3
         with:
