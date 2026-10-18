@@ -1,8 +1,9 @@
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Ioc, Score, StatusPill, TlpTag } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
+import JourneyDrawer from "../components/JourneyDrawer";
 import { SavedViews } from "../components/SavedViews";
 import { Card, CardHead, Select } from "../components/ui";
 import { useDebounced, useV1, type Indicator, type SourceOut } from "../lib/api";
@@ -15,6 +16,28 @@ const TYPES: [string, string][] = [["All types", ""], ["IPv4 addresses", "ipv4-a
 const STATUSES: [string, string][] = [["All statuses", ""], ["Active", "active"], ["Expired", "expired"], ["Not malicious", "false_positive"], ["Revoked", "revoked"]];
 const SORTS: [string, string][] = [["Newest first", "recent"], ["Highest score", "priority"]];
 
+function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <span className="inline-flex items-center rounded bg-accent/15 ring-1 ring-accent/40">
+      <span className="py-1 pl-2 pr-1">{label}</span>
+      <button type="button" className="px-1.5 py-1 text-ink-faint hover:text-down" aria-label={`Remove filter: ${label}`} onClick={onClear}>
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+/** A drill-down period in words: one day, or from–to. */
+function span(from: string, until: string): string {
+  const day = (v: string) => date(v.length === 10 ? `${v}T00:00:00Z` : v);
+  if (from && until && until.length === 10 && from.length === 10) {
+    const next = new Date(`${from}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    if (next.toISOString().slice(0, 10) === until) return `on ${day(from)}`;
+  }
+  return [from && `from ${day(from)}`, until && `until ${day(until)}`].filter(Boolean).join(" ");
+}
+
 export default function Indicators() {
   usePage("Threat intel", "Indicators");
   const [params, setParams] = useSearchParams();
@@ -24,6 +47,9 @@ export default function Indicators() {
   const status = params.get("status") ?? "";
   const source = params.get("source") ?? "";
   const sort = params.get("sort") ?? "recent";
+  const addedFrom = params.get("added_from") ?? "";
+  const addedUntil = params.get("added_until") ?? "";
+  const minScore = params.get("min_score") ?? "";
   const page = Number(params.get("page") ?? "1");
   const set = (k: string, v: string) =>
     setParams((p) => {
@@ -33,12 +59,16 @@ export default function Indicators() {
       return p;
     });
   const sources = useV1<SourceOut[]>("sources");
+  const [open, setOpen] = useState<Indicator>();
   const { data, error, loading, reload } = useV1<{ items: Indicator[]; total: number }>("indicators", {
     q: search.trim().length >= 2 ? search.trim() : undefined,
     type: type || undefined,
     status: status || undefined,
     source: source || undefined,
     sort,
+    added_from: addedFrom || undefined,
+    added_until: addedUntil || undefined,
+    min_score: minScore || undefined,
     limit: SIZE,
     offset: (page - 1) * SIZE,
   });
@@ -74,6 +104,14 @@ export default function Indicators() {
             />
             <Select value={SORTS.find(([, v]) => v === sort)?.[0] ?? "Newest first"} options={SORTS.map(([l]) => l)} onChange={(l) => set("sort", SORTS.find(([x]) => x === l)?.[1] ?? "recent")} label="Sort" />
           </div>
+          {(addedFrom || addedUntil || minScore) && (
+            <div className="-mt-2 mb-3 flex flex-wrap items-center gap-1.5 text-[12.5px]">
+              {(addedFrom || addedUntil) && (
+                <FilterChip label={`Added ${span(addedFrom, addedUntil)}`} onClear={() => setParams((p) => { p.delete("added_from"); p.delete("added_until"); p.delete("page"); return p; })} />
+              )}
+              {minScore && <FilterChip label={`Score ≥ ${minScore}`} onClear={() => set("min_score", "")} />}
+            </div>
+          )}
           <div className="-mt-3 mb-4">
             <SavedViews />
           </div>
@@ -101,7 +139,14 @@ export default function Indicators() {
                   </tr>
                 ))}
               {data?.items.map((r) => (
-                <tr key={r.id} className="group border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
+                <tr
+                  key={r.id}
+                  className="group cursor-pointer border-b border-line/70 odd:bg-zebra hover:bg-row-hover"
+                  title="Click the row for its threat journey; the value opens its page"
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("a,button")) setOpen(r);
+                  }}
+                >
                   <td className="max-w-[420px] py-3 pl-6 pr-4">
                     <Link to={`/indicators/${r.id}`} className="block">
                       <Ioc value={r.defanged.length > 90 ? `${r.defanged.slice(0, 88)}…` : r.defanged} className="text-[13px] text-ink group-hover:text-accent-soft" />
@@ -152,6 +197,7 @@ export default function Indicators() {
           </div>
         </footer>
       </Card>
+      {open && <JourneyDrawer ind={open} onClose={() => setOpen(undefined)} />}
     </div>
   );
 }

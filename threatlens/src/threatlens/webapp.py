@@ -362,10 +362,12 @@ async def activity(request: Request, range_: Annotated[str, Query(alias="range")
             mal[i] += 1
         elif (score or 0) >= SUSPICIOUS:
             sus[i] += 1
+    ends = [*starts[1:], now + timedelta(seconds=1)]
     points = [
-        {"label": label, "date": date, "malicious": mal[i], "suspicious": sus[i]}
+        {"label": label, "date": date, "malicious": mal[i], "suspicious": sus[i],
+         "from": starts[i].isoformat(), "to": ends[i].isoformat()}
         for i, (label, date, _) in enumerate(buckets)
-    ]
+    ]  # fmt: skip
     return {"range": rng, "total": len(rows), "change": _pct(len(rows), previous), "points": points}
 
 
@@ -421,7 +423,10 @@ async def collection(request: Request, week: str = "This week") -> dict[str, Any
         "week": week,
         "weeks": ["This week", "Last week"],
         "total": len(rows),
-        "days": [{"day": d, "ok": ok[i], "other": bad[i]} for i, d in enumerate(days)],
+        "days": [
+            {"day": d, "ok": ok[i], "other": bad[i], "date": (monday + timedelta(days=i)).date().isoformat()}
+            for i, d in enumerate(days)
+        ],
     }
 
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useApi, type Types } from "../lib/api";
 import { Empty, Failed, Skeleton } from "./states";
@@ -10,7 +11,17 @@ const RING_COLORS = ["sage", "plum", "grey-teal"];
 /** Concentric rings for the three largest indicator types, each filled to its share of
  * the total. A small share still gets a visible arc (MIN_ARC); the tooltip shows the real count. */
 const MIN_ARC = 4; // percent of the circle
+
+/** The Indicators list for one type, in the same scope as the rings. */
+function drill(type: string, scope: string): string {
+  const q = new URLSearchParams({ type, sort: "priority" });
+  if (scope !== "All") q.set("status", "active");
+  if (scope === "Malicious") q.set("min_score", "60");
+  return `/indicators?${q}`;
+}
+
 export default function DonutCard() {
+  const nav = useNavigate();
   const [scope, setScope] = useState("Active");
   const token = useToken();
   const { data, error, reload } = useApi<Types>("types", { scope });
@@ -52,6 +63,8 @@ export default function DonutCard() {
                       animationBegin={i * 120}
                       animationDuration={900}
                       isAnimationActive={!reducedMotion}
+                      className="cursor-pointer"
+                      onClick={() => nav(drill(r.type, scope))}
                     >
                       <Cell fill={token(r.color)} />
                       <Cell fill={token("line")} />
@@ -80,13 +93,13 @@ export default function DonutCard() {
           </div>
           <dl className="mt-6 grid grid-cols-3 gap-3 border-t border-line pt-5">
             {rings.map((r) => (
-              <div key={r.type}>
+              <Link key={r.type} to={drill(r.type, scope)} className="rounded-ctl hover:bg-row-hover">
                 <dt className="flex items-center gap-1.5 text-[12px] text-ink-muted">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: token(r.color) }} />
                   <span className="truncate">{r.name}</span>
                 </dt>
                 <dd className="mt-1 text-[17px] font-semibold tabular-nums">{r.value.toLocaleString()}</dd>
-              </div>
+              </Link>
             ))}
           </dl>
           {others.length > 0 && (

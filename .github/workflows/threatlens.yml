@@ -70,7 +70,7 @@ jobs:
       - name: semgrep
         run: uvx semgrep scan --config p/python --config p/secrets --error src
       - name: gitleaks (secrets in history)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 
   web:

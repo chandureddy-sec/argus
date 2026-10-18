@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import String, cast, func, or_, select
 from sqlalchemy.orm import selectinload
 
+from threatlens import argus_views as views
 from threatlens import assets, dashboard
 from threatlens import cases as case_store
 from threatlens import tlp as tlp_rules
@@ -347,7 +348,9 @@ async def indicator_related(who: Viewer, request: Request, indicator_id: int) ->
                 {"at": _iso(e.fetched_at), "kind": "enriched", "source": e.enricher, "times": e.times_fetched}
             )
         timeline.sort(key=lambda t: t["at"] or "")
+        stages = await views.journey(s, ind, obs, who.clearance)
     return {
+        "journey": stages,
         "enrichments": cards,
         "groups": [{"name": k, "items": v[:40], "total": len(v)} for k, v in sorted(groups.items())],
         "techniques": sorted(techniques.values(), key=lambda t: t["id"] or t["label"])[:80],

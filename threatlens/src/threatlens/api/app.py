@@ -25,6 +25,7 @@ from threatlens.api.kb import router as kb_router
 from threatlens.api.v1 import router as v1_router
 from threatlens.argus_api import router as argus_router
 from threatlens.argus_intel import router as intel_router
+from threatlens.argus_views import router as views_router
 from threatlens.auth import MemoryRateLimiter, RateLimiter, RedisRateLimiter
 from threatlens.db import make_engine, make_sessionmaker, ping
 from threatlens.enrich.quota import RedisQuotaStore
@@ -145,6 +146,7 @@ def create_app(
     app.include_router(recon_router)  # /app/api/recon, before the app's catch-all route
     app.include_router(argus_router)  # Argus-only JSON (verify/bulk streams, settings)
     app.include_router(intel_router)  # landscape, ATT&CK matrix, search
+    app.include_router(views_router)  # threat map, calendar (ADR 0018)
     app.include_router(webapp_api)  # before the app's catch-all route
     app.include_router(webapp_router)
     app.state.settings = settings

@@ -1,7 +1,9 @@
 import { AlertOctagon, Briefcase, Bug, CircleCheck, Database, ExternalLink, Flame } from "lucide-react";
 import { Link } from "react-router-dom";
+import CalendarCard from "../components/CalendarCard";
 import { Ioc, Score, VerdictPill } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
+import ThreatMap from "../components/ThreatMap";
 import { Card, CardHead, compact } from "../components/ui";
 import { useApi } from "../lib/api";
 import { ago, date } from "../lib/format";
@@ -187,6 +189,8 @@ export default function Landscape() {
         </Card>
       </div>
 
+      <ThreatMap />
+
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHead title="Newly exploited (KEV)" sub="CISA Known Exploited Vulnerabilities, latest first">
@@ -216,7 +220,7 @@ export default function Landscape() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         <div id="activity" className="scroll-mt-20"><Card>
           <CardHead title="This week" sub="Cases, feeds and new exploited CVEs, newest first" />
           {!d ? (
@@ -245,6 +249,7 @@ export default function Landscape() {
             </ol>
           )}
         </Card></div>
+        <CalendarCard />
         <Card>
           <CardHead title="Feed reliability" sub="Share of pulls that worked in the last 7 days">
             <Link to="/feeds" className="btn-ghost h-8 text-[13px]">
@@ -257,7 +262,7 @@ export default function Landscape() {
                 <li key={f.name}>
                   <div className="flex items-center justify-between text-[13px]">
                     <Link to={`/feeds/${f.name}`} className="hover:text-accent-soft">{f.name}</Link>
-                    <span className="tabular-nums text-ink-muted">{Math.round(f.pct)}% · {f.runs} pulls</span>
+                    <span className="tabular-nums text-ink-muted">{Math.round(f.pct)}% · {f.runs} pull{f.runs === 1 ? "" : "s"}</span>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-line">
                     <div className={`h-full rounded-full ${f.pct >= 90 ? "bg-up" : f.pct >= 50 ? "bg-warn" : "bg-down"}`} style={{ width: `${f.pct}%` }} />

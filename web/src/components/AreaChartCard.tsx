@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useNavigate } from "react-router-dom";
 import { useApi, type Activity, type Point, type Range } from "../lib/api";
 import { Failed, Skeleton } from "./states";
 import { Card, Change, Legend, Segmented, compact, reducedMotion, useToken } from "./ui";
@@ -25,6 +26,7 @@ function Tip({ active, payload }: { active?: boolean; payload?: { payload: Point
 }
 
 export default function AreaChartCard() {
+  const nav = useNavigate();
   const [range, setRange] = useState<Range>("Month");
   const token = useToken();
   const { data, error, loading, reload } = useApi<Activity>("activity", { range });
@@ -32,7 +34,7 @@ export default function AreaChartCard() {
     <Card delay={80}>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="label">New indicators {SINCE[range]}</p>
+          <p className="label">New indicators {SINCE[range]} <span className="normal-case tracking-normal text-ink-faint">· click a point to list them</span></p>
           <div className="mt-2 flex h-[34px] items-center gap-3">
             {data ? (
               <>
@@ -63,7 +65,16 @@ export default function AreaChartCard() {
           <Skeleton className="h-full w-full" />
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart key={range} data={data.points} margin={{ top: 10, right: 6, left: -12, bottom: 0 }}>
+            <AreaChart
+              key={range}
+              data={data.points}
+              margin={{ top: 10, right: 6, left: -12, bottom: 0 }}
+              className="cursor-pointer"
+              onClick={(st: { activeTooltipIndex?: number | string | null }) => {
+                const p = data.points[Number(st?.activeTooltipIndex ?? -1)];
+                if (p) nav(`/indicators?added_from=${encodeURIComponent(p.from)}&added_until=${encodeURIComponent(p.to)}&min_score=30&sort=priority`);
+              }}
+            >
               <defs>
                 <linearGradient id="fill-mal" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={token("olive-gold", 0.32)} />

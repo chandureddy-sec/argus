@@ -9,7 +9,7 @@ the caller's TLP clearance don't exist for that caller (ADR 0008).
 from __future__ import annotations
 
 import ipaddress
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query, Request
@@ -294,6 +294,10 @@ def _indicator_out(ind: Indicator, obs: ObsRow, sources: list[str]) -> dict[str,
     }
 
 
+def _utc(v: datetime) -> datetime:
+    return v if v.tzinfo else v.replace(tzinfo=UTC)
+
+
 @router.get("/indicators", response_model=Page[IndicatorOut], tags=["indicators"])
 async def list_indicators(
     who: Viewer,
@@ -308,6 +312,8 @@ async def list_indicators(
     offset: Offset = 0,
     sort: Literal["recent", "priority"] = "recent",
     min_score: Annotated[float | None, Query(ge=0, le=100)] = None,
+    added_from: Annotated[datetime | None, Query(description="added at or after (ISO date or time)")] = None,
+    added_until: Annotated[datetime | None, Query(description="added before (ISO date or time)")] = None,
 ) -> Page[IndicatorOut]:
     stmt = (
         select(Indicator, ObsRow)
@@ -316,6 +322,10 @@ async def list_indicators(
     )
     if min_score is not None:
         stmt = stmt.where(Indicator.priority_score >= min_score)
+    if added_from is not None:
+        stmt = stmt.where(Indicator.created_at >= _utc(added_from))
+    if added_until is not None:
+        stmt = stmt.where(Indicator.created_at < _utc(added_until))
     if type is not None:
         stmt = stmt.where(ObsRow.type == type.value)
     if status is not None:

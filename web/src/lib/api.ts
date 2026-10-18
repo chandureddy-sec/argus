@@ -92,6 +92,8 @@ export interface Point {
   date: string;
   malicious: number;
   suspicious: number;
+  from: string;
+  to: string;
 }
 
 export interface Activity {
@@ -112,7 +114,7 @@ export interface Collection {
   week: string;
   weeks: string[];
   total: number;
-  days: { day: string; ok: number; other: number }[];
+  days: { day: string; ok: number; other: number; date: string }[];
 }
 
 export type Family = "ip" | "domain" | "url" | "hash" | "cve" | "email" | "file" | "registry" | "other";
@@ -435,7 +437,19 @@ export interface Pivot {
   via: string | null;
 }
 
+export interface JourneyStage {
+  key: "reported" | "ingested" | "scored" | "enriched" | "seen" | "decided" | "acted";
+  title: string;
+  state: "done" | "none" | "warn";
+  at: string | null;
+  lines: string[];
+  tone?: string;
+  cases?: { id: number; title: string; status: string }[];
+  block?: { id: number; mode: string; state: string } | null;
+}
+
 export interface IndicatorRelated {
+  journey: JourneyStage[];
   enrichments: (Card & { fresh: boolean })[];
   groups: { name: string; items: Pivot[]; total: number }[];
   techniques: Pivot[];

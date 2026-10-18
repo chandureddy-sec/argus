@@ -2,6 +2,7 @@ import { Crosshair, Loader2, MessageSquare, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AddToCase, BlockButton } from "../components/actions";
+import Journey from "../components/Journey";
 import { CopyButton, Ioc, ProviderView, Score, StatusPill, TlpTag, VerdictPill } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
@@ -171,6 +172,11 @@ function Related({ id, value }: { id: string; value?: string }) {
   const pivots = data?.groups.filter((g) => g.name !== "Techniques") ?? [];
   return (
     <>
+      <Card>
+        <CardHead title="Threat journey" sub="From the feed that reported it to what we did about it" />
+        {data ? <Journey stages={data.journey} /> : <Skeleton className="h-28" />}
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <Card>
           <CardHead title="Pivot" sub="Malware, actors, campaigns, CVEs and other indicators linked to this one; each opens its own page" />
