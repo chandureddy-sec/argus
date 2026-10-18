@@ -423,6 +423,32 @@ export interface IndicatorDetail extends Indicator {
   feedback: { verdict: string; actor: string; note: string; at: string }[];
 }
 
+export interface Pivot {
+  ref: string;
+  label: string;
+  id: string | null;
+  type: string;
+  href: string;
+  rel: string;
+  source: string | null;
+  origin: string;
+  via: string | null;
+}
+
+export interface IndicatorRelated {
+  enrichments: (Card & { fresh: boolean })[];
+  groups: { name: string; items: Pivot[]; total: number }[];
+  techniques: Pivot[];
+  timeline: { at: string | null; kind: "first" | "last" | "enriched"; source: string; times: number }[];
+}
+
+export interface SavedSearch {
+  id: number;
+  name: string;
+  query: string;
+  created_at: string | null;
+}
+
 export interface Card {
   enricher: string;
   title: string;

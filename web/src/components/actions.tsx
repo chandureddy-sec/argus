@@ -1,6 +1,6 @@
 import { Briefcase, Loader2, ShieldBan, ShieldCheck, ShieldX } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { post, send, useV1, type Block, type CaseRow } from "../lib/api";
 
 /** Put a value on the blocklist (monitor mode; enforcing is a separate, approved step). */
@@ -73,23 +73,18 @@ export function FlagButtons({ values, tlp = "TLP:GREEN", onDone }: { values: str
 }
 
 /** Add evidence to an open case: an indicator by id, or values to look up. */
-export function AddToCase({ indicatorId, values, cve }: { indicatorId?: number; values?: string[]; cve?: string }) {
+export function AddToCase({ indicatorId, values, cve, title }: { indicatorId?: number; values?: string[]; cve?: string; title?: string }) {
   const cases = useV1<CaseRow[]>("cases", { status: "open" });
-  const [pick, setPick] = useState("");
+  const nav = useNavigate();
+  const [pick, setPick] = useState("new");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string; id?: number }>();
-  if (!cases.data?.length) {
-    return (
-      <Link to="/cases" className="btn-ghost h-9">
-        <Briefcase className="h-4 w-4" /> New case
-      </Link>
-    );
-  }
+  const subject = title ?? cve ?? values?.[0] ?? (indicatorId ? `indicator #${indicatorId}` : "evidence");
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
-      <select className="ctl h-9 max-w-[200px] text-[13px]" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Case">
-        <option value="">Add to case…</option>
-        {cases.data.map((c) => (
+      <select className="ctl h-9 max-w-[220px] text-[13px]" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Case">
+        <option value="new">New case</option>
+        {cases.data?.map((c) => (
           <option key={c.id} value={c.id}>
             #{c.id} {c.title.slice(0, 40)}
           </option>
@@ -97,7 +92,7 @@ export function AddToCase({ indicatorId, values, cve }: { indicatorId?: number; 
       </select>
       <button
         className="btn-ghost h-9"
-        disabled={!pick || busy}
+        disabled={busy}
         onClick={async () => {
           setBusy(true);
           setMsg(undefined);
@@ -107,8 +102,18 @@ export function AddToCase({ indicatorId, values, cve }: { indicatorId?: number; 
               : cve
                 ? { kind: "vulnerability", ref: cve }
                 : { values: values ?? [] };
-            await send("POST", `/api/v1/cases/${pick}/items`, body);
-            setMsg({ ok: true, text: "Added", id: Number(pick) });
+            let id = Number(pick);
+            if (pick === "new") {
+              // A new case is AMBER by default; an item marked higher raises it.
+              const c = await send<{ id: number }>("POST", "/api/v1/cases", { title: `Investigate ${subject}`.slice(0, 200) });
+              id = c.id;
+            }
+            await send("POST", `/api/v1/cases/${id}/items`, body);
+            if (pick === "new") {
+              nav(`/cases/${id}`);
+              return;
+            }
+            setMsg({ ok: true, text: "Added", id });
           } catch (e) {
             setMsg({ ok: false, text: (e as Error).message });
           } finally {
@@ -116,7 +121,7 @@ export function AddToCase({ indicatorId, values, cve }: { indicatorId?: number; 
           }
         }}
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />} Add
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />} {pick === "new" ? "Open case" : "Add to case"}
       </button>
       {msg && (msg.ok ? <Link to={`/cases/${msg.id}`} className="text-[12.5px] text-up hover:underline">Added · open case</Link> : <span className="text-[12.5px] text-down">{msg.text}</span>)}
     </span>

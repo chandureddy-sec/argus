@@ -2,64 +2,12 @@ import { Briefcase, ExternalLink, Globe, Loader2, Lock, Network, Search, ShieldO
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AddToCase, BlockButton, FlagButtons } from "../components/actions";
-import { CopyButton, Ioc, Score, TlpSelect, TlpTag, VerdictPill } from "../components/intel";
+import { CopyButton, Ioc, ProviderView, Score, TlpSelect, TlpTag, TONE, VerdictPill } from "../components/intel";
 import { Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
 import { readEvents, type Card as ProviderCard, type InternalResult, type Local, type Me, type QueryInfo, type VerifyDone, type VerifyEvent } from "../lib/api";
 import { ago, date } from "../lib/format";
 import { usePage } from "../lib/page";
-
-const TONE: Record<string, string> = {
-  mal: "border-down/40 bg-down/[0.05]",
-  sus: "border-warn/40 bg-warn/[0.04]",
-  ok: "border-up/30 bg-up/[0.03]",
-  info: "border-line bg-card",
-  off: "border-line bg-card opacity-70",
-};
-const DOT: Record<string, string> = { mal: "bg-down", sus: "bg-warn", ok: "bg-up", info: "bg-info-soft", off: "bg-ink-faint" };
-
-function ProviderView({ c }: { c: ProviderCard }) {
-  return (
-    <article className={`animate-rise rounded-card border p-4 ${TONE[c.tone] ?? TONE.info}`}>
-      <header className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2 text-[14px] font-semibold">
-          <span className={`h-2 w-2 rounded-full ${DOT[c.tone] ?? DOT.info}`} />
-          {c.title}
-        </h3>
-        <span className="text-[11.5px] text-ink-faint">
-          {c.status === "cached" ? `saved ${ago(c.fetchedAt)}` : c.status === "stale" ? "last known answer" : c.status === "ok" ? "just now" : ""}
-          {c.mode === "active" && " · contacts the target"}
-        </span>
-      </header>
-      <p className="text-[13.5px] font-medium text-ink">
-        <Ioc value={c.headline} mono={false} />
-      </p>
-      {c.rows.length > 0 && (
-        <dl className="mt-3 grid grid-cols-[minmax(110px,auto)_1fr] gap-x-3 gap-y-1 text-[12.5px]">
-          {c.rows.map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt className="text-ink-faint">{k}</dt>
-              <dd className="min-w-0 text-ink-muted">
-                {Array.isArray(v) ? v.map((x) => <span key={x} className="block break-all"><Ioc value={x} mono={false} /></span>) : <Ioc value={String(v)} mono={false} />}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {c.evidence.length > 0 && (
-        <ul className="mt-3 space-y-1 text-[12.5px]">
-          {c.evidence.map((ev, i) => (
-            <li key={i} className="flex gap-2">
-              <span className={`shrink-0 rounded px-1.5 text-[11px] font-semibold ${ev.kind === "malicious" ? "bg-down/15 text-down" : ev.kind === "suspicious" ? "bg-warn/15 text-warn" : "bg-up/15 text-up"}`}>{ev.kind}</span>
-              <span className="text-ink-muted"><Ioc value={ev.text} mono={false} /></span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {c.error && <p className="mt-2 text-[12px] text-warn">No answer this time ({c.error}), so this is the last one we saved.</p>}
-    </article>
-  );
-}
 
 function OurIntel({ local }: { local: Local }) {
   const k = local.known;

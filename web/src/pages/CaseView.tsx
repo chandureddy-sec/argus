@@ -113,7 +113,10 @@ export default function CaseView({ me }: { me?: Me }) {
             </div>
             <div className="flex flex-wrap gap-2">
               <a className="btn-ghost h-9" href={`/api/v1/cases/${c.id}/export.md`}>
-                <Download className="h-4 w-4" /> Report (Markdown)
+                <Download className="h-4 w-4" /> Markdown
+              </a>
+              <a className="btn-ghost h-9" href={`/api/v1/cases/${c.id}/export.pdf`}>
+                <Download className="h-4 w-4" /> PDF
               </a>
               {(me?.role === "admin" || me?.role === "analyst") && (
                 <button

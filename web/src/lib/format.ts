@@ -1,10 +1,12 @@
 const DT = new Intl.DateTimeFormat("en", { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const D = new Intl.DateTimeFormat("en", { month: "short", day: "2-digit", year: "numeric" });
 
-/** Go's zero time ("0001-01-01T00:00:00Z") means "never". */
+/** Go's zero time ("0001-01-01T00:00:00Z") means "never". The server keeps
+ * every time in UTC; one without a zone (SQLite) is read as UTC, not local. */
 function valid(iso?: string | null): Date | null {
   if (!iso || iso.startsWith("0001-")) return null;
-  const d = new Date(iso);
+  const zoneless = /^\d{4}-\d{2}-\d{2}T[\d:.]+$/.test(iso);
+  const d = new Date(zoneless ? `${iso}Z` : iso);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

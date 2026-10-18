@@ -156,20 +156,23 @@ async def test_case_lifecycle_and_tlp(sm: SM) -> None:
 
 
 @pytest.mark.parametrize(
-    ("query", "ok"),
+    ("query", "stored"),
     [
-        ("/ui/indicators?sort=priority", True),
-        ("/ui/search?q=tag:qakbot&show=all", True),
-        ("https://evil.example/ui", False),
-        ("//evil.example/ui", False),
-        ("/ui//evil.example", False),
-        ("/api/v1/indicators", False),
-        ("/ui\\..\\x", False),
+        ("/indicators?sort=priority", "/indicators?sort=priority"),
+        ("/search?q=tag:qakbot&show=all", "/search?q=tag:qakbot&show=all"),
+        ("/app/search?q=x", "/search?q=x"),
+        ("https://evil.example/ui", None),
+        ("//evil.example/ui", None),
+        ("/ui//evil.example", None),
+        ("/api/v1/indicators", None),
+        ("/login?next=/x", None),
+        ("/ui\\..\\x", None),
+        ("search?q=x", None),
     ],
 )
-def test_saved_searches_stay_inside_the_ui(query: str, ok: bool) -> None:
-    if ok:
-        assert case_store.check_query(query) == query
+def test_saved_searches_stay_inside_argus(query: str, stored: str | None) -> None:
+    if stored:
+        assert case_store.check_query(query) == stored
     else:
         with pytest.raises(case_store.CaseError):
             case_store.check_query(query)

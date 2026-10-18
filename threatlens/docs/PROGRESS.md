@@ -8,7 +8,7 @@
 | 3 Enrichment | **complete** (Docker verified 2026-10-10) | 9 enrichers (RDAP, DNS-over-HTTPS, RIPEstat ASN/geo, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh), DB-backed TTL cache with provenance, shared quota book, passive-first + TLP policy, lookup / bulk / catalogue API, background ASN/geo enrichment, UI panel, CLI `lookup`. ADR 0005. |
 | 3b ReconX link | **complete** (live-verified 2026-10-10) | ReconX `scan --threatlens` → verdicts in JSON/HTML/MD reports, dashboard tab, `threat_intel_flagged` monitor rule; `--threatlens-assets` / `import-reconx` → own assets + observed tech stack (migration 0005), feed-listed assets first, own-asset lookups say investigate, PIR-2/NVD include observed applications. ADR 0006. |
 | 4 Scoring, trust, TLP, feedback | **complete** (Docker verified 2026-10-11) | Scoring model v1 (configurable YAML, stored breakdown + config version, monotonic decay, independent-upstream corroboration, PIR/asset relevance, FP penalties), Admiralty credibility, daily rescore + expiry, CVE patch priority P1-P4 (KEV floor), analyst TP/FP feedback with audited source weights, TLP 2.0 clearance on every read path and sink. Migration 0007, ADR 0008. |
-| 5 Analyst UI | in progress | Dashboard (gauges, activity feed, calendar), IOC page, search, bulk lookup, cases. |
+| 5 Analyst experience | **complete** (browser-verified 2026-10-18) | Landscape dashboard (triage queue, PIR matches, trending malware/techniques, ATT&CK tactic heat, KEV vs. our stack, feed health), indicator page (verdict, score breakdown, pivots with provenance, ATT&CK techniques via malware, timeline, stored enrichment cards, notes, TP/FP), search + saved views, bulk check (500 values, CSV), cases with Markdown and PDF reports. Walkthrough in `docs/DEMO.md` (3–5 s machine time). |
 | Response (SecIncyte parity, step 1 of 4) | **complete** (Docker verified 2026-10-11) | Blocklist (monitor → enforce with four eyes, expiry, lift/extend), never-block guard checked on block and export, `/api/v1/blocks`, token-protected feed export (EDL text, CSV, JSON, STIX 2.1), Settings (policy, tokens). Migration 0009, ADR 0010. |
 | Investigate (SecIncyte parity, step 2 of 4) | **complete** (browser-verified 2026-10-11) | Verify an indicator (live provider cards, verdict, second-opinion links by TLP, Block / Flag malicious / Not malicious in place), Bulk check (file upload, rows streaming in, progress, filters, select threats, detail pane, block/flag/case on selected, auto-block), streaming lookup in the service, self-hosted `app.js` under CSP `script-src 'self'`. ADR 0011. |
 | 6–9 | not started | see PLAN.md |
@@ -115,6 +115,36 @@ Found and fixed during verification:
 | Patch priority | P1 821 (808 KEV), P2 1,233, P3 4,083, P4 88; CVE-2018-13379 (FortiOS, in the profile stack) P1 with 120 points |
 | UI as a viewer | `/ui` 0.55 s, indicators/indicator/vulnerability/sources/assets pages 0.03-0.12 s; no feedback buttons for viewers |
 | Integration (Postgres/Redis) | 8/8 incl. `alembic check` (0007 matches the models) |
+
+## Phase 5 log
+- Before 2026-10-18: the analyst pages were built during the Argus rebuild (ADR 0013–0016): Landscape, Indicators + indicator page, Verify, Bulk check, Cases, Search.
+- 2026-10-18 (closing the phase against the spec):
+  * `GET /app/api/indicators/{id}/related` returns stored enrichment cards (no new lookups), graph pivots grouped by type with provenance, ATT&CK techniques (the indicator's own plus those of its malware/actors), and a sightings + enrichment timeline.
+  * Saved views: `/app/api/searches`, per account, Argus paths only; views saved by the old `/ui` pages still open.
+  * Case PDF export: `threatlens.pdf`, fpdf2 + bundled Inter (OFL), TLP marking on every page.
+  * "Add to case" can open a new case in one click.
+- Found and fixed:
+  * Free text in case reports (title, summary, conclusion, notes) was not defanged; now both the Markdown and the PDF reports defang it.
+  * A table row taller than a page crashed the PDF; table cells are now capped.
+  * The audit-log CSV export allowed spreadsheet formula injection (found by semgrep in CI); cells are neutralised (`sheet_safe`), and the file name is sanitised.
+  * Zone-less timestamps (SQLite) were read as local time.
+- CI (first run on GitHub, 2026-10-15) was red:
+  * bandit flagged asserts and SSO placeholders;
+  * the Trivy action tag no longer existed;
+  * the image build lacked the web build context;
+  * `compose up --wait` failed on the worker with no healthcheck.
+
+  All fixed. The worker now has a heartbeat healthcheck, and a web typecheck/build/audit job was added.
+
+### Live check (2026-10-18, throwaway SQLite instance, real feeds)
+Feodo 5, CISA KEV 1,748, ATT&CK 20.0 (6,340 entities), URLhaus 33,521; `scripts/demo_walkthrough.py` in headless Chrome.
+
+| Step finished | Feodo C2 50.16.16.211 | URLhaus URL |
+|---|---|---|
+| Indicator page with pivots and techniques | 0.5 s | 0.8 s |
+| Verdict recorded | 3.6 s | 2.3 s |
+| Case opened with the evidence | 3.9 s | 2.5 s |
+| PDF report downloaded | 5.0 s | 3.4 s |
 
 ## Phase 3b log
 - 2026-10-10: ReconX: `internal/threatlens` client (batches of 100, TLP, budget, clear errors), `ScanReport.threat_intel`, scan flags `--threatlens[=url]`, `--threatlens-tlp`, `--threatlens-budget`, `--threatlens-assets`, key-store entry + key test, HTML/Markdown sections, dashboard tab and scan option, `RunScanPipeline` option, monitor runs include ThreatLens when configured, rule `threat_intel_flagged`. Contract fixture recorded from the live API.

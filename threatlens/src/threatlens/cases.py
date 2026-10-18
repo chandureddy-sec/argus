@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from threatlens import tlp as tlp_rules
+from threatlens.ioc.extract import defang_text
 from threatlens.models import (
     CASE_ITEM_KINDS,
     CASE_SEVERITIES,
@@ -288,9 +289,9 @@ def lookup_evidence(result: dict[str, Any]) -> tuple[str, str, dict[str, Any], s
 
 
 def _md(text: object) -> str:
-    """One table cell or line: no newlines, no pipe breaking the table, no HTML."""
+    """One table cell or line: defanged, no newlines, no pipe breaking the table, no HTML."""
     return (
-        str(text if text is not None else "")
+        defang_text(str(text if text is not None else ""))
         .replace("\r", " ")
         .replace("\n", " ")
         .replace("|", "\\|")
@@ -301,7 +302,7 @@ def _md(text: object) -> str:
 
 
 def _block(text: str) -> str:
-    return (text or "").replace("<", "&lt;").replace(">", "&gt;").strip() or "_none_"
+    return defang_text(text or "").replace("<", "&lt;").replace(">", "&gt;").strip() or "_none_"
 
 
 def item_summary(item: CaseItem) -> str:
@@ -377,6 +378,62 @@ def to_markdown(case: Case, *, exported_by: str) -> str:
     return "\n".join(lines)
 
 
+def to_pdf(case: Case, *, exported_by: str) -> bytes:
+    """The same report as :func:`to_markdown`, as a PDF with the marking on every page."""
+    from threatlens import pdf
+
+    d = defang_text
+    evidence = [i for i in case.items if i.kind != "note"]
+    notes = [i for i in case.items if i.kind == "note"]
+    title = d(f"Case {case.id}: {case.title}")
+    blocks = [
+        pdf.h1(title),
+        pdf.kv(
+            [
+                ("Marking", case.tlp),
+                (
+                    "Status",
+                    case.status
+                    + (f" (closed {case.closed_at:%Y-%m-%d %H:%M} UTC)" if case.closed_at else ""),
+                ),
+                ("Severity", case.severity),
+                ("Opened", f"{case.created_by}, {case.created_at:%Y-%m-%d %H:%M} UTC"),
+                ("Exported", f"{exported_by}, {_now():%Y-%m-%d %H:%M} UTC"),
+            ]
+        ),
+        pdf.h2("Summary"),
+        pdf.p(d(case.summary) or "—"),
+        pdf.h2("Conclusion"),
+        pdf.p(d(case.conclusion) or "—"),
+        pdf.h2(f"Evidence ({len(evidence)})"),
+        pdf.table(
+            ["#", "Kind", "Value (defanged)", "What Argus said", "Analyst note", "Added"],
+            [
+                [
+                    str(n),
+                    i.kind,
+                    i.label,
+                    d(item_summary(i)),
+                    d(i.note),
+                    f"{i.added_by}, {i.added_at:%Y-%m-%d %H:%M}",
+                ]
+                for n, i in enumerate(evidence, 1)
+            ],
+            [5, 10, 28, 27, 18, 14],
+        ),
+    ]
+    if notes:
+        blocks += [
+            pdf.h2("Notes"),
+            pdf.bullets([f"{i.added_by}, {i.added_at:%Y-%m-%d %H:%M} UTC: {d(i.note)}" for i in notes]),
+        ]
+    blocks += [
+        pdf.rule(),
+        pdf.small(f"Marking: {case.tlp}. Values are defanged; refang them deliberately, not by copy-paste."),
+    ]
+    return pdf.render(title, blocks, marking=case.tlp)
+
+
 # ── indicator notes ──────────────────────────────────────────────────────────
 
 
@@ -410,12 +467,31 @@ def owner_key(kind: str, ident: int) -> str:
 
 
 def check_query(query: str) -> str:
-    """Only paths inside the UI may be saved (no open redirect, no other host)."""
+    """Only paths inside Argus may be saved (no open redirect, no other host).
+    They are stored relative to /app, e.g. ``/search?q=tag:qakbot``."""
     q = query.strip()
+    if q.startswith("/app/"):
+        q = q[4:]
     parts = urlsplit(q)
-    if parts.scheme or parts.netloc or not q.startswith("/ui") or "//" in q or "\\" in q or len(q) > 2000:
-        raise CaseError("only views inside the ThreatLens UI can be saved")
+    if (
+        parts.scheme
+        or parts.netloc
+        or not q.startswith("/")
+        or q.startswith(("/api", "/login"))
+        or "//" in q
+        or "\\" in q
+        or len(q) > 2000
+    ):
+        raise CaseError("only views inside Argus can be saved")
     return q
+
+
+def app_path(query: str) -> str:
+    """A saved view as an Argus path; views saved by the retired /ui pages
+    map to the page that replaced them."""
+    if query == "/ui" or query.startswith(("/ui/", "/ui?")):
+        return query[3:] or "/"
+    return query
 
 
 async def save_search(s: AsyncSession, owner: str, name: str, query: str) -> SavedSearch:

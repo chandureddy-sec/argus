@@ -2,10 +2,10 @@ import { Crosshair, Loader2, MessageSquare, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AddToCase, BlockButton } from "../components/actions";
-import { CopyButton, Ioc, Score, StatusPill, TlpTag, VerdictPill } from "../components/intel";
+import { CopyButton, Ioc, ProviderView, Score, StatusPill, TlpTag, VerdictPill } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
-import { send, useV1, type IndicatorDetail, type Me } from "../lib/api";
+import { send, useApi, useV1, type IndicatorDetail, type IndicatorRelated, type Me, type Pivot } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
 import { BLOCKABLE, TYPE_LABEL, verdictOf } from "../lib/ioc";
 import { usePage } from "../lib/page";
@@ -138,6 +138,124 @@ function Notes({ id, canWrite }: { id: number; canWrite: boolean }) {
   );
 }
 
+const TIMELINE: Record<string, { dot: string; text: (source: string, times: number) => string }> = {
+  first: { dot: "bg-down", text: (s, n) => `${s} first reported it${n > 1 ? ` (${n.toLocaleString()} reports since)` : ""}` },
+  last: { dot: "bg-warn", text: (s) => `${s} last reported it` },
+  enriched: { dot: "bg-info-soft", text: (s) => `${s} answered a lookup` },
+};
+
+function Chip({ p }: { p: Pivot }) {
+  return (
+    <Link
+      to={p.href}
+      title={`${p.rel}${p.source ? ` · ${p.source}` : ""}${p.via ? ` · via ${p.via}` : ""}`}
+      className="inline-flex max-w-full items-center gap-1.5 rounded bg-chip px-2 py-1 text-[12.5px] text-chip-ink ring-1 ring-line hover:text-accent-soft hover:ring-accent/40"
+    >
+      {p.id && <span className="font-mono text-[11.5px] text-ink-faint">{p.id}</span>}
+      <span className="truncate">{p.label}</span>
+    </Link>
+  );
+}
+
+/** What surrounds the indicator: graph pivots, ATT&CK techniques, timeline and stored enrichment. */
+function Related({ id, value }: { id: string; value?: string }) {
+  const { data, error, reload } = useApi<IndicatorRelated>(`indicators/${id}/related`);
+  const [allTech, setAllTech] = useState(false);
+  if (error && !data) {
+    return (
+      <Card>
+        <Failed error={error} onRetry={reload} />
+      </Card>
+    );
+  }
+  const pivots = data?.groups.filter((g) => g.name !== "Techniques") ?? [];
+  return (
+    <>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <Card>
+          <CardHead title="Pivot" sub="Malware, actors, campaigns, CVEs and other indicators linked to this one; each opens its own page" />
+          {!data ? (
+            <Skeleton className="h-24" />
+          ) : !pivots.length && !data.techniques.length ? (
+            <Empty>No links yet: no feed tied it to malware, an actor or a campaign.</Empty>
+          ) : (
+            <div className="space-y-4">
+              {pivots.map((g) => (
+                <section key={g.name}>
+                  <p className="label mb-2">
+                    {g.name} <span className="text-ink-faint">({g.total.toLocaleString()})</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.items.map((p) => (
+                      <Chip key={p.ref} p={p} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {data.techniques.length > 0 && (
+                <section>
+                  <p className="label mb-2">
+                    ATT&CK techniques <span className="text-ink-faint">({data.techniques.length}; hover for where each comes from)</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(allTech ? data.techniques : data.techniques.slice(0, 24)).map((p) => (
+                      <Chip key={p.ref} p={p} />
+                    ))}
+                    {data.techniques.length > 24 && (
+                      <button type="button" className="btn-ghost h-7 px-2.5 text-[12.5px]" onClick={() => setAllTech(!allTech)}>
+                        {allTech ? "Show fewer" : `Show all ${data.techniques.length}`}
+                      </button>
+                    )}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+        </Card>
+        <Card>
+          <CardHead title="Timeline" sub="When sources reported it and when providers were asked" />
+          {!data ? (
+            <Skeleton className="h-24" />
+          ) : !data.timeline.length ? (
+            <Empty>Nothing recorded yet.</Empty>
+          ) : (
+            <ol className="relative space-y-3 border-l border-line pl-5">
+              {[...data.timeline].reverse().map((t, i) => (
+                <li key={`${t.at}-${t.kind}-${t.source}-${i}`} className="relative">
+                  <span className={`absolute -left-[25px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-card ${TIMELINE[t.kind]?.dot ?? "bg-ink-faint"}`} />
+                  <p className="text-[13px]">{TIMELINE[t.kind]?.text(t.source, t.times) ?? t.source}</p>
+                  <p className="text-[12px] text-ink-faint">{t.at ? `${dateTime(t.at)} · ${ago(t.at)}` : "date unknown"}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+      </div>
+
+      <Card>
+        <CardHead title="Enrichment" sub="The last answer each provider gave; Verify now asks them again">
+          {value && (
+            <Link to={`/verify?q=${encodeURIComponent(value)}`} className="btn-ghost h-8 text-[13px]">
+              <Crosshair className="h-4 w-4" /> Verify now
+            </Link>
+          )}
+        </CardHead>
+        {!data ? (
+          <Skeleton className="h-24" />
+        ) : !data.enrichments.length ? (
+          <Empty>No provider has been asked about it yet.</Empty>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {data.enrichments.map((c) => (
+              <ProviderView key={c.enricher} c={c} />
+            ))}
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
 export default function IndicatorView({ me }: { me?: Me }) {
   const { id = "" } = useParams();
   const { data: ind, error, reload } = useV1<IndicatorDetail>(`indicators/${id}`);
@@ -214,7 +332,7 @@ export default function IndicatorView({ me }: { me?: Me }) {
               <Crosshair className="h-4 w-4" /> Verify now
             </Link>
             {analyst && BLOCKABLE.has(ind.type) && <BlockButton value={ind.defanged} />}
-            {analyst && <AddToCase indicatorId={ind.id} />}
+            {analyst && <AddToCase indicatorId={ind.id} title={ind.defanged} />}
             {analyst && (
               <span className="ml-auto inline-flex flex-wrap items-center gap-2">
                 {ind.analyst_verdict ? (
@@ -248,6 +366,8 @@ export default function IndicatorView({ me }: { me?: Me }) {
           {ind ? <Notes id={ind.id} canWrite={analyst} /> : <Skeleton className="h-24" />}
         </Card>
       </div>
+
+      <Related id={id} value={ind?.defanged} />
 
       <Card className="!p-0">
         <div className="p-5 pb-3 sm:p-6 sm:pb-3">

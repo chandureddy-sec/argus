@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Ioc, Score, StatusPill, TlpTag } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
+import { SavedViews } from "../components/SavedViews";
 import { Card, CardHead, Select } from "../components/ui";
 import { useDebounced, useV1, type Indicator, type SourceOut } from "../lib/api";
 import { ago, date } from "../lib/format";
@@ -72,6 +73,9 @@ export default function Indicators() {
               label="Source"
             />
             <Select value={SORTS.find(([, v]) => v === sort)?.[0] ?? "Newest first"} options={SORTS.map(([l]) => l)} onChange={(l) => set("sort", SORTS.find(([x]) => x === l)?.[1] ?? "recent")} label="Sort" />
+          </div>
+          <div className="-mt-3 mb-4">
+            <SavedViews />
           </div>
         </div>
         <div className={`overflow-x-auto transition-opacity ${loading && data ? "opacity-60" : ""}`}>

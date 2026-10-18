@@ -90,7 +90,7 @@ backoff + jitter, ETag/If-Modified-Since, raw-response archive.
 | 3 | Enrichment engine (RDAP, DNS, ASN, AbuseIPDB, GreyNoise, VirusTotal, urlscan, MalwareBazaar, crt.sh); lookup + bulk enrich API | **complete** (ADR 0005, Docker verified 2026-10-10) |
 | 3b | **ReconX link**: ReconX `--threatlens` sends assets, shows verdicts, monitor alert rule; ThreatLens imports ReconX scans as assets/observed CPEs | **complete** (ADR 0006, live-verified 2026-10-10) |
 | 4 | Scoring, trust, TLP 2.0, feedback, expiry | **complete** (ADR 0008, Docker verified 2026-10-11) |
-| 5 | Analyst UI (dashboard, IOC page, search, bulk lookup, cases) | planned |
+| 5 | Analyst UI (dashboard, IOC page, search, bulk lookup, cases) | **complete** (Argus pages, ADR 0013–0016; DEMO.md 2026-10-18) |
 | 6 | Dissemination: STIX 2.1/TAXII 2.1, MISP, blocklists, SIEM integrations, alerting | planned |
 | 7 | Detection engineering: Sigma/Suricata/YARA, hunt queries, Navigator, coverage gaps | planned |
 | 8 | Intelligence products, brand/lookalike monitoring, guarded AI assist | planned |

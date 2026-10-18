@@ -7,16 +7,20 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy.orm import selectinload
 
 from threatlens import assets, dashboard
 from threatlens import cases as case_store
 from threatlens import tlp as tlp_rules
 from threatlens.api.v1 import Viewer, _app_settings, _sm
+from threatlens.enrich.base import REGISTRY as ENRICHERS
+from threatlens.ioc.extract import defang_text
 from threatlens.kb import graph
 from threatlens.kb.ids import alias_key
-from threatlens.models import Entity, EntityAlias, Indicator, Vulnerability
+from threatlens.models import Enrichment, Entity, EntityAlias, Indicator, Sighting, Vulnerability
 from threatlens.models import Observable as ObsRow
 
 router = APIRouter(prefix="/app/api", include_in_schema=False)
@@ -200,3 +204,196 @@ async def search(
                 {"id": c.id, "title": c.title, "status": c.status, "severity": c.severity} for c, _ in cases
             ]
     return out
+
+
+# ── indicator context: enrichment cards, graph pivot, techniques, timeline ───
+
+PIVOT_TYPES = {
+    "malware": "Malware",
+    "intrusion-set": "Threat actors",
+    "threat-actor": "Threat actors",
+    "campaign": "Campaigns",
+    "tool": "Tools",
+    "attack-pattern": "Techniques",
+    "vulnerability": "Vulnerabilities",
+    "report": "Reports",
+    "indicator": "Related indicators",
+}
+ACTOR_TYPES = ("malware", "intrusion-set", "threat-actor", "campaign", "tool")
+TONE_ORDER = {"mal": 0, "sus": 1, "info": 2, "ok": 3, "off": 4}
+
+
+def _pivot(n: dict[str, Any], edge: dict[str, Any], via: str | None = None) -> dict[str, Any]:
+    if n["kind"] == "vulnerability":
+        href = f"/vulnerabilities/{n['label']}"
+    elif n["kind"] == "indicator":
+        href = f"/indicators/{n['extra'].get('id')}"
+    else:
+        href = f"/entities/{n.get('external_id') or n['ref']}"
+    return {
+        "ref": n["ref"],
+        "label": defang_text(n["label"]),
+        "id": n.get("external_id"),
+        "type": n["type"],
+        "href": href,
+        "rel": edge["rel_type"],
+        "source": edge["source"],
+        "origin": edge["origin"],
+        "via": via,
+    }
+
+
+def _aware(v: datetime) -> datetime:
+    return v if v.tzinfo else v.replace(tzinfo=UTC)
+
+
+@router.get("/indicators/{indicator_id}/related")
+async def indicator_related(who: Viewer, request: Request, indicator_id: int) -> dict[str, Any]:
+    """Everything around one indicator for its page: the latest stored answer
+    of each enricher (no new lookups are made), graph neighbours grouped by
+    type, the ATT&CK techniques its malware and actors use, and a timeline."""
+    from threatlens.argus_api import card  # the Verify page's card, shared
+
+    now = datetime.now(UTC)
+    async with _sm(request)() as s:
+        ind = await s.scalar(
+            select(Indicator)
+            .where(Indicator.id == indicator_id)
+            .options(
+                selectinload(Indicator.observable),
+                selectinload(Indicator.sightings).selectinload(Sighting.source),
+            )
+        )
+        if ind is None or not tlp_rules.may_read(who.clearance, ind.tlp):
+            raise HTTPException(404, "no such indicator")
+        obs = ind.observable
+        rows = (
+            await s.scalars(
+                select(Enrichment)
+                .where(or_(Enrichment.observable_id == obs.id, Enrichment.canonical_key == obs.canonical_key))
+                .order_by(Enrichment.fetched_at.desc())
+            )
+        ).all()
+        latest: dict[str, Enrichment] = {}
+        for e in rows:
+            latest.setdefault(e.enricher, e)
+        cards = []
+        for e in latest.values():
+            cls = ENRICHERS.get(e.enricher)
+            c = card(
+                {
+                    "enricher": e.enricher,
+                    "title": cls.info.title if cls else e.enricher,
+                    "status": "cached",
+                    "mode": e.mode,
+                    "fetched_at": _iso(e.fetched_at),
+                    "summary": e.summary,
+                    "evidence": e.evidence,
+                    "found": e.status != "not_found",
+                }
+            )
+            c["fresh"] = _aware(e.expires_at) > now
+            cards.append(c)
+        cards.sort(key=lambda c: (TONE_ORDER.get(c["tone"], 5), c["title"]))
+
+        groups: dict[str, list[dict[str, Any]]] = {}
+        techniques: dict[str, dict[str, Any]] = {}
+        if ind.stix_id:
+            items, _ = await graph.neighbors(s, ind.stix_id, limit=200, clearance=who.clearance)
+            seen: set[str] = set()
+            actors: list[tuple[str, str]] = []
+            for it in items:
+                n = it["node"]
+                if n["ref"] in seen:
+                    continue
+                seen.add(n["ref"])
+                entry = _pivot(n, it["edge"])
+                groups.setdefault(
+                    PIVOT_TYPES.get(n["type"]) or PIVOT_TYPES.get(n["kind"], "Other"), []
+                ).append(entry)
+                if n["type"] == "attack-pattern":
+                    techniques.setdefault(n["ref"], entry | {"via": "this indicator"})
+                if n["type"] in ACTOR_TYPES:
+                    actors.append((n["ref"], entry["label"]))
+            for ref, name in actors[:8]:
+                uses, _ = await graph.neighbors(
+                    s, ref, direction="out", rel="uses", node_type="attack-pattern", limit=80,
+                    clearance=who.clearance,
+                )  # fmt: skip
+                for it in uses:
+                    techniques.setdefault(it["node"]["ref"], _pivot(it["node"], it["edge"], via=name))
+
+        timeline: list[dict[str, Any]] = []
+        for sg in ind.sightings:
+            timeline.append(
+                {
+                    "at": _iso(sg.first_seen),
+                    "kind": "first",
+                    "source": sg.source.name,
+                    "times": sg.times_reported,
+                }
+            )
+            if sg.last_seen and sg.first_seen and sg.last_seen > sg.first_seen:
+                timeline.append(
+                    {
+                        "at": _iso(sg.last_seen),
+                        "kind": "last",
+                        "source": sg.source.name,
+                        "times": sg.times_reported,
+                    }
+                )
+        for e in latest.values():
+            timeline.append(
+                {"at": _iso(e.fetched_at), "kind": "enriched", "source": e.enricher, "times": e.times_fetched}
+            )
+        timeline.sort(key=lambda t: t["at"] or "")
+    return {
+        "enrichments": cards,
+        "groups": [{"name": k, "items": v[:40], "total": len(v)} for k, v in sorted(groups.items())],
+        "techniques": sorted(techniques.values(), key=lambda t: t["id"] or t["label"])[:80],
+        "timeline": timeline[-60:],
+    }
+
+
+# ── saved searches (one list per account) ────────────────────────────────────
+
+
+class SavedIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    query: str = Field(min_length=1, max_length=2000)
+
+
+def _owner(who: Any) -> str:
+    return f"{who.kind}:{who.key_id}"
+
+
+def _saved(r: Any) -> dict[str, Any]:
+    return {
+        "id": r.id,
+        "name": r.name,
+        "query": case_store.app_path(r.query),
+        "created_at": _iso(r.created_at),
+    }
+
+
+@router.get("/searches")
+async def list_searches(who: Viewer, request: Request) -> list[dict[str, Any]]:
+    async with _sm(request)() as s:
+        return [_saved(r) for r in await case_store.saved_searches(s, _owner(who))]
+
+
+@router.post("/searches", status_code=201)
+async def save_search(who: Viewer, request: Request, body: SavedIn) -> dict[str, Any]:
+    async with _sm(request)() as s, s.begin():
+        try:
+            r = await case_store.save_search(s, _owner(who), body.name, body.query)
+        except case_store.CaseError as e:
+            raise HTTPException(422, str(e)) from e
+        return _saved(r)
+
+
+@router.delete("/searches/{search_id}", status_code=204)
+async def delete_search(who: Viewer, request: Request, search_id: int) -> None:
+    async with _sm(request)() as s, s.begin():
+        if not await case_store.delete_search(s, _owner(who), search_id):
+            raise HTTPException(404, "no such saved search")

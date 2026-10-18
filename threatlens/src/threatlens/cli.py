@@ -373,7 +373,7 @@ async def _users(args: argparse.Namespace) -> int:
                     s, args.name, password, args.role or "viewer", clearance=args.clearance
                 )
                 shown = tlp_rules.clearance_for(row.role, row.tlp_clearance)
-                print(f"created {row.name} ({row.role}, reads up to {shown}); sign in at /ui/login")
+                print(f"created {row.name} ({row.role}, reads up to {shown}); sign in at /app/login")
             elif args.action == "passwd":
                 row = await set_password(s, args.name, password)
                 print(f"password changed for {row.name}; their other sessions are signed out")

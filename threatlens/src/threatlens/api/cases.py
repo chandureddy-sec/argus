@@ -223,6 +223,23 @@ async def export_case(who: Viewer, request: Request, case_id: int) -> Response:
     return Response(body, media_type="text/markdown; charset=utf-8")
 
 
+@router.get("/cases/{case_id}/export.pdf")
+async def export_case_pdf(who: Viewer, request: Request, case_id: int) -> Response:
+    async with _sm(request)() as s, s.begin():
+        c = await case_store.get_case(s, case_id, who.clearance)
+        if c is None:
+            raise HTTPException(404, "no such case")
+        s.add(
+            AuditLog(actor=who.name, action="case.export", target=f"case:{c.id}", details={"format": "pdf"})
+        )
+        body = case_store.to_pdf(c, exported_by=who.name)
+    return Response(
+        body,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="case-{c.id}.pdf"'},
+    )
+
+
 @router.get("/indicators/{indicator_id}/notes", response_model=list[NoteOut], tags=["indicators"])
 async def list_notes(who: Viewer, request: Request, indicator_id: int) -> list[NoteOut]:
     await get_indicator(who, request, indicator_id)  # 404 when missing or above clearance

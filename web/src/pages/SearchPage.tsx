@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Ioc, Score, StatusPill } from "../components/intel";
 import { SevPill } from "../components/recon";
+import { SavedViews } from "../components/SavedViews";
 import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead } from "../components/ui";
 import { useApi } from "../lib/api";
@@ -57,6 +58,7 @@ export default function SearchPage() {
             No exact match: showing everything that contains "{q}".
           </p>
         )}
+        <SavedViews />
       </Card>
 
       {!q ? null : error && !data ? (
