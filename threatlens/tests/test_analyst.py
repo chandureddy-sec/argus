@@ -103,7 +103,7 @@ async def test_case_exports_as_pdf_with_its_marking(app: App) -> None:
     ind = await app.ind(LIVE)
     r = await app.c.post(
         "/api/v1/cases",
-        json={"title": "PDF case ‮evil", "tlp": "TLP:AMBER"},
+        json={"title": "PDF case \u202eevil", "tlp": "TLP:AMBER"},
         headers=app.h("analyst"),
     )
     assert r.status_code == 201
@@ -126,7 +126,7 @@ async def test_case_exports_as_pdf_with_its_marking(app: App) -> None:
 
 
 def test_pdf_text_is_plain_and_bounded() -> None:
-    assert pdf.clean("a\x00b‮c") == "abc"  # control and bidi-override characters dropped
+    assert pdf.clean("a\x00b\u202ec") == "abc"  # control and bidi-override characters dropped
     assert max(len(w) for w in pdf.clean("A" * 500).split()) <= 60  # no unbreakable token
     body = pdf.render(
         "T",

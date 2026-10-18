@@ -24,7 +24,7 @@ from fpdf.enums import XPos, YPos
 from fpdf.fonts import FontFace
 
 FONT_DIR = Path(__file__).parent / "fonts"
-_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f​-‏‪-‮⁦-⁩]")
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
 _LONG = re.compile(r"(\S{60})(?=\S)")
 
 # Ink colours per TLP 2.0 (FIRST's palette, on white paper).
