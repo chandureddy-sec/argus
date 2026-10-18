@@ -1,0 +1,250 @@
+# Hunt queries per ATT&CK technique (ADR 0020). Each entry is a Sigma rule
+# (compiled by pySigma to Splunk, KQL and Lucene at load time) plus what it
+# needs to work: the log source, the fields, and what usually trips it.
+# Written for hunting, not alerting: expect to triage results.
+- technique: T1059.001
+  data_sources: [Process Creation (Sysmon EID 1 or Windows 4688 with command line)]
+  rule:
+    title: 'Hunt: PowerShell with encoded or download-cradle command lines'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001001
+    status: experimental
+    description: PowerShell started with an encoded command, a hidden window or a web download cradle.
+    tags: [attack.execution, attack.t1059.001]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      image:
+        - Image|endswith: ['\powershell.exe', '\pwsh.exe']
+        - OriginalFileName: ['PowerShell.EXE', 'pwsh.dll']
+      flags:
+        CommandLine|contains: [' -enc ', ' -encodedcommand ', ' -w hidden', 'downloadstring(', 'downloadfile(', 'iwr ', 'invoke-webrequest']
+      condition: image and flags
+    falsepositives: [Software deployment and management agents, Administrator scripts]
+    level: medium
+- technique: T1059.003
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: cmd.exe started by an Office application'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001002
+    status: experimental
+    description: A Word, Excel or PowerPoint process spawning a command shell, typical of malicious macros.
+    tags: [attack.execution, attack.t1059.003, attack.t1566.001]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      selection:
+        ParentImage|endswith: ['\winword.exe', '\excel.exe', '\powerpnt.exe', '\outlook.exe']
+        Image|endswith: ['\cmd.exe', '\powershell.exe', '\wscript.exe', '\cscript.exe', '\mshta.exe']
+      condition: selection
+    falsepositives: [Legitimate add-ins that launch helper scripts]
+    level: high
+- technique: T1047
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: process creation through WMI'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001003
+    status: experimental
+    description: Processes spawned by the WMI provider host, or wmic used to create processes remotely.
+    tags: [attack.execution, attack.t1047]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      provider:
+        ParentImage|endswith: '\wmiprvse.exe'
+        Image|endswith: ['\cmd.exe', '\powershell.exe', '\rundll32.exe', '\mshta.exe']
+      wmic:
+        Image|endswith: '\wmic.exe'
+        CommandLine|contains|all: ['process', 'call', 'create']
+      condition: provider or wmic
+    falsepositives: [Systems management software (SCCM, monitoring agents)]
+    level: medium
+- technique: T1053.005
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: scheduled task created from the command line'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001004
+    status: experimental
+    description: schtasks.exe creating a task, especially one running from a user-writable path.
+    tags: [attack.persistence, attack.t1053.005]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: ' /create '
+      writable:
+        CommandLine|contains: ['\AppData\', '\Temp\', '\Users\Public\', '\ProgramData\']
+      condition: selection and writable
+    falsepositives: [Installers and updaters that schedule their own tasks]
+    level: medium
+- technique: T1547.001
+  data_sources: [Windows Registry (Sysmon EID 13)]
+  rule:
+    title: 'Hunt: Run key pointing to a user-writable path'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001005
+    status: experimental
+    description: A Run or RunOnce value that starts a program from AppData, Temp or Public.
+    tags: [attack.persistence, attack.t1547.001]
+    logsource: {category: registry_set, product: windows}
+    detection:
+      key:
+        TargetObject|contains: ['\Software\Microsoft\Windows\CurrentVersion\Run\', '\Software\Microsoft\Windows\CurrentVersion\RunOnce\']
+      path:
+        Details|contains: ['\AppData\', '\Temp\', '\Users\Public\']
+      condition: key and path
+    falsepositives: [Per-user applications installed in AppData (chat clients, updaters)]
+    level: medium
+- technique: T1218.011
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: rundll32 loading a DLL from a user-writable path or without arguments'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001006
+    status: experimental
+    description: rundll32 executing code from Temp, AppData or Public, a common loader pattern.
+    tags: [attack.stealth, attack.t1218.011]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      selection:
+        Image|endswith: '\rundll32.exe'
+        CommandLine|contains: ['\AppData\', '\Temp\', '\Users\Public\', '\ProgramData\']
+      condition: selection
+    falsepositives: [Some software installers and printer drivers]
+    level: medium
+- technique: T1218.005
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: mshta running remote or inline script'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001007
+    status: experimental
+    description: mshta.exe with a URL or inline javascript/vbscript.
+    tags: [attack.stealth, attack.t1218.005]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      selection:
+        Image|endswith: '\mshta.exe'
+        CommandLine|contains: ['http://', 'https://', 'javascript:', 'vbscript:']
+      condition: selection
+    falsepositives: [Rare legacy HTA applications]
+    level: high
+- technique: T1105
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: built-in tools downloading files'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001008
+    status: experimental
+    description: certutil, bitsadmin or curl fetching a remote file.
+    tags: [attack.command-and-control, attack.t1105]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      certutil:
+        Image|endswith: '\certutil.exe'
+        CommandLine|contains: ['-urlcache', '/urlcache', '-split']
+      bits:
+        Image|endswith: '\bitsadmin.exe'
+        CommandLine|contains: '/transfer'
+      curl:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains: ['-o ', '--output', '-O ']
+      condition: certutil or bits or curl
+    falsepositives: [Administrators and build scripts using curl]
+    level: medium
+- technique: T1071.001
+  data_sources: [Network Connection (Sysmon EID 3) or firewall/proxy logs]
+  rule:
+    title: 'Hunt: scripting engines making outbound web connections'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001009
+    status: experimental
+    description: Script hosts and LOLBins talking HTTP(S) directly, a common beacon pattern.
+    tags: [attack.command-and-control, attack.t1071.001]
+    logsource: {category: network_connection, product: windows}
+    detection:
+      selection:
+        Image|endswith: ['\wscript.exe', '\cscript.exe', '\mshta.exe', '\rundll32.exe', '\regsvr32.exe']
+        DestinationPort: [80, 443, 8080]
+        Initiated: 'true'
+      condition: selection
+    falsepositives: [Login scripts that call internal web services]
+    level: medium
+- technique: T1003.001
+  data_sources: [Process Access (Sysmon EID 10)]
+  rule:
+    title: 'Hunt: LSASS memory opened by an unusual process'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001010
+    status: experimental
+    description: A process requesting read access to lsass.exe memory, as credential dumpers do.
+    tags: [attack.credential-access, attack.t1003.001]
+    logsource: {category: process_access, product: windows}
+    detection:
+      selection:
+        TargetImage|endswith: '\lsass.exe'
+        GrantedAccess: ['0x1010', '0x1410', '0x1438', '0x143a', '0x1fffff']
+      filter_system:
+        SourceImage|endswith: ['\MsMpEng.exe', '\csrss.exe', '\wininit.exe', '\svchost.exe']
+      condition: selection and not filter_system
+    falsepositives: [EDR and antivirus products, backup agents]
+    level: high
+- technique: T1490
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: shadow copies or backups being deleted'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001011
+    status: experimental
+    description: vssadmin, wmic or wbadmin deleting recovery data, a ransomware precursor.
+    tags: [attack.impact, attack.t1490]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      vss:
+        Image|endswith: ['\vssadmin.exe', '\wmic.exe']
+        CommandLine|contains|all: ['shadow', 'delete']
+      wb:
+        Image|endswith: '\wbadmin.exe'
+        CommandLine|contains: ['delete catalog', 'delete systemstatebackup']
+      bcd:
+        Image|endswith: '\bcdedit.exe'
+        CommandLine|contains: 'recoveryenabled no'
+      condition: vss or wb or bcd
+    falsepositives: [Backup software rotating its own snapshots]
+    level: high
+- technique: T1021.001
+  data_sources: [Authentication logs (Windows 4624 with logon type 10)]
+  rule:
+    title: 'Hunt: remote desktop logons'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001012
+    status: experimental
+    description: Interactive RDP logons; baseline by source address and account, then hunt the outliers.
+    tags: [attack.lateral-movement, attack.t1021.001]
+    logsource: {product: windows, service: security}
+    detection:
+      selection:
+        EventID: 4624
+        LogonType: 10
+      condition: selection
+    falsepositives: [Administrators and helpdesk staff; jump hosts]
+    level: low
+- technique: T1190
+  data_sources: [Process Creation]
+  rule:
+    title: 'Hunt: web server process spawning a shell'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001013
+    status: experimental
+    description: IIS, Tomcat or Exchange worker processes starting a shell, a web-shell or exploitation sign.
+    tags: [attack.initial-access, attack.t1190, attack.persistence, attack.t1505.003]
+    logsource: {category: process_creation, product: windows}
+    detection:
+      selection:
+        ParentImage|endswith: ['\w3wp.exe', '\tomcat.exe', '\tomcat9.exe', '\httpd.exe', '\nginx.exe', '\php-cgi.exe']
+        Image|endswith: ['\cmd.exe', '\powershell.exe', '\whoami.exe', '\net.exe', '\certutil.exe']
+      condition: selection
+    falsepositives: [Web applications that legitimately shell out (rare; document them)]
+    level: high
+- technique: T1078
+  data_sources: [Authentication logs (Windows 4625 / identity provider sign-in logs)]
+  rule:
+    title: 'Hunt: failed logons for many accounts from one source'
+    id: 6f1c2d10-5a1e-4b5e-9d10-000000001014
+    status: experimental
+    description: Failed logons to aggregate by source address; many distinct accounts from one source suggests password spraying.
+    tags: [attack.credential-access, attack.t1110.003, attack.initial-access, attack.t1078]
+    logsource: {product: windows, service: security}
+    detection:
+      selection:
+        EventID: 4625
+      condition: selection
+    falsepositives: [Misconfigured services retrying stale credentials]
+    level: low

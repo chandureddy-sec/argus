@@ -66,7 +66,11 @@ jobs:
       - name: bandit (SAST)
         run: uv run bandit -c pyproject.toml -r src
       - name: pip-audit (known-vulnerable dependencies)
-        run: uv run pip-audit
+        # PYSEC-2026-2447 (diskcache <= 5.6.3, no fixed release): pickle in a cache
+        # directory an attacker could write. Argus never uses that cache: it comes in
+        # with pySigma's ATT&CK/D3FEND data loaders, whose validators are disabled
+        # (they download at run time; ADR 0020). Re-check when diskcache ships a fix.
+        run: uv run pip-audit --ignore-vuln PYSEC-2026-2447
       - name: semgrep
         run: uvx semgrep scan --config p/python --config p/secrets --error src
       - name: gitleaks (secrets in history)
@@ -107,6 +111,13 @@ jobs:
           image: threatlens:ci
           format: cyclonedx-json
           output-file: sbom.cdx.json
+      - uses: astral-sh/setup-uv@v10.3.0
+        with: { enable-cache: true }
+      - name: Generated detection rules pass the real Suricata engine (ADR 0020)
+        run: |
+          uv sync --frozen
+          uv run python scripts/detection_samples.py "$RUNNER_TEMP/detections"
+          docker run --rm -v "$RUNNER_TEMP/detections:/rules:ro" jasonish/suricata:7.0 -T -S /rules/argus.rules -l /tmp
       - name: Compose smoke test
         run: |
           printf 'POSTGRES_PASSWORD=ci-only-password\n' > .env

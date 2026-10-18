@@ -983,3 +983,47 @@ class AlertEvent(Base):
         CheckConstraint(_TLP_CHECK, name="tlp"),
         Index("ix_alert_events_created", "created_at"),
     )
+
+
+# ── detection engineering (Phase 7, ADR 0020) ────────────────────────────────
+
+
+class DetectionRule(Base):
+    """A rule in our detection inventory: imported from the SOC's own Sigma
+    repository (for coverage-gap analysis), or generated here and kept."""
+
+    __tablename__ = "detection_rules"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    origin: Mapped[str] = mapped_column(String(16))  # imported | generated
+    rule_uid: Mapped[str] = mapped_column(String(100))  # the Sigma id, or a hash of the content
+    title: Mapped[str] = mapped_column(String(300))
+    status: Mapped[str | None] = mapped_column(String(20))
+    level: Mapped[str | None] = mapped_column(String(20))
+    logsource: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)
+    techniques: Mapped[list[str]] = mapped_column(JSONType, default=list)  # T1059.001, ...
+    content: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(String(100))
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("origin", "rule_uid"),
+        CheckConstraint("origin IN ('imported','generated')", name="origin"),
+    )
+
+
+class RetroHunt(Base):
+    """A query pack to run against historical logs when new high-priority
+    indicators arrive (Phase 7 retro-hunt hook)."""
+
+    __tablename__ = "retro_hunts"
+
+    id: Mapped[int] = mapped_column(BigID, primary_key=True)
+    created_at: Mapped[datetime] = _ts(default=utcnow)
+    title: Mapped[str] = mapped_column(String(300))
+    tlp: Mapped[str] = mapped_column(String(20), default="TLP:CLEAR")
+    indicator_ids: Mapped[list[int]] = mapped_column(JSONType, default=list)
+    lookback_days: Mapped[int] = mapped_column(Integer, default=30)
+    queries: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict)  # backend -> [queries]
+
+    __table_args__ = (CheckConstraint(_TLP_CHECK, name="tlp"), Index("ix_retro_hunts_created", "created_at"))

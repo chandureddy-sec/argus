@@ -20,6 +20,7 @@ from threatlens.api.blocks import feeds_router
 from threatlens.api.blocks import router as blocks_router
 from threatlens.api.cases import router as cases_router
 from threatlens.api.catalog import router as catalog_router
+from threatlens.api.detect import router as detect_router
 from threatlens.api.enrich import router as enrich_router
 from threatlens.api.kb import router as kb_router
 from threatlens.api.share import router as share_router
@@ -153,6 +154,7 @@ def create_app(
     app.include_router(views_router)  # threat map, calendar (ADR 0018)
     app.include_router(taxii_router)  # TAXII 2.1, read-only (ADR 0019)
     app.include_router(share_router)  # integrations, alert rules, sightings (ADR 0019)
+    app.include_router(detect_router)  # detection engineering (ADR 0020)
     app.include_router(webapp_api)  # before the app's catch-all route
     app.include_router(webapp_router)
     app.state.settings = settings

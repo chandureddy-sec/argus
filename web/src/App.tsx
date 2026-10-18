@@ -15,6 +15,7 @@ import VulnView from "./pages/VulnView";
 import Vulnerabilities from "./pages/Vulnerabilities";
 import Blocklist from "./pages/Blocklist";
 import Alerts from "./pages/Alerts";
+import Detections from "./pages/Detections";
 import Integrations from "./pages/Integrations";
 import BulkCheck from "./pages/BulkCheck";
 import Cases from "./pages/Cases";
@@ -93,6 +94,7 @@ function Shell() {
               <Route path="/vulnerabilities" element={<Vulnerabilities />} />
               <Route path="/vulnerabilities/:cve" element={<VulnView me={me} />} />
               <Route path="/attack" element={<Attack />} />
+              <Route path="/detections" element={<Detections me={me} />} />
               <Route path="/entities/:ref" element={<EntityView />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="*" element={<NotFound />} />

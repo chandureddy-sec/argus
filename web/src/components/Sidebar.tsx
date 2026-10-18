@@ -59,6 +59,7 @@ const NAV: Item[] = [
       { label: "Indicators", to: "/indicators" },
       { label: "Vulnerabilities", to: "/vulnerabilities" },
       { label: "ATT&CK", to: "/attack" },
+      { label: "Detections", to: "/detections" },
     ],
   },
   {

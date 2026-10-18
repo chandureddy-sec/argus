@@ -92,7 +92,7 @@ backoff + jitter, ETag/If-Modified-Since, raw-response archive.
 | 4 | Scoring, trust, TLP 2.0, feedback, expiry | **complete** (ADR 0008, Docker verified 2026-10-11) |
 | 5 | Analyst UI (dashboard, IOC page, search, bulk lookup, cases) | **complete** (Argus pages, ADR 0013–0016; DEMO.md 2026-10-18) |
 | 6 | Dissemination: STIX 2.1/TAXII 2.1, MISP, blocklists, SIEM integrations, alerting | **complete** (ADR 0019, live-verified 2026-10-18) |
-| 7 | Detection engineering: Sigma/Suricata/YARA, hunt queries, Navigator, coverage gaps | planned |
+| 7 | Detection engineering: Sigma/Suricata/YARA, hunt queries, Navigator, coverage gaps | **complete** (ADR 0020, live-verified 2026-10-18) |
 | 8 | Intelligence products, brand/lookalike monitoring, guarded AI assist | planned |
 | 9 | Hardening, load test, observability, backup, release v1.0.0 | planned |
 

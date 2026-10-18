@@ -119,6 +119,17 @@ async def evaluate_alerts(ctx: dict[str, Any]) -> dict[str, int]:
     return res
 
 
+async def build_retro_hunts(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Query packs for new high-priority indicators, to run over historical logs (ADR 0020)."""
+    from threatlens.detect import retro
+
+    collector = ctx["collector"]
+    pack = await retro.build(collector.sm, collector.settings)
+    if pack is not None:
+        log.info("retrohunt.pack", id=pack)
+    return {"pack": pack}
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     s = get_settings()
     configure_logging(s.log_level, s.log_json)
@@ -154,6 +165,7 @@ class WorkerSettings:
         func(import_recon_reports, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(push_integrations, keep_result=0, timeout=COLLECT_TIMEOUT_S),
         func(evaluate_alerts, keep_result=0, timeout=COLLECT_TIMEOUT_S),
+        func(build_retro_hunts, keep_result=0, timeout=COLLECT_TIMEOUT_S),
     ]
     cron_jobs: ClassVar[list[Any]] = [
         cron(heartbeat, minute=set(range(0, 60, 5))),
@@ -164,6 +176,7 @@ class WorkerSettings:
         cron(import_recon_reports, minute=set(range(3, 60, 10)), unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(push_integrations, minute=set(range(1, 60, 5)), unique=True, timeout=COLLECT_TIMEOUT_S),
         cron(evaluate_alerts, minute=set(range(2, 60, 5)), unique=True, timeout=COLLECT_TIMEOUT_S),
+        cron(build_retro_hunts, minute={4, 19, 34, 49}, unique=True, timeout=COLLECT_TIMEOUT_S),
     ]
     on_startup = startup
     on_shutdown = shutdown

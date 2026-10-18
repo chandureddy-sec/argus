@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Ioc } from "../components/intel";
 import { Empty, Failed, Skeleton } from "../components/states";
@@ -143,11 +143,18 @@ export default function EntityView() {
                 </p>
               )}
             </div>
-            {e.url && (
-              <a href={e.url} target="_blank" rel="noopener noreferrer" className="btn-ghost h-9">
-                MITRE page <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {["malware", "tool", "intrusion-set", "campaign", "threat-actor"].includes(e.type) && (
+                <a href={`/api/v1/detections/navigator/${encodeURIComponent(e.external_id ?? e.stix_id)}`} className="btn-ghost h-9" title="Load it in the MITRE ATT&CK Navigator">
+                  <Download className="h-3.5 w-3.5" /> Navigator layer
+                </a>
+              )}
+              {e.url && (
+                <a href={e.url} target="_blank" rel="noopener noreferrer" className="btn-ghost h-9">
+                  MITRE page <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
           </div>
         )}
       </Card>

@@ -17,14 +17,20 @@ dependencies = [
     "jinja2>=3.1.4",
     "pydantic>=2",
     "pydantic-settings>=2.15.0",
+    "pysigma>=1.5.1",
+    "pysigma-backend-elasticsearch>=2.1.1",
+    "pysigma-backend-kusto>=1.0.1",
+    "pysigma-backend-splunk>=2.1.0",
     "python-multipart>=0.0.20",
     "pyyaml>=6.0.3",
     "qrcode>=8.2",
     "redis>=5.3.1",
     "sqlalchemy[asyncio]>=2",
     "structlog>=26.1.0",
+    "suricataparser>=1.0.0",
     "tldextract>=5.4.0",
     "uvicorn[standard]>=0.54.0",
+    "yara-python>=4.5.4",
 ]
 
 [project.scripts]
@@ -56,7 +62,7 @@ plugins = ["pydantic.mypy"]
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["arq.*", "qrcode.*"]
+module = ["arq.*", "qrcode.*", "suricataparser.*", "yara.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

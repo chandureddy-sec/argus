@@ -13,7 +13,8 @@
 | Investigate (SecIncyte parity, step 2 of 4) | **complete** (browser-verified 2026-10-11) | Verify an indicator (live provider cards, verdict, second-opinion links by TLP, Block / Flag malicious / Not malicious in place), Bulk check (file upload, rows streaming in, progress, filters, select threats, detail pane, block/flag/case on selected, auto-block), streaming lookup in the service, self-hosted `app.js` under CSP `script-src 'self'`. ADR 0011. |
 | Interactivity (SecIncyte parity, step 4 of 4) | **complete** (browser-verified 2026-10-18) | Threat map (zoom/pan, hover lists every IP at a place, filterable side list, feed landscape vs. blocked & flagged), chart drill-downs (area, bar, rings → filtered Indicators), activity calendar, threat journey (7 stages, indicator page + drawer from the Indicators list). ADR 0018. |
 | 6 Dissemination | **complete** (live-verified 2026-10-18) | STIX 2.1 with TLP 2.0 markings (validated by stix2-validator), read-only TAXII 2.1 server (4 TLP/confidence collections; consumed by the OASIS taxii2-client and by another ThreatLens's TAXII feed reader), licence/TLP-aware exports (EDL, CSV, JSON, STIX, Wazuh CDB), integrations (Splunk HEC, Elastic/ECS, Sentinel STIX upload, MISP push, webhook; MISP and TAXII pull as feed formats), SIEM sightings + Wazuh webhook, alert rules to Slack/Teams/Telegram/email/webhook (once, within TLP, rate-limited). Migration 0012, ADR 0019, docs/INTEGRATIONS.md. |
-| 7–9 | not started | see PLAN.md |
+| 7 Detection engineering | **complete** (live-verified 2026-10-18) | Rules from indicators: Sigma (pySigma → Splunk SPL, KQL, Elastic Lucene), Suricata (IP, DNS, TLS SNI, HTTP; CI runs the real `suricata -T`), YARA (hash module, compiled and match-tested), Wazuh XML over the CDB exports; every rule validated with author/date/references/ATT&CK/TLP/confidence/FP metadata. 14-technique hunt library, ATT&CK Navigator layers, coverage gaps vs. an imported Sigma inventory, retro-hunt packs every 15 min. Migration 0013, ADR 0020. |
+| 8–9 | not started | see PLAN.md |
 
 ## Phase 0 log
 - 2026-10-08: scaffold, settings, structured logging, org profile + PIR validation, API health/readiness, worker heartbeat, Alembic baseline (pg_trgm, citext, app_meta), Dockerfile + Compose, CI workflow, pre-commit, PLAN, ADR 0001/0002, threat model, sources register, learning notes.
@@ -147,6 +148,24 @@ Feodo 5, CISA KEV 1,748, ATT&CK 20.0 (6,340 entities), URLhaus 33,521; `scripts/
 | Verdict recorded | 3.6 s | 2.3 s |
 | Case opened with the evidence | 3.9 s | 2.5 s |
 | PDF report downloaded | 5.0 s | 3.4 s |
+
+## Phase 7 log
+- 2026-10-18: `detect/` (rules, hunts + hunts.yml, attack, retro), `api/detect.py`, migration 0013 (`detection_rules`, `retro_hunts`), worker cron `build_retro_hunts`, Argus page Detections (rules, hunts, coverage, retro-hunts), Navigator button on entity pages, `scripts/detection_samples.py` + CI step running jasonish/suricata:7.0 `-T`.
+- Verified before building: pySigma backends on PyPI (Splunk 2.1.0, Kusto 1.0.1, Elasticsearch 2.1.1; they pin pySigma < 2, so 1.5.1); no pySigma Wazuh backend exists; pySigma bundles ATT&CK v20 tactics (Defense Evasion split into Stealth and Defense Impairment).
+- Found and fixed:
+  * Suricata sids hashed into 900k collided with 1,210 indicators (birthday): now probed to the next free sid.
+  * The real Suricata engine rejected two things suricataparser accepted: a URL path's `;` and `"` inside msg, and `nocase` on `http.host`. The checker now catches the msg case, and CI runs the engine.
+  * pySigma's `attacktag` validator downloads MITRE data at run time: disabled; ATT&CK tags are checked offline.
+  * Hunts tagged `attack.defense-evasion` (gone in ATT&CK v18+): now `attack.stealth`.
+
+### Live check (2026-10-18, throwaway instance: Feodo, Tor exits, CISA KEV, ATT&CK 20.0)
+| Check | Result |
+|---|---|
+| Generate at score 30 (TLP:GREEN) | Sigma, Suricata, Wazuh for 1,210 indicators; 0 validator problems |
+| Suricata 7.0.17 `-T` (Docker) | all 1,210 generated rules load; every rule shape (DNS, TLS SNI, HTTP with escaped path, IPv6) loads |
+| Zip pack | 36 files, README starts with the marking |
+| Navigator layer for QakBot (S0650) | 71 techniques, ATT&CK 20 |
+| Coverage with 2 imported rules | 71 relevant techniques (QakBot), 1 covered (T1059.001), gaps ranked |
 
 ## Phase 6 log
 - 2026-10-18: `share/` package (select, stix, taxii, export, sinks, integrations, alerts, sightings), `api/share.py`, migration 0012 (integrations, integration_runs, alert_rules, alert_events; custom_feeds.allow_internal and formats taxii/misp), worker crons `push_integrations` and `evaluate_alerts`, Argus pages Integrations and Alerts, feed form TAXII/MISP + internal network, `scripts/sink.py`, `integrations/wazuh/custom-argus`.
