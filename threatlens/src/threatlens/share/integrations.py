@@ -59,6 +59,15 @@ class Form:
     interval_minutes: int = 60
 
 
+def _seal(settings: Settings, secret: dict[str, Any]) -> str | None:
+    if not secret:
+        return None
+    try:
+        return seal(settings, json.dumps(secret))
+    except VaultError as e:  # no TL_SECRET_KEY: say so instead of failing the request
+        raise IntegrationError(str(e)) from e
+
+
 def _check(f: Form) -> None:
     if not _NAME.match(f.name):
         raise IntegrationError("Name: 2-63 lower-case letters, digits, - or _")
@@ -119,7 +128,7 @@ async def create(s: AsyncSession, f: Form, *, actor: str, settings: Settings) ->
         kind=f.kind,
         enabled=f.enabled,
         config=config,
-        secret=seal(settings, json.dumps(secret)) if secret else None,
+        secret=_seal(settings, secret),
         allow_internal=f.allow_internal,
         min_score=f.min_score,
         max_tlp=f.max_tlp,
@@ -166,7 +175,7 @@ async def update(s: AsyncSession, i: Integration, f: Form, *, actor: str, settin
     sinks.validate(i.kind, config, secret)  # every required secret is now present
     scope_changed = (i.min_score, i.max_tlp, sorted(i.types)) != (f.min_score, f.max_tlp, sorted(f.types))
     i.enabled, i.config, i.allow_internal = f.enabled, config, f.allow_internal
-    i.secret = seal(settings, json.dumps(secret)) if secret else None
+    i.secret = _seal(settings, secret)
     i.min_score, i.max_tlp, i.types, i.interval_minutes = (
         f.min_score,
         f.max_tlp,

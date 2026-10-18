@@ -70,7 +70,12 @@ async def app(
             _, keys[name] = await create_key(s, name, role, clearance=clearance)
         await create_user(s, "anna", "anna-password", "analyst")
         await create_user(s, "vera", "vera-password", "viewer")
-    settings = Settings(rate_limit_analyst=1000, rate_limit_viewer=1000, **KEYS)  # type: ignore[arg-type]
+    settings = Settings(
+        rate_limit_analyst=1000,
+        rate_limit_viewer=1000,
+        secret_key="test-vault-key-for-the-app-fixture-0123",  # noqa: S106 - a test key, seals test secrets
+        **KEYS,
+    )  # type: ignore[arg-type]
     svc = EnrichmentService(seeded, http, MemoryQuotaStore(), settings, now=Clock())  # the fixture's day
     a = create_app(settings, checks={}, sessionmaker=seeded, limiter=MemoryRateLimiter(), enrich=svc)
     async with (

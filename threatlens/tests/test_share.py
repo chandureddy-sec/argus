@@ -774,3 +774,16 @@ async def test_basic_auth_carries_the_api_key(app: App) -> None:
     bad = {"Authorization": "Basic " + base64.b64encode(b"ignored:tl_wrong").decode()}
     assert (await app.c.get("/api/v1/indicators", headers=bad)).status_code == 401
     assert (await app.c.get("/api/v1/indicators", headers={"Authorization": "Basic !!"})).status_code == 401
+
+
+async def test_integration_without_a_vault_key_is_refused_cleanly(app: App) -> None:
+    await _admin(app)
+    app.c._transport.app.state.settings = app.c._transport.app.state.settings.model_copy(  # type: ignore[attr-defined]
+        update={"secret_key": None}
+    )
+    await app.login("ada")  # the key also signs sessions: sign in again
+    cfg = {"url": "https://s.example"}
+    body = {"name": "hec", "kind": "splunk_hec", "config": cfg, "secret": {"token": "t"}}
+    r = await app.c.post("/api/v1/integrations", json=body, headers=SAME)
+    assert r.status_code == 422
+    assert "TL_SECRET_KEY" in r.json()["detail"]
