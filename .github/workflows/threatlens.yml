@@ -1,11 +1,11 @@
-name: ThreatLens CI
+name: Argus CI
 
 on:
   push:
     branches: [main, master]
-    paths: ["threatlens/**", ".github/workflows/threatlens.yml"]
+    paths: ["threatlens/**", "web/**", "deploy/**", ".github/workflows/threatlens.yml"]
   pull_request:
-    paths: ["threatlens/**", ".github/workflows/threatlens.yml"]
+    paths: ["threatlens/**", "web/**", "deploy/**", ".github/workflows/threatlens.yml"]
 
 permissions:
   contents: read
@@ -19,8 +19,8 @@ jobs:
     name: Lint & type-check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
         with: { enable-cache: true }
       - run: uv sync --frozen
       - run: uv run ruff check src tests migrations
@@ -46,21 +46,21 @@ jobs:
       TL_REDIS_URL: redis://localhost:6379/0
       TL_INTEGRATION: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
         with: { enable-cache: true }
       - run: uv sync --frozen
       - run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: coverage, path: threatlens/coverage.xml }
 
   security:
     name: Security scans
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.3.0
         with: { enable-cache: true }
       - run: uv sync --frozen
       - name: bandit (SAST)
@@ -73,22 +73,36 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
 
+  web:
+    name: Argus web (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm, cache-dependency-path: web/package-lock.json }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+
   image:
     name: Image build, scan & SBOM
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build image
-        run: docker build -t threatlens:ci .
+        run: docker build --build-context webapp-src=../web -t threatlens:ci .
       - name: Trivy (image vulnerabilities)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: threatlens:ci
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
       - name: SBOM (CycloneDX)
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@v0.24.3
         with:
           image: threatlens:ci
           format: cyclonedx-json

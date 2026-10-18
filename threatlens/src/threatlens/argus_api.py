@@ -167,7 +167,8 @@ async def verify_stream(
         await _limit(request, who, "verify", VERIFY_PER_MINUTE)
         async with _sm(request)() as s:
             found = await internal.lookup(s, q, who.clearance)
-        assert found is not None
+        if found is None:  # is_internal() said yes, so lookup always answers
+            raise HTTPException(500, "internal lookup returned nothing")
         query = {
             "type": f"ipv{found['version']}",
             "typeLabel": f"Internal IPv{found['version']} address",
@@ -885,9 +886,9 @@ DEFAULT_SSO_CONFIG = {
     "default_role": "analyst",
     "auto_provision": True,
     "providers": {
-        "google": {"enabled": False, "client_id": "", "client_secret": "", "hosted_domain": ""},
-        "microsoft": {"enabled": False, "client_id": "", "client_secret": "", "tenant": "common"},
-        "okta": {"enabled": False, "client_id": "", "client_secret": "", "domain": ""},
+        "google": {"enabled": False, "client_id": "", "client_secret": "", "hosted_domain": ""},  # nosec B105
+        "microsoft": {"enabled": False, "client_id": "", "client_secret": "", "tenant": "common"},  # nosec B105
+        "okta": {"enabled": False, "client_id": "", "client_secret": "", "domain": ""},  # nosec B105
     },
 }
 

@@ -489,7 +489,7 @@ async def blocks_for(s: AsyncSession, keys: Sequence[str], now: datetime | None 
 
 # ── feed tokens ──────────────────────────────────────────────────────────────
 
-TOKEN_PREFIX = "tlf_"  # noqa: S105  # a public marker, not a secret
+TOKEN_PREFIX = "tlf_"  # noqa: S105  # nosec B105  # a public marker, not a secret
 
 
 def _hash(token: str) -> str:

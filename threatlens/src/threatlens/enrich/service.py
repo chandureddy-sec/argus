@@ -525,7 +525,8 @@ class EnrichmentService:
         ):  # fmt: skip
             if kind == "done":
                 final = data
-        assert final is not None  # the stream always ends with "done"
+        if final is None:  # the stream always ends with "done"
+            raise RuntimeError("lookup stream ended without a result")
         return final
 
     async def lookup_stream(
