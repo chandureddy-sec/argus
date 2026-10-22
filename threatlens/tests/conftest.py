@@ -18,6 +18,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # the real (initially blank) one. Set before any Settings is built.
 os.environ.setdefault("TL_PROFILE_PATH", str(FIXTURES / "example_org_profile.yaml"))
 os.environ.setdefault("TL_PIRS_PATH", str(FIXTURES / "example_pirs.yaml"))
+os.environ.setdefault("TL_DASHBOARD_CACHE_S", "0")  # tests change data between calls
 
 
 def fixture_bytes(name: str) -> bytes:

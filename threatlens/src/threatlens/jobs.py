@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens.allowlist import Entry, fetch_cloudflare, fetch_fastly, fetch_tranco, org_profile_entries
@@ -118,6 +119,16 @@ async def refresh_allowlists(
     return out
 
 
+async def analyze(sm: async_sessionmaker[AsyncSession]) -> None:
+    """Refresh planner statistics (Postgres). They are lost after an unclean
+    shutdown, and the nightly rescore rewrites every indicator (Phase 9)."""
+    async with sm() as s:
+        conn = await s.connection()
+        if conn.dialect.name == "postgresql":
+            await conn.execute(text("ANALYZE"))
+            await s.commit()
+
+
 async def daily_scoring(sm: async_sessionmaker[AsyncSession], settings: Settings) -> dict[str, Any]:
     """The daily scoring job (ADR 0008), in order: re-derive source weights
     from analyst feedback, recompute vulnerability patch priorities (CVE
@@ -128,6 +139,7 @@ async def daily_scoring(sm: async_sessionmaker[AsyncSession], settings: Settings
         changes = await recompute_source_weights(s, cfg, actor="worker")
     vulns = await rescore_vulns(sm, settings, cfg=cfg)
     res = await rescore(sm, settings)
+    await analyze(sm)
     out = {
         "config": cfg.tag,
         "source_weight_changes": len(changes),

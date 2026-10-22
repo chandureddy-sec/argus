@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from threatlens import assets, blocking
 from threatlens import tlp as tlp_rules
 from threatlens.api.v1 import Viewer, _sm
+from threatlens.auth import Principal
 from threatlens.ioc.extract import defang_text
 from threatlens.models import (
     Block,
@@ -33,6 +34,7 @@ from threatlens.models import (
     Verdict,
 )
 from threatlens.models import Observable as ObsRow
+from threatlens.respcache import cached
 from threatlens.webapp import MALICIOUS, SUSPICIOUS
 
 router = APIRouter(prefix="/app/api", include_in_schema=False)
@@ -85,6 +87,10 @@ async def threatmap(
     """Located indicator IPs grouped by place. ``landscape``: every active IP
     indicator with a stored location; ``acted``: only the ones we blocked or
     an analyst confirmed malicious."""
+    return await cached(request, ("threatmap", who.clearance, mode), lambda: _threatmap(request, who, mode))
+
+
+async def _threatmap(request: Request, who: Principal, mode: str) -> dict[str, Any]:
     now = datetime.now(UTC)
     async with _sm(request)() as s:
         vis = Indicator.tlp.in_(tlp_rules.readable(who.clearance))
@@ -201,6 +207,10 @@ async def calendar(
 ) -> dict[str, Any]:
     """One month, day by day: new indicators (and how many scored malicious),
     cases opened and blocks placed. Each day links to its indicators."""
+    return await cached(request, ("calendar", who.clearance, month), lambda: _calendar(request, who, month))
+
+
+async def _calendar(request: Request, who: Principal, month: str | None) -> dict[str, Any]:
     today = datetime.now(UTC).date()
     try:
         first = date.fromisoformat(f"{month}-01") if month else today.replace(day=1)

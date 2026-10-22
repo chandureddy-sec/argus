@@ -41,6 +41,7 @@ from threatlens.models import (
     User,
 )
 from threatlens.models import Observable as ObsRow
+from threatlens.respcache import cached
 from threatlens.settings import Settings, get_settings
 from threatlens.users import authenticate_user, login_key
 
@@ -254,6 +255,10 @@ async def me(request: Request) -> dict[str, Any]:
 @api.get("/kpis")
 async def kpis(request: Request) -> list[dict[str, Any]]:
     p = await _me(request)
+    return await cached(request, ("kpis", p.clearance), lambda: _kpis(request, p))
+
+
+async def _kpis(request: Request, p: Principal) -> list[dict[str, Any]]:
     now = _now()
     week_ago = now - timedelta(days=7)
     vis = Indicator.tlp.in_(tlp_rules.readable(p.clearance))
@@ -326,6 +331,10 @@ async def activity(request: Request, range_: Annotated[str, Query(alias="range")
     """New indicators per period, split by today's verdict, and the total
     against the previous period of the same length."""
     p = await _me(request)
+    return await cached(request, ("activity", p.clearance, range_), lambda: _activity(request, p, range_))
+
+
+async def _activity(request: Request, p: Principal, range_: str) -> dict[str, Any]:
     rng: Range = range_ if range_ in ("Year", "Month", "Week", "Day") else "Year"  # type: ignore[assignment]
     now = _now()
     start, step, buckets = _buckets(rng, now)
@@ -375,6 +384,10 @@ async def activity(request: Request, range_: Annotated[str, Query(alias="range")
 async def types(request: Request, scope: str = "Active") -> dict[str, Any]:
     """Indicators by type (the rings) within the reader's clearance."""
     p = await _me(request)
+    return await cached(request, ("types", p.clearance, scope), lambda: _types(request, p, scope))
+
+
+async def _types(request: Request, p: Principal, scope: str) -> dict[str, Any]:
     vis = Indicator.tlp.in_(tlp_rules.readable(p.clearance))
     where: list[Any] = [vis]
     if scope == "Active":

@@ -110,6 +110,10 @@ class Settings(BaseSettings):
     # Alerts: at most this many messages per channel per hour; the rest are summarised.
     alert_max_per_hour: int = Field(default=20, ge=1, le=1000)
 
+    # Dashboard aggregates (home KPIs, landscape, threat map, calendar) are cached this
+    # many seconds per TLP clearance; 0 turns the cache off (Phase 9).
+    dashboard_cache_s: float = Field(default=30.0, ge=0, le=3600)
+
     # Production and AI (Phase 8, ADR 0021, 0022).
     # The most sensitive content a generated product may include.
     products_max_tlp: Literal["TLP:CLEAR", "TLP:GREEN", "TLP:AMBER"] = "TLP:GREEN"

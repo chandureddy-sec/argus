@@ -17,12 +17,14 @@ from threatlens import assets, dashboard
 from threatlens import cases as case_store
 from threatlens import tlp as tlp_rules
 from threatlens.api.v1 import Viewer, _app_settings, _sm
+from threatlens.auth import Principal
 from threatlens.enrich.base import REGISTRY as ENRICHERS
 from threatlens.ioc.extract import defang_text
 from threatlens.kb import graph
 from threatlens.kb.ids import alias_key
 from threatlens.models import Enrichment, Entity, EntityAlias, Indicator, Sighting, Vulnerability
 from threatlens.models import Observable as ObsRow
+from threatlens.respcache import cached
 
 router = APIRouter(prefix="/app/api", include_in_schema=False)
 
@@ -49,6 +51,10 @@ def _vuln(v: Vulnerability, products: dict[int, str]) -> dict[str, Any]:
 async def landscape(who: Viewer, request: Request) -> dict[str, Any]:
     """The threat landscape for the home page: what to look at first, who is
     active, what is being exploited, where, and what changed this week."""
+    return await cached(request, ("landscape", who.clearance), lambda: _landscape(request, who))
+
+
+async def _landscape(request: Request, who: Principal) -> dict[str, Any]:
     now = datetime.now(UTC)
     settings = _app_settings(request)
     async with _sm(request)() as s:

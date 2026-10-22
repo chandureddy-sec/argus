@@ -143,7 +143,23 @@ class Observable(Base):
 
     indicator: Mapped[Indicator | None] = relationship(back_populates="observable", uselist=False)
 
-    __table_args__ = (Index("ix_observables_type_last_seen", "type", "last_seen"),)
+    __table_args__ = (
+        # Lists newest first per type, with id as the tie-breaker (Phase 9: 79 ms -> 0.2 ms).
+        Index("ix_observables_type_seen", "type", "last_seen", "id"),
+        # Substring search (Argus and /indicators?q=): trigram indexes, Postgres only.
+        Index(
+            "ix_observables_value_trgm",
+            "value",
+            postgresql_using="gin",
+            postgresql_ops={"value": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_observables_defanged_trgm",
+            "defanged",
+            postgresql_using="gin",
+            postgresql_ops={"defanged": "gin_trgm_ops"},
+        ),
+    )
 
 
 class Indicator(Base):
@@ -185,6 +201,7 @@ class Indicator(Base):
         CheckConstraint("analyst_verdict IN ('tp','fp')", name="analyst_verdict"),
         Index("ix_indicators_status_updated", "status", "updated_at"),
         Index("ix_indicators_status_priority", "status", "priority_score"),
+        Index("ix_indicators_created", "created_at", "id"),  # Argus lists, products, calendar
     )
 
 

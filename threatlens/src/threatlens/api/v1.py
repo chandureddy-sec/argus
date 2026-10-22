@@ -337,13 +337,13 @@ async def list_indicators(
     if q is not None:
         # Parameterized LIKE with the wildcards in user input escaped.
         pattern = "%" + q.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        stmt = stmt.where(func.lower(ObsRow.value).like(pattern, escape="\\"))
+        stmt = stmt.where(ObsRow.value.ilike(pattern, escape="\\"))  # trigram-indexed on Postgres
     async with _sm(request)() as s:
         total = int(await s.scalar(select(func.count()).select_from(stmt.subquery())) or 0)
         order = (
             (Indicator.priority_score.desc().nulls_last(), Indicator.id.desc())
             if sort == "priority"
-            else (ObsRow.last_seen.desc(), Indicator.id.desc())
+            else (ObsRow.last_seen.desc(), ObsRow.id.desc())  # ix_observables_type_seen
         )
         rows = (await s.execute(stmt.order_by(*order).limit(limit).offset(offset))).all()
         ids = [ind.id for ind, _ in rows]
