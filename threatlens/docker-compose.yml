@@ -16,6 +16,9 @@ x-app: &app
     TL_DATABASE_URL: postgresql+asyncpg://threatlens:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/threatlens
     TL_REDIS_URL: redis://redis:6379/0
     TL_RECONX_URL: http://reconx:8787
+    # API worker processes; uvicorn reads it, the others ignore it. One worker serves about
+    # 100 cached lookups/s, two about 210 (docs/PERFORMANCE.md).
+    WEB_CONCURRENCY: ${TL_API_WORKERS:-2}
   read_only: true
   tmpfs: [/tmp]
   security_opt: ["no-new-privileges:true"]

@@ -144,7 +144,7 @@ class Observable(Base):
     indicator: Mapped[Indicator | None] = relationship(back_populates="observable", uselist=False)
 
     __table_args__ = (
-        # Lists newest first per type, with id as the tie-breaker (Phase 9: 79 ms -> 0.2 ms).
+        # Lists newest first per type, with id as the tie-breaker: no sort step (docs/PERFORMANCE.md).
         Index("ix_observables_type_seen", "type", "last_seen", "id"),
         # Substring search (Argus and /indicators?q=): trigram indexes, Postgres only.
         Index(
