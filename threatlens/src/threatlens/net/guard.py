@@ -49,8 +49,13 @@ def is_public(ip: IPAddress) -> bool:
     """True only for globally routable unicast addresses."""
     if isinstance(ip, ipaddress.IPv6Address):
         inner = _embedded_v4(ip)
-        if inner is not None and not is_public(inner):
-            return False
+        if inner is not None:
+            # A v6 carrying a translated v4 (NAT64, 6to4, Teredo, IPv4-mapped)
+            # is a route to the embedded v4; publicness is decided there. The
+            # outer v6 sits in a translation prefix that is_global / the extra
+            # blocklist would otherwise reject even when the embedded v4 is
+            # perfectly public (e.g. a DNS64 resolver returning 64:ff9b::<pub>).
+            return is_public(inner)
     if not ip.is_global or ip.is_multicast:
         return False
     return not any(ip in net for net in _EXTRA_BLOCKED if net.version == ip.version)

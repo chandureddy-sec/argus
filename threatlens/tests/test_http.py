@@ -53,7 +53,20 @@ def test_non_public_addresses_are_blocked(addr: str) -> None:
     assert not is_public(ipaddress.ip_address(addr))
 
 
-@pytest.mark.parametrize("addr", ["1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"])
+@pytest.mark.parametrize(
+    "addr",
+    [
+        "1.1.1.1",
+        "8.8.8.8",
+        "2606:4700:4700::1111",
+        # NAT64 wrappers of public IPv4 — DNS64 resolvers synthesize these
+        # when the client has only IPv6 egress. The embedded v4 is public,
+        # so the whole address must be treated as public too.
+        "64:ff9b::3402:f501",  # NAT64 wrapping 52.2.245.1 (AWS)
+        "64:ff9b::808:808",  # NAT64 wrapping 8.8.8.8
+        "::ffff:1.1.1.1",  # IPv4-mapped v6 of a public v4
+    ],
+)
 def test_public_addresses_pass(addr: str) -> None:
     assert is_public(ipaddress.ip_address(addr))
 
