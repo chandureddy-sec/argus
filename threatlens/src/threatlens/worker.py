@@ -23,7 +23,9 @@ Run with: ``arq threatlens.worker.WorkerSettings``
 
 from __future__ import annotations
 
+import asyncio
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
 from dataclasses import asdict
 from typing import Any, ClassVar
@@ -44,12 +46,46 @@ from threatlens.settings import get_settings
 log = get_logger("threatlens.worker")
 
 HEARTBEAT_KEY = "threatlens:worker:heartbeat"
+HEARTBEAT_TTL_S = 600
+# A long paced job keeps the heartbeat fresh through its pacing sleeps, so the
+# 5-min heartbeat cron being starved for the length of the run doesn't flip the
+# worker unhealthy. The NVD sync can pace for ~15 min (6.5 s between requests
+# without a key); the cron's TTL is only 600 s. Throttled so a fast loop of
+# short sleeps doesn't write to Redis on every tick.
+HEARTBEAT_REFRESH_EVERY_S = 60
 COLLECT_TIMEOUT_S = 15 * 60
+
+
+async def _beat(redis: Any) -> None:
+    await redis.set(HEARTBEAT_KEY, str(int(time.time())), ex=HEARTBEAT_TTL_S)
 
 
 async def heartbeat(ctx: dict[str, Any]) -> None:
     """Record that the worker is alive; the API can surface its age later."""
-    await ctx["redis"].set(HEARTBEAT_KEY, str(int(time.time())), ex=600)
+    await _beat(ctx["redis"])
+
+
+def heartbeat_sleep(ctx: dict[str, Any]) -> Callable[[float], Awaitable[None]]:
+    """A pacing sleep that also refreshes the heartbeat.
+
+    Collectors pace their requests through this callable, so wiring it to the
+    heartbeat means a long run (the NVD sync, above all) stays healthy even
+    while the heartbeat cron gets no turn. The refresh is throttled to
+    ``HEARTBEAT_REFRESH_EVERY_S`` and a Redis hiccup is logged, never raised:
+    a liveness refresh must not fail the job it is riding on.
+    """
+
+    async def sleep(delay: float) -> None:
+        await asyncio.sleep(delay)
+        now = time.time()
+        if now - ctx.get("last_beat", 0.0) >= HEARTBEAT_REFRESH_EVERY_S:
+            ctx["last_beat"] = now
+            try:
+                await _beat(ctx["redis"])
+            except Exception as e:  # liveness refresh is best-effort
+                log.warning("worker.heartbeat_refresh_failed", error=str(e)[:200])
+
+    return sleep
 
 
 async def collect_source(ctx: dict[str, Any], name: str, force: bool = False) -> dict[str, Any]:
@@ -169,7 +205,8 @@ async def startup(ctx: dict[str, Any]) -> None:
     s = get_settings()
     configure_logging(s.log_level, s.log_json)
     stack = AsyncExitStack()
-    ctx["collector"] = await stack.enter_async_context(open_collector(s))
+    ctx["last_beat"] = time.time()
+    ctx["collector"] = await stack.enter_async_context(open_collector(s, sleep=heartbeat_sleep(ctx)))
     http = await stack.enter_async_context(enrichment_http(s))
     ctx["enrich"] = EnrichmentService(ctx["collector"].sm, http, RedisQuotaStore(ctx["redis"]), s)
     ctx["recon"] = Engine(s.reconx_url) if s.reconx_url else None
