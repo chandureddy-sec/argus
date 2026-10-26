@@ -26,18 +26,25 @@ http://127.0.0.1:8000/app/ (Argus; sign in with that username and password). Man
 `.\tl passwd NAME` and `.\tl users list|role|disable|enable`. API keys (`.\tl key NAME analyst`)
 are for programs such as ReconX, not for signing in. After changing code, `.\tl up --build`.
 
-## Quickstart (any OS)
+## Quickstart (Linux / macOS)
 
-Requirements: [uv](https://docs.astral.sh/uv/) and Docker (Desktop on Windows).
+Requirements: Docker Engine (or Docker Desktop) and the Compose plugin.
 
 ```bash
 cd threatlens
-cp .env.example .env            # set POSTGRES_PASSWORD
-docker compose up -d --build --wait
+./start.sh                                                     # creates .env with random secrets, builds, starts, waits for health
+docker compose exec worker threatlens users create "your name" --role admin
 curl http://127.0.0.1:8000/readyz
 ```
 
 Expected: `{"status":"ready","checks":{"postgres":{"ok":true,…},"redis":{"ok":true,…}}}`
+
+`start.sh` is safe to re-run and preserves `.env` and data. Options:
+`--build` (rebuild images), `--no-pull` (skip the Docker Hub preflight for
+offline / air-gapped use). To stop: `./stop.sh` (data kept) or
+`./stop.sh --volumes` (destructive, confirmation required).
+Troubleshooting (corporate CA, port conflicts, image-pull failures) is in the
+[top-level README](../README.md#troubleshooting).
 
 Then create an API key and look at what the worker has collected:
 

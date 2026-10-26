@@ -93,15 +93,34 @@ Other launcher commands: `.\tl status`, `.\tl logs`, `.\tl down` (keeps data),
 ```bash
 git clone https://github.com/chandureddy-sec/argus.git
 cd argus/threatlens
-cp .env.example .env
-# edit .env: set POSTGRES_PASSWORD, and add TL_SECRET_KEY=<a long random string>
-docker compose up -d --build --wait
-docker compose exec api threatlens users create "your name" --role admin
+./start.sh                                                      # creates .env with random secrets, builds and starts everything
+docker compose exec worker threatlens users create "your name" --role admin
 ```
+
+`start.sh` checks Docker, pre-tests the Docker Hub TLS trust chain, writes a
+`.env` with a random `POSTGRES_PASSWORD` + `TL_SECRET_KEY`, builds the images,
+waits for every container to report healthy, and prints the URL and the next
+commands. Re-running it is safe: existing `.env` and data volumes are kept.
+Stop with `./stop.sh` (data preserved) or `./stop.sh --volumes` (destructive;
+confirmation required).
 
 The first feed pulls take a few minutes; the Reports page fills in as they land.
 The API listens on `127.0.0.1` only. Put a TLS reverse proxy in front of it
 before exposing it to a network.
+
+### Troubleshooting
+
+| Symptom | What it means | What to do |
+|---|---|---|
+| `x509: certificate signed by unknown authority` during image pull | A corporate proxy / TLS-inspection appliance re-signs HTTPS, and the Docker daemon doesn't trust its root CA. | Get the CA from your IT team, verify the fingerprint, install it in the **host** OS trust store (and inside the WSL distro if using Docker Desktop + WSL2), then restart the Docker daemon. `start.sh` prints the exact OS commands when it detects this. **Argus never disables TLS verification.** |
+| `dial tcp: lookup ...: no such host` | DNS or egress blocked. | Check `docker run --rm alpine ping -c1 1.1.1.1`, your VPN, and `/etc/systemd/system/docker.service.d/http-proxy.conf` if behind a proxy. |
+| `toomanyrequests: Rate limit` from Docker Hub | Anonymous pull quota exhausted on shared NAT. | `docker login` with a Docker ID, or wait and retry. |
+| `Bind for 127.0.0.1:5432 failed: port is already allocated` | Host already runs Postgres / Redis / another service on that port. | Set `TL_API_PORT`, `TL_DB_PORT` or `TL_REDIS_PORT` in `threatlens/.env`, then re-run `./start.sh`. Containers keep internal ports. |
+| `migrate` service exits non-zero on first run | DB wasn't healthy yet, or an old partially-migrated volume. | `docker compose logs migrate`; `./start.sh` once more to re-run migrations. For a known-bad local state, `./stop.sh --volumes` wipes data and starts fresh. |
+| `/readyz` reports `postgres.ok=false` after startup | Postgres container still starting or password mismatch between an existing `pgdata` volume and `.env`. | `docker compose logs db`. If you rotated `POSTGRES_PASSWORD` after the volume was created, you must either revert it or `./stop.sh --volumes` to re-initialize. |
+| `./start.sh: command not found` on bash | Script lacks the executable bit after a non-git copy. | `chmod +x threatlens/start.sh threatlens/stop.sh`. |
+
+Full operational details: [threatlens/README.md](threatlens/README.md).
 
 ---
 

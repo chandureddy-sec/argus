@@ -31,11 +31,10 @@ security:
 	uv run pip-audit
 
 up:
-	test -f .env || cp .env.example .env
-	docker compose up -d --build --wait
+	@if [ -x ./start.sh ]; then ./start.sh --build; else test -f .env || cp .env.example .env; docker compose up -d --build --wait; fi
 
 down:
-	docker compose down
+	@if [ -x ./stop.sh ]; then ./stop.sh; else docker compose down; fi
 
 logs:
 	docker compose logs -f api worker
