@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"reconx/internal/archive"
-	"reconx/internal/dns"
 	"reconx/internal/intel"
 	reporter "reconx/internal/report"
 	"reconx/internal/storage"
@@ -118,7 +117,7 @@ func RunScanPipeline(ctx context.Context, opts ScanOptions, progress func(Progre
 		}
 
 		emit("dns", "Resolving DNS records…", 14, "info")
-		if res, err := dns.NewResolver(nil, 5*time.Second).Lookup(ctx, parsed.Value); err == nil {
+		if res, err := activeRecordResolver().Resolve(ctx, parsed.Value); err == nil {
 			report.DNS = res
 		}
 

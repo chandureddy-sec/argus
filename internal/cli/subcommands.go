@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"reconx/internal/config"
 	"reconx/internal/dns"
 	"reconx/internal/enrich"
 	"reconx/internal/providers"
@@ -91,6 +92,18 @@ var subdomainsCmd = &cobra.Command{
 	},
 }
 
+// activeRecordResolver builds the DNS record-resolver provider from the active
+// config (honoring --config and dns.provider), falling back to defaults so
+// resolution never silently breaks. Default provider is the system port-53
+// resolver; set dns.provider: google to use Google Public DNS over HTTPS.
+func activeRecordResolver() dns.RecordResolver {
+	cfg, err := config.Load(cfgFile)
+	if err != nil || cfg == nil {
+		cfg = config.DefaultConfig()
+	}
+	return dns.NewRecordResolver(cfg)
+}
+
 var dnsCmd = &cobra.Command{
 	Use:   "dns",
 	Short: "Query DNS records (A, AAAA, MX, NS, TXT, SOA, CAA, SPF, DMARC) for a domain",
@@ -111,10 +124,12 @@ var dnsCmd = &cobra.Command{
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		resolver := dns.NewResolver(nil, 5*time.Second)
-		res, err := resolver.Lookup(ctx, t.Value)
+		res, err := activeRecordResolver().Resolve(ctx, t.Value)
 		if err != nil {
 			return fmt.Errorf("DNS resolution error: %w", err)
+		}
+		if !silent {
+			fmt.Printf("[*] resolver: %s · status: %s\n", res.Resolver, res.Status)
 		}
 
 		if silent {

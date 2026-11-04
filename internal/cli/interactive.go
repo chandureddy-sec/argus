@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"reconx/internal/dns"
 	"reconx/internal/orchestrator"
 	reporter "reconx/internal/report"
 	"reconx/internal/storage"
@@ -181,8 +180,7 @@ func RunAutomatedRecon(rawTarget string) {
 
 	// 3. DNS Infrastructure Records
 	if parsedTarget.Type == models.TargetTypeDomain {
-		dnsResolver := dns.NewResolver(nil, 5*time.Second)
-		dnsRes, err := dnsResolver.Lookup(ctx, parsedTarget.Value)
+		dnsRes, err := activeRecordResolver().Resolve(ctx, parsedTarget.Value)
 		if err == nil && len(dnsRes.Records) > 0 {
 			report.DNS = dnsRes
 			ui.PrintSectionTitle("DNS Infrastructure Records", len(dnsRes.Records))
