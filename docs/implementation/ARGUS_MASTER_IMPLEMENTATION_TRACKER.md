@@ -1,11 +1,11 @@
 # Argus — Master Implementation Tracker
 
 **Single source of truth for task status.** Reconciles the external
-[`THREAT_INTELLIGENCE_AND_RECONNAISSANCE_BUILD_GUIDE.md`](../TEST%20FILE/THREAT_INTELLIGENCE_AND_RECONNAISSANCE_BUILD_GUIDE.md)
+[`THREAT_INTELLIGENCE_AND_RECONNAISSANCE_BUILD_GUIDE.md`](../../../TEST%20FILE/THREAT_INTELLIGENCE_AND_RECONNAISSANCE_BUILD_GUIDE.md)
 (research baseline 25 Oct 2026) against the Argus codebase, its phase log
-([`threatlens/docs/PROGRESS.md`](threatlens/docs/PROGRESS.md)), plan
-([`threatlens/PLAN.md`](threatlens/PLAN.md)) and 22 ADRs
-([`threatlens/docs/adr/`](threatlens/docs/adr/)).
+([`threatlens/docs/PROGRESS.md`](../../threatlens/docs/PROGRESS.md)), plan
+([`threatlens/PLAN.md`](../../threatlens/PLAN.md)) and 22 ADRs
+([`threatlens/docs/adr/`](../../threatlens/docs/adr/)).
 
 - **Reconciled:** 2026-10-26
 - **Companion docs:** [`ARGUS_IMPLEMENTATION_ROADMAP.md`](ARGUS_IMPLEMENTATION_ROADMAP.md) (execution order) · [`ARGUS_IMPLEMENTATION_CHANGELOG.md`](ARGUS_IMPLEMENTATION_CHANGELOG.md) (history)
