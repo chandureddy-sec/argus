@@ -5,15 +5,16 @@ A new product looks related at a glance but stays distinguishable in a browser t
 
 | Product | Mark | Gradient (bottom-left → top-right) | Glyph |
 |---|---|---|---|
-| ThreatLens | `threatlens.svg` | `#ff4fa3` → `#8b5cf6` → `#2ee6f0` | a lens closing in on a threat |
+| ThreatLens | `threatlens.svg` | `#8f9a5b` → `#8b5cf6` → `#2ee6f0` | a lens closing in on a threat |
 | ReconX | `reconx.svg` | `#a7e9c6` → `#34d3b4` → `#22d3ee` | a radar sweep whose beam points at the signal |
 | next product | start from `template.svg` | pick three stops not used above | one idea, drawn in 2–4 strokes |
 
 ## What every mark shares (don't change these)
 * **Frame**: 64 × 64 view box, rounded square `x=3 y=3 w=58 h=58 rx=17`, fill `#0e0b1d`, 2.5 stroke in
   the product gradient.
-* **Signal**: a filled circle at `(48, 16)`, radius 4, family pink `#ff4fa3`. It is the "finding"
-  every product exists to surface. Same place, size and colour everywhere.
+* **Signal**: a filled circle at `(48, 16)`, radius 4, the Argus accent muted olive `#8f9a5b`. It is
+  the "finding" every product exists to surface. Same place, size and colour everywhere. (Pink
+  `#ff4fa3` was retired as a brand colour on 2026-11-04; olive is the single official accent.)
 * **Glyph strokes**: 4.5 wide (5.5 for at most one emphasis stroke), round caps, product gradient,
   inside 13–51 on both axes, clear of the signal corner.
 

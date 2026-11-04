@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-04T00:00:00Z",
+  "title": "Design System: Argus",
+  "extensions": {
+    "colorMeta": {
+      "bg":         { "role": "neutral", "displayName": "Deep Navy-Charcoal", "canonical": "#1b1e26", "light": "#ebe6dc", "tonalRamp": ["#111319", "#1b1e26", "#252a34", "#2d333e", "#363c48", "#4a5160", "#6f7686", "#afaca2"] },
+      "card":       { "role": "neutral", "displayName": "Charcoal-Blue Surface", "canonical": "#252a34", "light": "#faf8f3" },
+      "card-2":     { "role": "neutral", "displayName": "Raised Charcoal", "canonical": "#2d333e", "light": "#f2eee5" },
+      "line":       { "role": "neutral", "displayName": "Divider", "canonical": "#363c48", "light": "#e1dbcf" },
+      "ctl-line":   { "role": "neutral", "displayName": "Control Line", "canonical": "#6f7686", "light": "#8f8778" },
+      "ink":        { "role": "neutral", "displayName": "Soft Grey-Beige", "canonical": "#ece7dc", "light": "#2a2c2e" },
+      "ink-muted":  { "role": "neutral", "displayName": "Muted Beige", "canonical": "#c2beb3", "light": "#5c5a54" },
+      "ink-faint":  { "role": "neutral", "displayName": "Faint Beige", "canonical": "#afaca2", "light": "#64615a" },
+      "accent":     { "role": "primary", "displayName": "Muted Olive", "canonical": "#8f9a5b", "light": "#5f6a34", "note": "Official Argus brand + interface accent. Pink #ff4fa3 retired as a brand colour on 2026-11-04.", "tonalRamp": ["#2b2f1a", "#434a28", "#5f6a34", "#767f46", "#8f9a5b", "#a3ad6c", "#c3c487", "#e3e4c4"] },
+      "accent-soft":{ "role": "primary", "displayName": "Pale Olive", "canonical": "#c3c487", "light": "#535d2b" },
+      "accent-hover":{ "role": "primary", "displayName": "Olive Hover", "canonical": "#a3ad6c", "light": "#4f5929" },
+      "on-accent":  { "role": "primary", "displayName": "On-Accent Ink", "canonical": "#1b1e26", "light": "#faf8f3" },
+      "olive-gold": { "role": "secondary", "displayName": "Olive-Gold", "canonical": "#c2b464", "light": "#8d8536" },
+      "teal":       { "role": "secondary", "displayName": "Teal", "canonical": "#64b3ac", "light": "#2f6e6b" },
+      "terracotta": { "role": "secondary", "displayName": "Terracotta", "canonical": "#e1936b", "light": "#a14f2d" },
+      "sage":       { "role": "secondary", "displayName": "Sage", "canonical": "#9fb38f", "light": "#718c66" },
+      "plum":       { "role": "secondary", "displayName": "Plum", "canonical": "#cd97b5", "light": "#874e6d" },
+      "grey-teal":  { "role": "secondary", "displayName": "Grey-Teal", "canonical": "#7a9ca1", "light": "#5a7f84" },
+      "up":         { "role": "tertiary", "displayName": "Clean Teal-Green", "canonical": "#7fbfa5", "light": "#2d6b58" },
+      "warn":       { "role": "tertiary", "displayName": "Soft Orange", "canonical": "#e9a96b", "light": "#8a500f" },
+      "down":       { "role": "tertiary", "displayName": "Malicious Terracotta", "canonical": "#eb9680", "light": "#a7432c" },
+      "info":       { "role": "tertiary", "displayName": "Monitor Plum", "canonical": "#cfa2c1", "light": "#7f4a6c" }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display", "purpose": "Large KPI metric values; tabular numerals." },
+      "headline": { "displayName": "Headline", "purpose": "Product and page titles / wordmark." },
+      "title":    { "displayName": "Title", "purpose": "Card headers." },
+      "body":     { "displayName": "Body", "purpose": "Default UI text, nav items, table cells." },
+      "label":    { "displayName": "Label", "purpose": "Field labels and card subtitles; muted." },
+      "mono":     { "displayName": "Value / Mono", "purpose": "IPs, hashes, domains, CVE ids, tokens." }
+    },
+    "shadows": [
+      { "name": "card", "value": "0 1px 0 rgb(255 255 255 / 0.025) inset, 0 10px 30px -18px rgb(0 0 0 / 0.6)", "purpose": "Resting lift under every card (dark theme)." },
+      { "name": "pop", "value": "0 16px 40px -12px rgb(0 0 0 / 0.55)", "purpose": "Dialogs, menus, popovers (dark theme)." },
+      { "name": "sel", "value": "0 1px 2px rgb(0 0 0 / 0.35)", "purpose": "Quiet neutral lift on a selected tab or primary button; what shadow-glow maps to. Never a colored glow." }
+    ],
+    "motion": [
+      { "name": "rise", "value": "rise .45s cubic-bezier(.2,.7,.2,1) backwards", "purpose": "Card entrance: 6px up + fade; staggerable; disabled under reduced-motion." },
+      { "name": "theme-transition", "value": "background-color .2s ease, color .2s ease", "purpose": "Smooth crossfade when toggling light/dark." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single most important action in a view.",
+      "html": "<button class=\"ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 12h-4l-3 9L9 3l-3 9H2\"/></svg>Verify an indicator</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px; border: none; border-radius: 10px; background: #8f9a5b; color: #1b1e26; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 13px; font-weight: 500; box-shadow: 0 1px 2px rgb(0 0 0 / 0.35); cursor: pointer; transition: background-color .15s ease; } .ds-btn-primary:hover { background: #a3ad6c; } .ds-btn-primary:focus-visible { outline: 2px solid #8f9a5b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Default for secondary actions.",
+      "html": "<button class=\"ds-btn-ghost\">Export</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px; border: 1px solid #6f7686; border-radius: 10px; background: rgb(45 51 62 / 0.6); color: #c2beb3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: color .15s ease, border-color .15s ease; } .ds-btn-ghost:hover { color: #ece7dc; border-color: rgb(143 154 91 / 0.4); } .ds-btn-ghost:focus-visible { outline: 2px solid #8f9a5b; outline-offset: 2px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard control field; tonal focus, no glow.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search IOC, CVE, malware…\" />",
+      "css": ".ds-input { height: 36px; width: 240px; padding: 0 12px; border: 1px solid #6f7686; border-radius: 10px; background: rgb(45 51 62 / 0.7); color: #ece7dc; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 14px; outline: none; transition: border-color .15s ease, box-shadow .15s ease; } .ds-input::placeholder { color: #afaca2; } .ds-input:focus { border-color: rgb(143 154 91 / 0.6); box-shadow: 0 0 0 2px rgb(143 154 91 / 0.2); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The primary container for all content.",
+      "html": "<section class=\"ds-card\"><header class=\"ds-card-head\"><h2>Threat landscape</h2><p>Active this week</p></header><div class=\"ds-card-body\">Content</div></section>",
+      "css": ".ds-card { border: 1px solid #363c48; border-radius: 16px; background: #252a34; padding: 24px; box-shadow: 0 1px 0 rgb(255 255 255 / 0.025) inset, 0 10px 30px -18px rgb(0 0 0 / 0.6); font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #ece7dc; } .ds-card-head { margin-bottom: 20px; } .ds-card-head h2 { margin: 0; font-size: 15px; font-weight: 600; color: #ece7dc; } .ds-card-head p { margin: 4px 0 0; font-size: 13px; color: #c2beb3; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Tab-style single-select; the active segment gets the olive fill + quiet lift.",
+      "html": "<div class=\"ds-seg\" role=\"tablist\"><button role=\"tab\" aria-selected=\"true\">7d</button><button role=\"tab\" aria-selected=\"false\">30d</button><button role=\"tab\" aria-selected=\"false\">90d</button></div>",
+      "css": ".ds-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #6f7686; border-radius: 10px; background: rgb(45 51 62 / 0.6); } .ds-seg button { height: 28px; padding: 0 12px; border: none; border-radius: 8px; background: transparent; color: #c2beb3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: color .15s ease, background-color .15s ease; } .ds-seg button:hover { color: #ece7dc; } .ds-seg button[aria-selected=\"true\"] { background: #8f9a5b; color: #1b1e26; box-shadow: 0 1px 2px rgb(0 0 0 / 0.35); }"
+    },
+    {
+      "name": "KPI Tile",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "A single metric with a tinted hue glyph, big tabular value, and change badge.",
+      "html": "<div class=\"ds-kpi\"><div class=\"ds-kpi-top\"><span class=\"ds-kpi-glyph\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 2a10 10 0 0 1 10 10\"/></svg></span><span class=\"ds-kpi-label\">Assets discovered</span></div><div class=\"ds-kpi-val\">48.8K<span class=\"ds-kpi-change\">+2.4%</span></div><span class=\"ds-kpi-hint\">across 12 domains</span></div>",
+      "css": ".ds-kpi { display: flex; flex-direction: column; gap: 12px; padding: 16px 20px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-kpi-top { display: flex; align-items: center; gap: 8px; } .ds-kpi-glyph { display: inline-flex; align-items: center; justify-content: center; height: 28px; width: 28px; border-radius: 8px; background: rgb(100 179 172 / 0.12); color: #64b3ac; box-shadow: 0 0 0 1px rgb(100 179 172 / 0.25); } .ds-kpi-label { font-size: 13px; color: #c2beb3; } .ds-kpi-val { display: flex; align-items: flex-end; gap: 10px; font-size: 28px; font-weight: 700; line-height: 1; letter-spacing: -0.01em; color: #ece7dc; font-variant-numeric: tabular-nums; } .ds-kpi-change { display: inline-flex; align-items: center; border-radius: 9999px; padding: 2px 8px; background: rgb(127 191 165 / 0.1); box-shadow: 0 0 0 1px rgb(127 191 165 / 0.2); color: #7fbfa5; font-size: 11px; font-weight: 600; } .ds-kpi-hint { font-size: 12px; color: #afaca2; }"
+    },
+    {
+      "name": "Sidebar Nav Child",
+      "kind": "nav",
+      "refersTo": "button-primary",
+      "description": "An active navigation leaf: olive wash, marker bar on the rail.",
+      "html": "<ul class=\"ds-nav\"><li><a class=\"ds-nav-item is-active\" href=\"#\">Indicators</a></li><li><a class=\"ds-nav-item\" href=\"#\">Vulnerabilities</a></li></ul>",
+      "css": ".ds-nav { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 1px solid #363c48; display: flex; flex-direction: column; gap: 2px; } .ds-nav-item { position: relative; display: flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 10px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 13.5px; color: #c2beb3; text-decoration: none; transition: color .15s ease, background-color .15s ease; } .ds-nav-item:hover { background: #2d333e; color: #ece7dc; } .ds-nav-item.is-active { background: rgb(143 154 91 / 0.14); color: #ece7dc; font-weight: 500; } .ds-nav-item.is-active::before { content: \"\"; position: absolute; left: -13px; top: 50%; transform: translateY(-50%); height: 20px; width: 2px; border-radius: 9999px; background: #8f9a5b; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A rounded value/tag; status variants use a tint + ring.",
+      "html": "<span class=\"ds-chip\">TLP:AMBER</span> <span class=\"ds-chip ds-chip-down\">malicious</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; border-radius: 9999px; padding: 2px 8px; background: rgb(194 190 179 / 0.14); color: #c2beb3; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 11px; font-weight: 600; } .ds-chip-down { background: rgb(235 150 128 / 0.1); color: #eb9680; box-shadow: 0 0 0 1px rgb(235 150 128 / 0.2); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Matte Instrument",
+    "overview": "Argus is a precision instrument with a non-reflective finish. One operator stares at it for hours, moving between attack-surface maps and threat-intel verdicts, so every surface is calm and matte: deep navy-charcoal and olive in the dark theme, warm beige and cream in the light one, with no glossy gradients, no colored glow, and no decoration competing with the data. Color is a scarce resource spent only on meaning — a single muted olive accent carries primary action and 'you are here', and a small set of earthen status hues appear only where they encode a finding, a metric, or a severity. Components are refined and restrained: thin borders, gentle radii, a faint neutral lift rather than a drop, and interactive states that shift tone by a single step instead of announcing themselves. This is an Operate surface, so scanability and consistency outrank expression; the craft shows in tabular numerals, monospace for every machine value, enforced contrast in both themes, and motion a reduced-motion preference fully disables.",
+    "keyCharacteristics": [
+      "Matte, non-reflective surfaces in two first-class themes (dark default, warm light).",
+      "A single olive accent; color otherwise reserved for status and findings.",
+      "Thin lines, gentle radii (10px controls, 16px cards), quiet neutral shadows.",
+      "Inter for text, JetBrains Mono for every value; tabular numerals throughout.",
+      "Calm at rest; state changes are one tonal step, never a glow."
+    ],
+    "rules": [
+      { "name": "The Signal Rule", "body": "Color encodes meaning — status, a finding, a data series — and nothing else. Chrome, containers, and layout stay neutral; a colored element is always answerable to 'what does this mean?'", "section": "colors" },
+      { "name": "The One Accent Rule", "body": "Olive is the only brand accent, and it carries primary action and current-location. Never introduce a second competing accent; reach for a neutral or a status hue instead.", "section": "colors" },
+      { "name": "The Mono-for-Values Rule", "body": "Any machine-generated value — IP, hash, domain, CVE, API token — is set in JetBrains Mono with tabular numerals. Human prose is never mono; values are never proportional.", "section": "typography" },
+      { "name": "The Matte Rule", "body": "No colored glow, ever. A selected or hovered element lifts with a neutral shadow and a one-step tonal change; it never emits light. shadow-glow is a quiet neutral lift, not an accent halo.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do route every color through src/index.css tokens (Tailwind names like bg-card, text-ink-muted, bg-accent); components never hard-code a hex.",
+      "Do read colors for SVG/chart fills through useToken() so they re-resolve on theme change.",
+      "Do set every machine value (IP, hash, domain, CVE, token) in font-mono with tabular numerals.",
+      "Do keep both themes correct and >=4.5:1 for text / >=3:1 for controls and chart marks when adding or changing a color.",
+      "Do convey depth with tonal layering and a hairline first; reach for a shadow only for cards, popovers, and the quiet selected lift.",
+      "Do honor prefers-reduced-motion: the rise entrance and chart animations must fully stop."
+    ],
+    "donts": [
+      "Don't add a colored glow, neon, or accent halo — shadow-glow is a quiet neutral lift by definition (The Matte Rule).",
+      "Don't introduce a second brand accent; olive alone carries primary action and current-location (The One Accent Rule).",
+      "Don't spend a status or data-viz hue on decoration; color must encode meaning (The Signal Rule).",
+      "Don't hard-code light- or dark-specific colors in a component; theme them through tokens so both modes stay correct.",
+      "Don't use sharp 0-radius corners or double borders; the form language is soft rectangles with single hairlines."
+    ]
+  }
+}

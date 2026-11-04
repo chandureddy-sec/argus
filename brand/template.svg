@@ -14,6 +14,6 @@
   <!-- 3. Product glyph: inside 13..51 on both axes, keep clear of the signal corner (40..56 x 8..24),
           strokes 4.5 (5.5 for one emphasis stroke), round caps, product gradient. -->
   <rect x="13" y="13" width="38" height="38" rx="4" fill="none" stroke="#3a2d66" stroke-width="1" stroke-dasharray="2 3"/>
-  <!-- 4. Family signature: the signal. Same place, size and pink on every product. -->
-  <circle cx="48" cy="16" r="4" fill="#ff4fa3"/>
+  <!-- 4. Family signature: the signal. Same place, size and olive on every product. -->
+  <circle cx="48" cy="16" r="4" fill="#8f9a5b"/>
 </svg>
