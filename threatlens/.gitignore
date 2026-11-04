@@ -14,6 +14,3 @@ build/
 sbom*.json
 .env
 !.env.example
-
-# Company reference material (proprietary, contains internal addresses): never commit
-secincyte-threat-intel/

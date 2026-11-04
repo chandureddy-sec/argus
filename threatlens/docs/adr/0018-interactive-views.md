@@ -1,9 +1,9 @@
 # ADR 0018: Interactive views — threat map, drill-downs, calendar, threat journey
 
-Date: 2026-10-18 · Status: accepted · Completes the SecIncyte-parity plan (step 4 of 4); extends ADR 0015/0016
+Date: 2026-10-18 · Status: accepted · Completes the 4-step response plan (step 4 of 4); extends ADR 0015/0016
 
 ## Context
-The last step of the SecIncyte parity plan was interactivity:
+The last step of the response plan was interactivity:
 * a zoom/pan map whose locations list their IPs on hover;
 * charts and a calendar you can click through to the data behind them;
 * a "threat journey" per indicator, from the feed that reported it to the action taken.
@@ -60,5 +60,5 @@ view that connected it.
   and values stay defanged in the JSON.
 * The map shows only IPs that RIPEstat located. The worker's `enrich_backlog` geo-locates new IP
   indicators over time; the card says how many are still without a location.
-* Not built (they need SecIncyte's own SIEM or endpoints): the 3-D attack-surface view, endpoint
+* Not built (they need a dedicated SIEM or endpoints): the 3-D attack-surface view, endpoint
   firewall rules, NetFlow correlation.

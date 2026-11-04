@@ -1,4 +1,4 @@
-"""Argus JSON for the interactive views (SecIncyte parity step 4, ADR 0018):
+"""Argus JSON for the interactive views (step 4, ADR 0018):
 the threat map, the activity calendar and an indicator's threat journey.
 
 Same rules as the rest of /app/api: a signed-in session or an API key, TLP
