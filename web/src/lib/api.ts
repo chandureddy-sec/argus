@@ -301,6 +301,29 @@ export interface Alert {
   scan_file?: string;
 }
 
+// ── lab endpoint telemetry (AED gateway, via /app/api/aed) ───────────────────
+
+export interface AedEndpoint {
+  agent_id: string;
+  status: "pending" | "online" | "stale" | "revoked";
+  first_seen?: string;
+  last_seen?: string;
+  version?: string;
+}
+
+export interface AedAlert {
+  rule: string;
+  agent_id: string;
+  src_ip?: string;
+  severity?: string;
+  confidence?: number;
+  count?: number;
+  window_s?: number;
+  created_at?: string;
+  evidence?: Record<string, unknown>;
+  fp_guidance?: string;
+}
+
 /** A plain-text resource (the map's land outline), fetched once. */
 export function useText(path: string): string | undefined {
   const [text, setText] = useState<string>();

@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # The ReconX engine (attack-surface scans), on the compose network only (ADR 0014).
     reconx_url: str | None = None
 
+    # The AED gateway admin API (endpoint registry, alerts, revoke). Lab only; when
+    # either is unset the analyst-facing AED routes return 503 (never fake data).
+    aed_admin_url: str | None = None
+    aed_admin_token: SecretStr | None = None
+
     # Third-party keys (free tiers). A connector whose key is missing is
     # recorded as "skipped", never as an error.
     abusech_auth_key: SecretStr | None = None  # ThreatFox (required), URLhaus (optional)

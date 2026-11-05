@@ -15,6 +15,8 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from threatlens import __version__
+from threatlens.aed_admin import AedAdminClient, build_aed_admin
+from threatlens.api.aed_api import router as aed_router
 from threatlens.api.assets import router as assets_router
 from threatlens.api.blocks import feeds_router
 from threatlens.api.blocks import router as blocks_router
@@ -73,6 +75,7 @@ def create_app(
     enqueue: Enqueue | None = None,
     enrich: EnrichmentService | None = None,
     recon: Engine | None = None,
+    aed_admin: AedAdminClient | None = None,
 ) -> FastAPI:
     """Build the app. ``checks``, ``sessionmaker``, ``limiter``, ``enqueue``,
     ``enrich`` and ``recon`` override the real dependencies (tests)."""
@@ -94,6 +97,7 @@ def create_app(
             app.state.enqueue = enqueue
             app.state.enrich = enrich
             app.state.recon = recon
+            app.state.aed_admin = aed_admin
             yield
             return
         engine = make_engine(settings.database_url.get_secret_value())
@@ -119,6 +123,10 @@ def create_app(
         http = enrichment_http(settings)
         app.state.enrich = EnrichmentService(app.state.sessionmaker, http, RedisQuotaStore(redis), settings)
         app.state.recon = recon or (Engine(settings.reconx_url) if settings.reconx_url else None)
+        app.state.aed_admin = aed_admin or build_aed_admin(
+            settings.aed_admin_url,
+            settings.aed_admin_token.get_secret_value() if settings.aed_admin_token else None,
+        )
         log.info("api.startup", version=__version__, env=settings.env.value)
         try:
             yield
@@ -150,6 +158,7 @@ def create_app(
     app.include_router(export_router)  # /feeds/{token}/indicators/{fmt}, before /feeds/{token}/{fmt}
     app.include_router(feeds_router)
     app.include_router(recon_router)  # /app/api/recon, before the app's catch-all route
+    app.include_router(aed_router)  # /app/api/aed (lab endpoint telemetry), admin proxy
     app.include_router(argus_router)  # Argus-only JSON (verify/bulk streams, settings)
     app.include_router(intel_router)  # landscape, ATT&CK matrix, search
     app.include_router(views_router)  # threat map, calendar (ADR 0018)

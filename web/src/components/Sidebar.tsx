@@ -72,6 +72,7 @@ const NAV: Item[] = [
       { label: "Cases", to: "/cases" },
       { label: "Blocklist", to: "/blocklist" },
       { label: "Alerts", to: "/alerts" },
+      { label: "Lab endpoints", to: "/endpoints" },
     ],
   },
   {

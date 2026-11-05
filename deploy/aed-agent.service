@@ -1,0 +1,34 @@
+# AED lab endpoint agent — systemd unit (Slice 3). Lab VMs only; collection only.
+# Install: copy the aed-agent binary to /usr/local/bin, create /var/lib/aed with
+# the enrolled agent.crt/agent.key/ca.crt, put flags in /etc/aed/agent.env, then:
+#   systemctl enable --now aed-agent
+[Unit]
+Description=AED lab endpoint agent (collection only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aed
+Group=aed
+EnvironmentFile=/etc/aed/agent.env
+ExecStart=/usr/local/bin/aed-agent
+Restart=on-failure
+RestartSec=5
+
+# Hardening: the agent only reads and sends; it needs no privileges and writes
+# nothing outside its own state dir.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/aed
+# Slice 4 (journald telemetry) will add: SupplementaryGroups=systemd-journal
+
+[Install]
+WantedBy=multi-user.target
