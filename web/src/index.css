@@ -57,7 +57,7 @@
   --zebra: rgb(236 231 220 / 0.018);
   --scrim: rgb(12 14 18 / 0.62);
   --knob: 236 231 220;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025) inset, 0 10px 30px -18px rgb(0 0 0 / 0.6);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.045) inset, 0 1px 1px rgb(0 0 0 / 0.18), 0 14px 34px -16px rgb(0 0 0 / 0.7);
   --shadow-pop: 0 16px 40px -12px rgb(0 0 0 / 0.55);
   --shadow-sel: 0 1px 2px rgb(0 0 0 / 0.35);
   color-scheme: dark;
@@ -95,7 +95,7 @@
   --zebra: rgb(42 44 46 / 0.022);
   --scrim: rgb(42 40 34 / 0.38);
   --knob: 250 248 243;
-  --shadow-card: 0 1px 2px rgb(70 60 40 / 0.06), 0 10px 28px -16px rgb(70 60 40 / 0.18);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 1px 2px rgb(70 60 40 / 0.07), 0 14px 34px -18px rgb(70 60 40 / 0.22);
   --shadow-pop: 0 16px 40px -12px rgb(70 60 40 / 0.25);
   --shadow-sel: 0 1px 2px rgb(70 60 40 / 0.18);
   color-scheme: light;
@@ -117,7 +117,7 @@
   .card { @apply rounded-card border border-line bg-card; box-shadow: var(--shadow-card); }
   .label { @apply text-[13px] text-ink-muted; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-ctl px-3.5 h-9 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover; box-shadow: var(--shadow-sel); }
+  .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), var(--shadow-sel); }
   .btn-ghost { @apply btn border border-ctl-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
   .ctl { @apply h-9 rounded-ctl border border-ctl-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
 }
