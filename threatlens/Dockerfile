@@ -30,6 +30,9 @@ COPY --chown=app:app config ./config
 COPY --from=webapp --chown=app:app /web/dist ./webapp
 # Raw feed archive; a named volume mounted here inherits the app ownership.
 RUN mkdir -p /app/data && chown app:app /app/data
+# AED gateway CA dir (lab, opt-in): same pattern, so the aedca volume is
+# writable by the non-root app user.
+RUN mkdir -p /var/lib/aed/ca && chown -R app:app /var/lib/aed
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 USER app
 EXPOSE 8000
