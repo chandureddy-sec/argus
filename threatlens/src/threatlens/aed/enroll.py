@@ -25,8 +25,11 @@ def _token_hash(secret: str, token: str) -> str:
 
 
 class EnrollmentStore(Protocol):
-    def put_token(self, token_hash: str, expires_at: datetime) -> None: ...
+    def put_token(
+        self, token_hash: str, expires_at: datetime, meta: dict[str, object] | None = None
+    ) -> None: ...
     def consume_token(self, token_hash: str, now: datetime) -> bool: ...
+    def pending_enrollments(self, now: datetime) -> list[dict[str, object]]: ...
     def revoke(self, agent_id: str) -> None: ...
     def is_revoked(self, agent_id: str) -> bool: ...
     def register_agent(self, agent_id: str, cert_fingerprint: str, now: datetime) -> None: ...
@@ -40,7 +43,9 @@ class InMemoryStore:
 
     def __init__(self, nonce_window: int = 1024) -> None:
         self._lock = threading.Lock()
-        self._tokens: dict[str, tuple[datetime, bool]] = {}  # hash -> (expires_at, used)
+        # hash -> (expires_at, used, meta); meta carries the onboarding choices
+        # (os/name/group) so a not-yet-enrolled endpoint can show as "pending".
+        self._tokens: dict[str, tuple[datetime, bool, dict[str, object] | None]] = {}
         self._revoked: set[str] = set()
         # agent_id -> {fingerprint, first_seen, last_seen|None}
         self._agents: dict[str, dict[str, object]] = {}
@@ -48,20 +53,32 @@ class InMemoryStore:
         self._nonces: dict[str, list[str]] = {}
         self._nonce_window = nonce_window
 
-    def put_token(self, token_hash: str, expires_at: datetime) -> None:
+    def put_token(self, token_hash: str, expires_at: datetime, meta: dict[str, object] | None = None) -> None:
         with self._lock:
-            self._tokens[token_hash] = (expires_at, False)
+            self._tokens[token_hash] = (expires_at, False, meta)
 
     def consume_token(self, token_hash: str, now: datetime) -> bool:
         with self._lock:
             entry = self._tokens.get(token_hash)
             if entry is None:
                 return False
-            expires_at, used = entry
+            expires_at, used, meta = entry
             if used or now > expires_at:
                 return False
-            self._tokens[token_hash] = (expires_at, True)  # mark used atomically
+            self._tokens[token_hash] = (expires_at, True, meta)  # mark used atomically
             return True
+
+    def pending_enrollments(self, now: datetime) -> list[dict[str, object]]:
+        """Minted tokens not yet redeemed and not expired, with their onboarding
+        metadata — the "waiting for agent" endpoints. Token hashes are never
+        returned."""
+        with self._lock:
+            out: list[dict[str, object]] = []
+            for expires_at, used, meta in self._tokens.values():
+                if used or now > expires_at or meta is None:
+                    continue
+                out.append({**meta, "expires_at": expires_at.isoformat()})
+            return out
 
     def revoke(self, agent_id: str) -> None:
         with self._lock:
@@ -127,14 +144,20 @@ class InMemoryStore:
             return True
 
 
-def issue_token(store: EnrollmentStore, secret: str, ttl_s: int = 900, now: datetime | None = None) -> str:
-    """Create a single-use enrollment token; store only its HMAC. Returns the
-    plaintext token (shown to the admin once)."""
+def issue_token(
+    store: EnrollmentStore,
+    secret: str,
+    ttl_s: int = 900,
+    meta: dict[str, object] | None = None,
+    now: datetime | None = None,
+) -> str:
+    """Create a single-use enrollment token; store only its HMAC and the
+    onboarding metadata. Returns the plaintext token (shown to the admin once)."""
     from datetime import UTC
 
     now = now or datetime.now(UTC)
     token = secrets.token_urlsafe(32)
-    store.put_token(_token_hash(secret, token), now + timedelta(seconds=ttl_s))
+    store.put_token(_token_hash(secret, token), now + timedelta(seconds=ttl_s), meta)
     return token
 
 

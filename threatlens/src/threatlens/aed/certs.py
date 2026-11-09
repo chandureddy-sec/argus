@@ -95,6 +95,15 @@ class CA:
     def cert_pem(self) -> bytes:
         return self._cert.public_bytes(serialization.Encoding.PEM)
 
+    def fingerprint(self) -> str:
+        """SHA-256 of the CA certificate (DER), hex. An agent pins this to verify
+        the server before trusting it — the same bytes an OpenSSL/Go consumer
+        hashes, so the install command and the agent agree."""
+        import hashlib
+
+        der = self._cert.public_bytes(serialization.Encoding.DER)
+        return hashlib.sha256(der).hexdigest()
+
     def seal_key(self, secret: str) -> bytes:
         """Return the CA private key encrypted (Fernet) with ``secret``."""
         pem = self._key.private_bytes(

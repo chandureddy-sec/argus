@@ -22,8 +22,8 @@ import hmac
 import json
 import time
 from collections import defaultdict
-from datetime import UTC, datetime
-from typing import Annotated
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -32,7 +32,7 @@ from pydantic import BaseModel
 from .certs import CA, CertError
 from .config import AedConfig
 from .detect import SSHBruteForce
-from .enroll import EnrollError, EnrollmentStore, redeem_token
+from .enroll import EnrollError, EnrollmentStore, issue_token, redeem_token
 from .events import EventStore
 from .redact import redact_event
 
@@ -41,6 +41,17 @@ class EnrollRequest(BaseModel):
     token: str
     csr_pem: str
     agent_id: str
+
+
+ENROLL_TTL_S = 900  # 15-minute single-use enrollment token
+
+
+class EnrollMintRequest(BaseModel):
+    """An admin's request to onboard an endpoint: which OS, optional label."""
+
+    os: Literal["linux", "windows"]
+    name: str | None = None
+    group: str | None = None
 
 
 class HeartbeatRequest(BaseModel):
@@ -199,6 +210,26 @@ def build_gateway(
         token = auth[7:] if auth.lower().startswith("bearer ") else ""
         if not token or not hmac.compare_digest(token, cfg.admin_token):
             raise HTTPException(status_code=401, detail="admin token required")
+
+    @app.post("/aed/enrollments", dependencies=[Depends(require_admin)])
+    async def mint_enrollment(req: EnrollMintRequest) -> JSONResponse:
+        # Onboard an endpoint: mint a single-use, 15-min token (stored hashed,
+        # never logged) and return it once with the CA fingerprint the agent
+        # pins. The token's plaintext leaves here only in this response body.
+        if ca is None or store is None or not enroll_secret:
+            raise HTTPException(status_code=503, detail="AED enrollment not configured")
+        now = datetime.now(UTC)
+        meta: dict[str, object] = {"os": req.os, "name": req.name, "group": req.group}
+        token = issue_token(store, enroll_secret, ttl_s=ENROLL_TTL_S, meta=meta, now=now)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "token": token,
+                "os": req.os,
+                "expires_at": (now + timedelta(seconds=ENROLL_TTL_S)).isoformat(),
+                "ca_fingerprint": ca.fingerprint(),
+            },
+        )
 
     @app.get("/aed/endpoints", dependencies=[Depends(require_admin)])
     async def endpoints() -> dict[str, object]:
