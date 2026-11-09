@@ -12,7 +12,7 @@ import (
 // startCollectors (Linux) follows sshd failures from the journal into the queue.
 func startCollectors(ctx context.Context, c *agent.Client, q *agent.Queue) {
 	go func() {
-		if err := c.FollowSSHFailures(ctx, q); err != nil && ctx.Err() == nil {
+		if err := c.FollowAuthFailures(ctx, q); err != nil && ctx.Err() == nil {
 			log.Printf("aed-agent: journal follow ended: %v", err)
 		}
 	}()
