@@ -20,15 +20,17 @@ import binascii
 import hashlib
 import hmac
 import json
+import os
 import time
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
+from . import install
 from .certs import CA, CertError
 from .config import AedConfig
 from .detect import SSHBruteForce
@@ -156,6 +158,11 @@ def build_gateway(
     """
     cfg = config or AedConfig.from_env()
     rl = limiter or RateLimiter(cfg.rate_limit_per_min)
+    # The served agent's checksum, computed once at startup (the binary is fixed),
+    # so the async request handlers do no blocking filesystem work.
+    agent_sha: str | None = (
+        install.agent_sha256(cfg.agent_path) if cfg.agent_path and os.path.exists(cfg.agent_path) else None
+    )
 
     # No docs/openapi surface for the agent-facing gateway.
     app = FastAPI(title="AED gateway", docs_url=None, redoc_url=None, openapi_url=None)
@@ -170,6 +177,14 @@ def build_gateway(
     @app.get("/aed/healthz")
     async def healthz() -> dict[str, object]:
         return {"status": "ok", "component": "aed-gateway", "enabled": cfg.enabled}
+
+    @app.get("/aed/agent/linux")
+    async def agent_linux() -> FileResponse:
+        # Serve the prebuilt Linux agent. Integrity is the operator's to check:
+        # the install command verifies this file's SHA-256 before running it.
+        if agent_sha is None:
+            raise HTTPException(status_code=503, detail="agent download not configured")
+        return FileResponse(cfg.agent_path, media_type="application/octet-stream", filename="aed-agent")
 
     @app.post("/aed/enroll")
     async def enroll(req: EnrollRequest) -> JSONResponse:
@@ -221,15 +236,23 @@ def build_gateway(
         now = datetime.now(UTC)
         meta: dict[str, object] = {"os": req.os, "name": req.name, "group": req.group}
         token = issue_token(store, enroll_secret, ttl_s=ENROLL_TTL_S, meta=meta, now=now)
-        return JSONResponse(
-            status_code=200,
-            content={
-                "token": token,
-                "os": req.os,
-                "expires_at": (now + timedelta(seconds=ENROLL_TTL_S)).isoformat(),
-                "ca_fingerprint": ca.fingerprint(),
-            },
-        )
+        fp = ca.fingerprint()
+        content: dict[str, object] = {
+            "token": token,
+            "os": req.os,
+            "expires_at": (now + timedelta(seconds=ENROLL_TTL_S)).isoformat(),
+            "ca_fingerprint": fp,
+        }
+        # When the gateway serves the agent and knows its advertised address, hand
+        # back the ready-to-paste install command (Linux) with the pinned checksum.
+        if req.os == "linux" and cfg.advertise_url and agent_sha is not None:
+            sha = agent_sha
+            content["agent_sha256"] = sha
+            content["agent_url"] = f"{cfg.advertise_url.rstrip('/')}/aed/agent/linux"
+            content["install"] = install.linux_install_command(
+                advertise_url=cfg.advertise_url, token=token, ca_fingerprint=fp, agent_sha256=sha
+            )
+        return JSONResponse(status_code=200, content=content)
 
     @app.get("/aed/endpoints", dependencies=[Depends(require_admin)])
     async def endpoints() -> dict[str, object]:

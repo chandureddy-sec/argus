@@ -35,6 +35,15 @@ class AedConfig:
     admin_token: str = ""
     # An agent is "online" if its last heartbeat is within this many seconds.
     heartbeat_stale_s: int = 300
+    # The gateway address advertised to endpoints (e.g. https://10.0.0.5:8443) —
+    # the lab IP endpoints reach the gateway on. Put in the install command.
+    advertise_url: str = ""
+    # Interface the gateway binds to. Default loopback; set to the lab interface
+    # IP only. NEVER 0.0.0.0 on a company network — serve lab VMs only.
+    bind_host: str = "127.0.0.1"
+    # Filesystem path to the prebuilt Linux agent the gateway serves at
+    # /aed/agent/linux. Empty = agent download disabled (503).
+    agent_path: str = ""
 
     @classmethod
     def from_env(cls) -> AedConfig:
@@ -47,4 +56,7 @@ class AedConfig:
             trust_cert_header=_bool("AED_TRUST_CERT_HEADER", False),
             admin_token=os.environ.get("AED_ADMIN_TOKEN", ""),
             heartbeat_stale_s=int(os.environ.get("AED_HEARTBEAT_STALE_S", "300")),
+            advertise_url=os.environ.get("AED_ADVERTISE_URL", ""),
+            bind_host=os.environ.get("AED_BIND_HOST", "127.0.0.1"),
+            agent_path=os.environ.get("AED_AGENT_PATH", ""),
         )
