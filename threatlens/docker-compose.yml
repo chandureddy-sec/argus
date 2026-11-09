@@ -106,8 +106,36 @@ services:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
 
+  # AED lab agent gateway — OPT-IN, LAB ONLY, disabled by default.
+  #   build the linux agent first:  GOOS=linux GOARCH=amd64 go build -o threatlens/aed-agent ../cmd/aed-agent
+  #   then:  docker compose --profile aed up -d --build aed-gateway
+  # Exposure is the HOST-published address: AED_BIND_HOST_PUBLISH (default 127.0.0.1).
+  # Set it to the lab interface IP to serve lab VMs — NEVER 0.0.0.0 on a company
+  # network. mTLS is terminated by a proxy in front of the gateway (docs/AED.md).
+  aed-gateway:
+    <<: *app
+    profiles: ["aed"]
+    command: ["python", "-m", "threatlens.aed.serve"]
+    environment:
+      AED_GATEWAY_ENABLED: "1"
+      AED_BIND_HOST: "0.0.0.0"  # inside the container only; the lab interface is the published address below
+      AED_GATEWAY_PORT: "8443"
+      AED_ADMIN_TOKEN: ${AED_ADMIN_TOKEN:?set AED_ADMIN_TOKEN in .env}
+      AED_ADVERTISE_URL: ${AED_ADVERTISE_URL:?set AED_ADVERTISE_URL, e.g. https://<lab-ip>:8443}
+      AED_AGENT_PATH: /opt/aed/aed-agent
+      AED_CA_DIR: /var/lib/aed/ca
+      AED_TRUST_CERT_HEADER: ${AED_TRUST_CERT_HEADER:-false}
+      AED_SECRET_KEY: ${TL_SECRET_KEY:?set TL_SECRET_KEY in .env}
+    ports: ["${AED_BIND_HOST_PUBLISH:-127.0.0.1}:8443:8443"]
+    volumes:
+      - aedca:/var/lib/aed/ca
+      - ${AED_AGENT_BIN:-./aed-agent}:/opt/aed/aed-agent:ro
+    restart: unless-stopped
+    depends_on: []
+
 volumes:
   pgdata:
   redisdata:
   rawdata:
   recondata:  # ReconX reports, monitors, drift DB and keys
+  aedca:  # AED CA cert + sealed key (lab gateway), persisted across restarts
