@@ -38,7 +38,7 @@ def linux_install_command(*, advertise_url: str, token: str, ca_fingerprint: str
                 f' --gateway "{url}"'
                 f' --ca-fingerprint "{ca_fingerprint}"'
                 f' --token "{token}"'
-                " --config /etc/aed-agent/agent.conf"
+                " --config /etc/aed-agent"
             ),
             "sudo chmod 600 /etc/aed-agent/agent.conf",
             'rm -rf "$D"',

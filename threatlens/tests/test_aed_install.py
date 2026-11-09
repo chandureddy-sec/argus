@@ -76,6 +76,17 @@ def test_mint_returns_install_command_and_verified_sha(tmp_path: Path) -> None:
     assert body["token"] in cmd
 
 
+def test_tampered_agent_fails_the_advertised_checksum(tmp_path: Path) -> None:
+    # The gateway advertises the SHA-256 of the exact bytes it serves; the install
+    # command verifies the download against it (`sha256sum -c`). A tampered binary
+    # hashes differently, so that check fails — this proves the integrity pin.
+    c, _ = _setup(tmp_path)
+    advertised = c.post("/aed/enrollments", json={"os": "linux"}, headers=_h()).json()["agent_sha256"]
+    assert advertised == hashlib.sha256(AGENT_BYTES).hexdigest()
+    tampered = AGENT_BYTES + b"...malware appended..."
+    assert hashlib.sha256(tampered).hexdigest() != advertised
+
+
 def test_install_command_writes_protected_config() -> None:
     cmd = linux_install_command(
         advertise_url="https://10.0.0.5:8443",

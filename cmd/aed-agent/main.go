@@ -23,6 +23,12 @@ func envOr(key, def string) string {
 }
 
 func main() {
+	// `aed-agent install …` enrols this host; with no subcommand it runs the
+	// collection/heartbeat loop.
+	if len(os.Args) > 1 && os.Args[1] == "install" {
+		runInstall(os.Args[2:])
+		return
+	}
 	gateway := flag.String("gateway", envOr("AED_GATEWAY_URL", ""), "AED gateway base URL, e.g. https://host:8443")
 	agentID := flag.String("agent-id", envOr("AED_AGENT_ID", ""), "this agent's id")
 	certFile := flag.String("cert", envOr("AED_CERT", "/var/lib/aed/agent.crt"), "agent client certificate (PEM)")
