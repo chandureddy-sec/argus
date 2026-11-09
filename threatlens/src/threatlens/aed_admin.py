@@ -40,14 +40,14 @@ class AedAdminClient:
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._token}"}
 
-    async def _call(self, method: str, path: str) -> httpx.Response:
+    async def _call(self, method: str, path: str, *, json: Any = None) -> httpx.Response:
         url = self._base + path
         try:
             if self._http is not None:
-                r = await self._http.request(method, url, headers=self._headers())
+                r = await self._http.request(method, url, headers=self._headers(), json=json)
             else:
                 async with httpx.AsyncClient(timeout=self._timeout) as c:
-                    r = await c.request(method, url, headers=self._headers())
+                    r = await c.request(method, url, headers=self._headers(), json=json)
         except httpx.HTTPError as e:
             raise AedAdminError(str(e)) from e
         if r.status_code >= 400:
@@ -61,6 +61,12 @@ class AedAdminClient:
     async def alerts(self) -> list[dict[str, Any]]:
         r = await self._call("GET", "/aed/alerts")
         return list(r.json().get("alerts", []))
+
+    async def create_enrollment(self, os: str, name: str | None, group: str | None) -> dict[str, Any]:
+        """Mint an enrollment on the gateway; returns its one-time response
+        (token, install command, CA fingerprint, expiry)."""
+        r = await self._call("POST", "/aed/enrollments", json={"os": os, "name": name, "group": group})
+        return dict(r.json())
 
     async def revoke(self, agent_id: str) -> None:
         await self._call("POST", f"/aed/agents/{quote(agent_id, safe='')}/revoke")

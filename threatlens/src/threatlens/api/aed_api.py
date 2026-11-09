@@ -12,9 +12,10 @@ data.
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Path, Request
+from pydantic import BaseModel
 
 from threatlens.aed_admin import AedAdminClient, AedAdminError
 from threatlens.auth import same_origin as _same_origin
@@ -48,6 +49,39 @@ async def alerts(request: Request) -> dict[str, Any]:
         return {"alerts": await _client(request).alerts()}
     except AedAdminError as e:
         raise HTTPException(502, "the AED gateway is unavailable") from e
+
+
+class _MintBody(BaseModel):
+    os: Literal["linux", "windows"]
+    name: str | None = None
+    group: str | None = None
+
+
+@router.post("/enrollments")
+async def create_enrollment(request: Request, body: _MintBody) -> dict[str, Any]:
+    # Onboard an endpoint: admin + same-site, audited. The gateway returns the
+    # single-use token and install command once; we pass them straight back to
+    # the admin and NEVER record the token (audit keeps only os/name/group).
+    me = await _me(request)
+    if not _same_origin(request):
+        raise HTTPException(403, "cross-site request refused")
+    if not me.can("admin"):
+        raise HTTPException(403, "this needs the admin role")
+    client = _client(request)
+    try:
+        res = await client.create_enrollment(body.os, body.name, body.group)
+    except AedAdminError as e:
+        raise HTTPException(502, "the AED gateway is unavailable") from e
+    async with _sm(request)() as s, s.begin():
+        s.add(
+            AuditLog(
+                actor=me.name[:100],
+                action="aed.enroll_create",
+                target=(body.name or body.os)[:500],
+                details={"os": body.os, "group": body.group},
+            )
+        )
+    return res
 
 
 @router.post("/agents/{agent_id}/revoke")

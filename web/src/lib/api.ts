@@ -311,6 +311,17 @@ export interface AedEndpoint {
   version?: string;
 }
 
+/** The one-time response when an admin onboards an endpoint. */
+export interface AedEnrollment {
+  token: string;
+  os: string;
+  expires_at: string;
+  ca_fingerprint: string;
+  agent_sha256?: string;
+  agent_url?: string;
+  install?: string;
+}
+
 export interface AedAlert {
   rule: string;
   agent_id: string;

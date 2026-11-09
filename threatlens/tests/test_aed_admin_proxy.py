@@ -8,6 +8,7 @@ is not configured.
 
 from __future__ import annotations
 
+import json as jsonlib
 from collections.abc import AsyncIterator
 
 import httpx
@@ -25,6 +26,7 @@ from threatlens.users import create_user
 
 SAME = {"Sec-Fetch-Site": "same-origin"}
 CROSS = {"Sec-Fetch-Site": "cross-site"}
+FAKE_TOKEN = "SECRET-TOKEN-ABC"  # noqa: S105  # a fixture value, asserted in tests
 
 
 class FakeAdmin:
@@ -32,7 +34,20 @@ class FakeAdmin:
 
     def __init__(self) -> None:
         self.revoked: list[str] = []
+        self.created: list[dict[str, object]] = []
         self.raise_on: set[str] = set()
+
+    async def create_enrollment(self, os: str, name: str | None, group: str | None) -> dict[str, object]:
+        if "create_enrollment" in self.raise_on:
+            raise AedAdminError("boom")
+        self.created.append({"os": os, "name": name, "group": group})
+        return {
+            "token": FAKE_TOKEN,
+            "os": os,
+            "expires_at": "2026-11-09T01:00:00+00:00",
+            "ca_fingerprint": "ab" * 32,
+            "install": "set -eu\ncurl ... SECRET-TOKEN-ABC ...",
+        }
 
     async def endpoints(self) -> list[dict[str, object]]:
         if "endpoints" in self.raise_on:
@@ -127,6 +142,50 @@ async def test_admin_revoke_calls_client_and_audits(aed_app: tuple[App, FakeAdmi
     assert row.actor == "ada"
 
 
+async def test_create_enrollment_needs_sign_in_admin_and_same_origin(aed_app: tuple[App, FakeAdmin]) -> None:
+    app, fake = aed_app
+    body = {"os": "linux"}
+    assert (await app.c.post("/app/api/aed/enrollments", json=body, headers=SAME)).status_code == 401
+    await app.login("vera")
+    assert (await app.c.post("/app/api/aed/enrollments", json=body, headers=SAME)).status_code == 403
+    await app.login("anna")
+    assert (await app.c.post("/app/api/aed/enrollments", json=body, headers=SAME)).status_code == 403
+    await app.login("ada")
+    assert (await app.c.post("/app/api/aed/enrollments", json=body, headers=CROSS)).status_code == 403
+    assert fake.created == []
+
+
+async def test_admin_create_enrollment_returns_token_and_audits_without_it(
+    aed_app: tuple[App, FakeAdmin],
+) -> None:
+    app, fake = aed_app
+    await app.login("ada")
+    r = await app.c.post(
+        "/app/api/aed/enrollments", json={"os": "linux", "name": "vm1", "group": "lab"}, headers=SAME
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["token"] == FAKE_TOKEN
+    assert "install" in body
+    assert fake.created == [{"os": "linux", "name": "vm1", "group": "lab"}]
+    async with app.sm() as s:
+        row = await s.scalar(select(AuditLog).where(AuditLog.action == "aed.enroll_create"))
+    assert row is not None
+    assert row.target == "vm1"
+    assert row.actor == "ada"
+    # the single-use token must never reach the audit log
+    assert FAKE_TOKEN not in str(row.details)
+    assert row.details == {"os": "linux", "group": "lab"}
+
+
+async def test_create_enrollment_rejects_unknown_os(aed_app: tuple[App, FakeAdmin]) -> None:
+    app, fake = aed_app
+    await app.login("ada")
+    r = await app.c.post("/app/api/aed/enrollments", json={"os": "solaris"}, headers=SAME)
+    assert r.status_code == 422
+    assert fake.created == []
+
+
 async def test_revoke_rejects_bad_agent_id(aed_app: tuple[App, FakeAdmin]) -> None:
     app, fake = aed_app
     await app.login("ada")
@@ -192,3 +251,22 @@ async def test_client_raises_on_error_status() -> None:
         client = AedAdminClient("https://gw.lab:8443", "tok", http=http)
         with pytest.raises(AedAdminError):
             await client.endpoints()
+
+
+async def test_client_create_enrollment_posts_json() -> None:
+    seen: dict[str, object] = {}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen["method"] = req.method
+        seen["path"] = req.url.path
+        seen["body"] = jsonlib.loads(req.content) if req.content else None
+        return httpx.Response(200, json={"token": "t", "install": "x"})
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport) as http:  # noqa: F811
+        client = AedAdminClient("https://gw.lab:8443", "tok", http=http)
+        res = await client.create_enrollment("linux", "vm", "lab")
+        assert res == {"token": "t", "install": "x"}
+        assert seen["method"] == "POST"
+        assert str(seen["path"]).endswith("/aed/enrollments")
+        assert seen["body"] == {"os": "linux", "name": "vm", "group": "lab"}

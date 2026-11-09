@@ -1,10 +1,143 @@
-import { Loader2, MonitorCheck, ShieldAlert, ShieldX } from "lucide-react";
-import { useState } from "react";
+import { Check, Clock, Copy, Loader2, MonitorCheck, Plus, ShieldAlert, ShieldX, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Empty, Failed, Skeleton } from "../components/states";
-import { Card, CardHead } from "../components/ui";
-import { post, useApi, type AedAlert, type AedEndpoint, type Me } from "../lib/api";
+import { Card, CardHead, Overlay, Segmented } from "../components/ui";
+import { post, useApi, type AedAlert, type AedEndpoint, type AedEnrollment, type Me } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
 import { usePage } from "../lib/page";
+
+/** Onboard an endpoint: pick OS → mint a single-use, 15-min token (shown once)
+ * with a copy-able install command and an expiry countdown, then wait for the
+ * agent's first heartbeat. The token never persists in the browser. */
+function AddEndpoint({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [os, setOs] = useState<"linux" | "windows">("linux");
+  const [name, setName] = useState("");
+  const [group, setGroup] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string>();
+  const [result, setResult] = useState<AedEnrollment>();
+  const [copied, setCopied] = useState(false);
+  const [left, setLeft] = useState(0);
+
+  useEffect(() => {
+    if (!result) return;
+    const end = new Date(result.expires_at).getTime();
+    const tick = () => setLeft(Math.max(0, Math.round((end - Date.now()) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [result]);
+
+  const generate = async () => {
+    setBusy(true);
+    setErr(undefined);
+    try {
+      setResult(await post<AedEnrollment>("aed/enrollments", { os, name: name || null, group: group || null }));
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    if (!result?.install) return;
+    try {
+      await navigator.clipboard.writeText(result.install);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard blocked; the command is still selectable */
+    }
+  };
+
+  const mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+
+  return (
+    <Overlay label="Add endpoint">
+      <div className="card w-full max-w-[560px] p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-[16px] font-semibold">Add endpoint</h2>
+          <button onClick={onClose} className="rounded-ctl p-1.5 text-ink-muted hover:text-ink" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {!result ? (
+          <div className="space-y-4">
+            <div>
+              <span className="label mb-1.5 block">Operating system</span>
+              <Segmented value={os} options={["linux", "windows"] as const} onChange={setOs} label="Operating system" />
+              {os === "windows" && (
+                <p className="mt-2 text-[12.5px] text-warn">The Windows agent isn't built yet — the Linux flow is ready.</p>
+              )}
+            </div>
+            <label className="block">
+              <span className="label mb-1.5 block">Name (optional)</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} className="ctl w-full" placeholder="lab-vm-1" maxLength={128} />
+            </label>
+            <label className="block">
+              <span className="label mb-1.5 block">Group (optional)</span>
+              <input value={group} onChange={(e) => setGroup(e.target.value)} className="ctl w-full" placeholder="lab" maxLength={128} />
+            </label>
+            {err && <p role="alert" className="rounded-ctl border border-down/30 bg-down/10 px-3 py-2 text-[13px] text-down">{err}</p>}
+            <div className="flex justify-end gap-2">
+              <button className="btn-ghost" onClick={onClose}>
+                Cancel
+              </button>
+              <button className="btn-primary" onClick={generate} disabled={busy}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Generate token
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-ctl border border-line bg-card-2/50 px-3 py-2 text-[13px]">
+              <span className="flex items-center gap-1.5 text-ink-muted">
+                <Clock className="h-4 w-4" /> Single-use token — expires in
+              </span>
+              <span className={`font-mono tabular-nums ${left < 60 ? "text-down" : "text-ink"}`}>{left > 0 ? mmss : "expired"}</span>
+            </div>
+            <p className="text-[12.5px] text-ink-faint">Shown once. Run this on the lab VM within the window; the endpoint appears below once it checks in.</p>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="label">Install command (Linux)</span>
+                <button onClick={copy} className="btn-ghost h-7 gap-1.5 !px-2.5 text-[12.5px]">
+                  {copied ? <Check className="h-3.5 w-3.5 text-up" /> : <Copy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <pre className="max-h-56 overflow-auto rounded-ctl border border-line bg-card-2/60 p-3 font-mono text-[11.5px] leading-relaxed text-ink">
+                {result.install ?? "The gateway isn't serving the agent binary (set AED_AGENT_PATH). Token and CA fingerprint below."}
+              </pre>
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-[12px] text-ink-muted sm:grid-cols-2">
+              <div>
+                CA fingerprint
+                <br />
+                <span className="break-all font-mono text-[11px] text-ink-faint">{result.ca_fingerprint}</span>
+              </div>
+              {result.agent_sha256 && (
+                <div>
+                  Agent SHA-256
+                  <br />
+                  <span className="break-all font-mono text-[11px] text-ink-faint">{result.agent_sha256}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 rounded-ctl border border-line bg-card-2/40 px-3 py-2 text-[13px] text-ink-muted">
+              <Loader2 className="h-4 w-4 animate-spin text-accent" /> Waiting for the agent's first heartbeat…
+            </div>
+            <div className="flex justify-end">
+              <button className="btn-primary" onClick={onDone}>
+                Done
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Overlay>
+  );
+}
 
 function StatusPill({ status }: { status: AedEndpoint["status"] }) {
   const map: Record<AedEndpoint["status"], [string, string]> = {
@@ -31,6 +164,7 @@ export default function Endpoints({ me }: { me?: Me }) {
   const admin = me?.role === "admin";
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
+  const [adding, setAdding] = useState(false);
 
   const notConfigured = (list.error ?? "").startsWith("503");
 
@@ -66,7 +200,13 @@ export default function Endpoints({ me }: { me?: Me }) {
 
       <Card className="!p-0">
         <div className="p-5 pb-3 sm:p-6 sm:pb-3">
-          <CardHead title="Endpoints" sub="Agents enrolled with the gateway, their status and last heartbeat." />
+          <CardHead title="Endpoints" sub="Agents enrolled with the gateway, their status and last heartbeat.">
+            {admin && !notConfigured && (
+              <button className="btn-primary h-8 text-[13px]" onClick={() => setAdding(true)}>
+                <Plus className="h-4 w-4" /> Add endpoint
+              </button>
+            )}
+          </CardHead>
         </div>
         {notConfigured ? (
           <Empty>The AED gateway isn't configured in this environment, so there are no endpoints to show.</Empty>
@@ -159,6 +299,16 @@ export default function Endpoints({ me }: { me?: Me }) {
           </ul>
         )}
       </Card>
+
+      {adding && (
+        <AddEndpoint
+          onClose={() => setAdding(false)}
+          onDone={() => {
+            setAdding(false);
+            list.reload();
+          }}
+        />
+      )}
     </div>
   );
 }
