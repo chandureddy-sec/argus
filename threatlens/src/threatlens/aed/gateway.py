@@ -260,6 +260,12 @@ def build_gateway(
             raise HTTPException(status_code=503, detail="AED store not configured")
         return {"agents": store.list_agents(datetime.now(UTC), cfg.heartbeat_stale_s)}
 
+    @app.get("/aed/endpoints/{agent_id}/events", dependencies=[Depends(require_admin)])
+    async def endpoint_events(agent_id: str) -> dict[str, object]:
+        if event_store is None:
+            raise HTTPException(status_code=503, detail="AED event store not configured")
+        return {"agent_id": agent_id, "events": event_store.events_for(agent_id)}
+
     @app.get("/aed/alerts", dependencies=[Depends(require_admin)])
     async def alerts() -> dict[str, object]:
         if event_store is None:

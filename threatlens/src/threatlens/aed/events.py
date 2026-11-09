@@ -19,6 +19,7 @@ class EventStore(Protocol):
     def recent_failed(
         self, agent_id: str, src_ip: str, now: datetime, window_s: int
     ) -> list[dict[str, Any]]: ...
+    def events_for(self, agent_id: str, limit: int = 100) -> list[dict[str, Any]]: ...
     def add_alert(self, alert: dict[str, Any]) -> None: ...
     def list_alerts(self) -> list[dict[str, Any]]: ...
     def last_alert_at(self, agent_id: str, src_ip: str) -> datetime | None: ...
@@ -58,6 +59,29 @@ class InMemoryEventStore:
             and r["status"] == "failure"
             and r["stored_at"] >= cutoff
         ]
+
+    def events_for(self, agent_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        """One agent's recent events, newest first, as **normalized** fields only
+        (already redacted — usernames hashed, no raw payload leaves here). Powers
+        the endpoint detail timeline."""
+        rows = [r for r in self._rows if r["agent_id"] == agent_id]
+        out: list[dict[str, Any]] = []
+        for r in reversed(rows[-limit:]):
+            ev = r["event"]
+            f = ev.get("fields") or {}
+            out.append(
+                {
+                    "time": ev.get("time"),
+                    "class_uid": ev.get("class_uid"),
+                    "activity": f.get("activity"),
+                    "status": f.get("status"),
+                    "src_ip": f.get("src_ip"),
+                    "user": f.get("user"),
+                    "hostname": f.get("hostname"),
+                    "stored_at": r["stored_at"].isoformat(),
+                }
+            )
+        return out
 
     def add_alert(self, alert: dict[str, Any]) -> None:
         self._alerts.append(alert)

@@ -62,6 +62,10 @@ class AedAdminClient:
         r = await self._call("GET", "/aed/alerts")
         return list(r.json().get("alerts", []))
 
+    async def events(self, agent_id: str) -> list[dict[str, Any]]:
+        r = await self._call("GET", f"/aed/endpoints/{quote(agent_id, safe='')}/events")
+        return list(r.json().get("events", []))
+
     async def create_enrollment(self, os: str, name: str | None, group: str | None) -> dict[str, Any]:
         """Mint an enrollment on the gateway; returns its one-time response
         (token, install command, CA fingerprint, expiry)."""

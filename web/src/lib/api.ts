@@ -322,6 +322,18 @@ export interface AedEnrollment {
   install?: string;
 }
 
+/** One normalized (redacted) event in an endpoint's timeline. */
+export interface AedEvent {
+  time?: string;
+  class_uid?: number;
+  activity?: string;
+  status?: string;
+  src_ip?: string;
+  user?: string;
+  hostname?: string;
+  stored_at?: string;
+}
+
 export interface AedAlert {
   rule: string;
   agent_id: string;

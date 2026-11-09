@@ -2,7 +2,7 @@ import { Check, Clock, Copy, Loader2, MonitorCheck, Plus, ShieldAlert, ShieldX, 
 import { useEffect, useState } from "react";
 import { Empty, Failed, Skeleton } from "../components/states";
 import { Card, CardHead, Overlay, Segmented } from "../components/ui";
-import { post, useApi, type AedAlert, type AedEndpoint, type AedEnrollment, type Me } from "../lib/api";
+import { post, useApi, type AedAlert, type AedEndpoint, type AedEnrollment, type AedEvent, type Me } from "../lib/api";
 import { ago, dateTime } from "../lib/format";
 import { usePage } from "../lib/page";
 
@@ -156,6 +156,82 @@ function SevPill({ sev }: { sev?: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-[11.5px] ring-1 ${cls}`}>{sev ?? "info"}</span>;
 }
 
+const CLASS: Record<number, string> = { 3002: "Authentication", 5001: "Device inventory" };
+
+/** One endpoint's detail: its open alerts and a timeline of recent (redacted)
+ * events, fetched on open. */
+function EndpointDetail({ ep, alerts, onClose }: { ep: AedEndpoint; alerts: AedAlert[]; onClose: () => void }) {
+  const evs = useApi<{ events: AedEvent[] }>(`aed/endpoints/${encodeURIComponent(ep.agent_id)}/events`);
+  const mine = alerts.filter((a) => a.agent_id === ep.agent_id);
+  const rows = evs.data?.events ?? [];
+  return (
+    <Overlay label={`Endpoint ${ep.agent_id}`}>
+      <div className="card flex max-h-[85vh] w-full max-w-[640px] flex-col p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <h2 className="font-mono text-[15px] font-semibold">{ep.agent_id}</h2>
+            <StatusPill status={ep.status} />
+          </div>
+          <button onClick={onClose} className="rounded-ctl p-1.5 text-ink-muted hover:text-ink" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {mine.length > 0 && (
+          <div className="mb-4 space-y-1.5">
+            {mine.map((a, i) => (
+              <div key={i} className="flex items-start gap-2 rounded-ctl border border-warn/30 bg-warn/10 px-3 py-2 text-[12.5px]">
+                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+                <span>
+                  <b className="text-ink">{a.rule}</b>
+                  {a.src_ip && (
+                    <>
+                      {" · "}
+                      <span className="font-mono">{a.src_ip}</span>
+                    </>
+                  )}
+                  {a.count != null && <> · {a.count} events</>}
+                  {a.fp_guidance && <span className="block text-ink-faint">{a.fp_guidance}</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <h3 className="label mb-2">Timeline</h3>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {evs.error && !evs.data ? (
+            <Failed error={evs.error} onRetry={evs.reload} />
+          ) : !evs.data ? (
+            <Skeleton className="h-40" />
+          ) : !rows.length ? (
+            <Empty>No events yet from this endpoint.</Empty>
+          ) : (
+            <ol className="relative space-y-3 border-l border-line pl-4">
+              {rows.map((e, i) => (
+                <li key={i} className="relative">
+                  <span
+                    className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ring-2 ring-card ${e.status === "failure" ? "bg-down" : "bg-up"}`}
+                  />
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px]">
+                    <span className="font-medium text-ink">{CLASS[e.class_uid ?? 0] ?? "Event"}</span>
+                    {e.status && <span className={e.status === "failure" ? "text-down" : "text-up"}>{e.status}</span>}
+                    {e.src_ip && <span className="font-mono text-ink-muted">{e.src_ip}</span>}
+                    {e.user && <span className="text-ink-muted">user {e.user}</span>}
+                    <span className="ml-auto text-[12px] text-ink-faint" title={e.time ? dateTime(e.time) : undefined}>
+                      {e.time ? ago(e.time) : ""}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 /** Lab endpoint telemetry served by the AED gateway (admin proxy). Lab VMs only. */
 export default function Endpoints({ me }: { me?: Me }) {
   usePage("Response", "Lab endpoints");
@@ -165,6 +241,7 @@ export default function Endpoints({ me }: { me?: Me }) {
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [adding, setAdding] = useState(false);
+  const [detail, setDetail] = useState<AedEndpoint>();
 
   const notConfigured = (list.error ?? "").startsWith("503");
 
@@ -231,7 +308,11 @@ export default function Endpoints({ me }: { me?: Me }) {
               <tbody>
                 {agents.map((a) => (
                   <tr key={a.agent_id} className="border-b border-line/70 odd:bg-zebra">
-                    <td className="py-3 pl-6 font-mono">{a.agent_id}</td>
+                    <td className="py-3 pl-6">
+                      <button className="font-mono text-accent-soft hover:underline" onClick={() => setDetail(a)}>
+                        {a.agent_id}
+                      </button>
+                    </td>
                     <td className="py-3">
                       <StatusPill status={a.status} />
                     </td>
@@ -309,6 +390,7 @@ export default function Endpoints({ me }: { me?: Me }) {
           }}
         />
       )}
+      {detail && <EndpointDetail ep={detail} alerts={rows} onClose={() => setDetail(undefined)} />}
     </div>
   );
 }

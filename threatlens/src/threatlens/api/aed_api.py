@@ -51,6 +51,17 @@ async def alerts(request: Request) -> dict[str, Any]:
         raise HTTPException(502, "the AED gateway is unavailable") from e
 
 
+@router.get("/endpoints/{agent_id}/events")
+async def endpoint_events(request: Request, agent_id: Annotated[str, Path(max_length=128)]) -> dict[str, Any]:
+    await _me(request)
+    if not _AGENT_ID.match(agent_id):
+        raise HTTPException(400, "not an agent id")
+    try:
+        return {"events": await _client(request).events(agent_id)}
+    except AedAdminError as e:
+        raise HTTPException(502, "the AED gateway is unavailable") from e
+
+
 class _MintBody(BaseModel):
     os: Literal["linux", "windows"]
     name: str | None = None

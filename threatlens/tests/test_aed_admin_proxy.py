@@ -59,6 +59,13 @@ class FakeAdmin:
             raise AedAdminError("boom")
         return [{"rule": "ssh_bruteforce", "agent_id": "lab-vm-1", "src_ip": "10.0.0.9", "count": 12}]
 
+    async def events(self, agent_id: str) -> list[dict[str, object]]:
+        if "events" in self.raise_on:
+            raise AedAdminError("boom")
+        return [
+            {"time": "2026-11-09T00:00:00Z", "class_uid": 3002, "status": "failure", "src_ip": "10.0.0.9"}
+        ]
+
     async def revoke(self, agent_id: str) -> None:
         if "revoke" in self.raise_on:
             raise AedAdminError("boom")
@@ -184,6 +191,16 @@ async def test_create_enrollment_rejects_unknown_os(aed_app: tuple[App, FakeAdmi
     r = await app.c.post("/app/api/aed/enrollments", json={"os": "solaris"}, headers=SAME)
     assert r.status_code == 422
     assert fake.created == []
+
+
+async def test_endpoint_events_need_sign_in_and_validate_id(aed_app: tuple[App, FakeAdmin]) -> None:
+    app, _ = aed_app
+    assert (await app.c.get("/app/api/aed/endpoints/lab-vm-1/events")).status_code == 401
+    await app.login("vera")  # any signed-in role can read
+    r = await app.c.get("/app/api/aed/endpoints/lab-vm-1/events")
+    assert r.status_code == 200
+    assert r.json()["events"][0]["src_ip"] == "10.0.0.9"
+    assert (await app.c.get("/app/api/aed/endpoints/bad!id/events")).status_code == 400
 
 
 async def test_revoke_rejects_bad_agent_id(aed_app: tuple[App, FakeAdmin]) -> None:
