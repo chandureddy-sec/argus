@@ -52,3 +52,12 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# ───────────────────────── Local agent tooling ───────────────────────────
+.agents/
+.claude/
+.codex/
+.impeccable/
+
+# AED agent build artifact (produced by `go build`, not source)
+threatlens/aed-agent
