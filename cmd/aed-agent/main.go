@@ -10,10 +10,43 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"strings"
 	"time"
 
 	"reconx/internal/aed/agent"
 )
+
+
+func firstExisting(paths ...string) string {
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	if len(paths) > 0 {
+		return paths[0]
+	}
+	return ""
+}
+
+func readKVConf(path string) map[string]string {
+	out := make(map[string]string)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return out
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			out[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+	return out
+}
 
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
@@ -38,18 +71,41 @@ func main() {
 	version := flag.String("version", "0.1.0", "agent version string")
 	flag.Parse()
 
+	// If flags are not provided, auto-discover from /etc/aed-agent or /var/lib/aed
+	confPath := firstExisting("/etc/aed-agent/agent.conf", "/var/lib/aed/agent.conf")
+	if confPath != "" {
+		kv := readKVConf(confPath)
+		if *gateway == "" {
+			*gateway = kv["gateway_url"]
+		}
+		if *agentID == "" {
+			*agentID = kv["agent_id"]
+		}
+	}
+	if *certFile == "/var/lib/aed/agent.crt" {
+		*certFile = firstExisting("/etc/aed-agent/agent.crt", "/var/lib/aed/agent.crt")
+	}
+	if *keyFile == "/var/lib/aed/agent.key" {
+		*keyFile = firstExisting("/etc/aed-agent/agent.key", "/var/lib/aed/agent.key")
+	}
+	if *caFile == "/var/lib/aed/ca.crt" {
+		*caFile = firstExisting("/etc/aed-agent/ca.crt", "/var/lib/aed/ca.crt")
+	}
+
 	if *gateway == "" || *agentID == "" {
-		log.Fatal("aed-agent: --gateway and --agent-id are required")
+		log.Fatal("aed-agent: --gateway and --agent-id are required (or /etc/aed-agent/agent.conf)")
 	}
 	httpClient, err := agent.MTLSClient(*certFile, *keyFile, *caFile, 10*time.Second)
 	if err != nil {
 		log.Fatalf("aed-agent: mTLS setup failed: %v", err)
 	}
+	certBytes, _ := os.ReadFile(*certFile)
 	c := agent.New(agent.Config{
 		GatewayURL:        *gateway,
 		AgentID:           *agentID,
 		Version:           *version,
 		HeartbeatInterval: *interval,
+		CertPEM:           certBytes,
 	}, httpClient)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

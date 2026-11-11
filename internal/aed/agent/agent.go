@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,7 @@ type Config struct {
 	AgentID           string
 	Version           string
 	HeartbeatInterval time.Duration
+	CertPEM           []byte
 }
 
 // Client sends heartbeats to the AED gateway.
@@ -32,6 +34,7 @@ type Client struct {
 	http    *http.Client
 	mu      sync.Mutex
 	lastSeq int64
+	certB64 string
 }
 
 // New builds a Client. A nil httpClient uses a plain timeout client (tests);
@@ -43,7 +46,11 @@ func New(cfg Config, httpClient *http.Client) *Client {
 	if cfg.HeartbeatInterval <= 0 {
 		cfg.HeartbeatInterval = 30 * time.Second
 	}
-	return &Client{cfg: cfg, http: httpClient}
+	var b64 string
+	if len(cfg.CertPEM) > 0 {
+		b64 = base64.StdEncoding.EncodeToString(cfg.CertPEM)
+	}
+	return &Client{cfg: cfg, http: httpClient, certB64: b64}
 }
 
 // nextSeq returns a strictly increasing sequence number. It is seeded from the
@@ -88,6 +95,9 @@ func (c *Client) SendHeartbeat(ctx context.Context) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-AED-Seq", fmt.Sprintf("%d", c.nextSeq()))
 	req.Header.Set("X-AED-Nonce", newNonce())
+	if c.certB64 != "" {
+		req.Header.Set("X-AED-Client-Cert", c.certB64)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err
@@ -117,6 +127,9 @@ func (c *Client) SendBatch(ctx context.Context, events []*Event) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-AED-Seq", fmt.Sprintf("%d", c.nextSeq()))
 	req.Header.Set("X-AED-Nonce", newNonce())
+	if c.certB64 != "" {
+		req.Header.Set("X-AED-Client-Cert", c.certB64)
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return err

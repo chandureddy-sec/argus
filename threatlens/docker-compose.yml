@@ -130,6 +130,7 @@ services:
     volumes:
       - aedca:/var/lib/aed/ca
       - ${AED_AGENT_BIN:-./aed-agent}:/opt/aed/aed-agent:ro
+      - ./src:/app/src:ro
     restart: unless-stopped
     # Override the image's :8000 healthcheck — the gateway listens on :8443.
     healthcheck:

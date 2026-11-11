@@ -24,12 +24,26 @@ def linux_install_command(*, advertise_url: str, token: str, ca_fingerprint: str
     enrolls. No pipe-to-shell; HTTPS only."""
     url = advertise_url.rstrip("/")
     agent_url = f"{url}/aed/agent/linux"
+    curl_flags = '-fsSL -k --proto "=https"' if url.startswith("https://") else "-fsSL"
+    service_unit = (
+        "[Unit]\\n"
+        "Description=AED lab endpoint agent\\n"
+        "After=network-online.target\\n"
+        "Wants=network-online.target\\n\\n"
+        "[Service]\\n"
+        "Type=simple\\n"
+        "ExecStart=/usr/local/bin/aed-agent\\n"
+        "Restart=on-failure\\n"
+        "RestartSec=5\\n\\n"
+        "[Install]\\n"
+        "WantedBy=multi-user.target"
+    )
     return "\n".join(
         [
             "set -eu",
             "umask 077",
             'D="$(mktemp -d)"',
-            f'curl -fsSL --proto "=https" "{agent_url}" -o "$D/aed-agent"',
+            f'curl {curl_flags} "{agent_url}" -o "$D/aed-agent"',
             f'echo "{agent_sha256}  $D/aed-agent" | sha256sum -c -',
             'sudo install -m 0755 -o root -g root "$D/aed-agent" /usr/local/bin/aed-agent',
             "sudo install -d -m 0700 /etc/aed-agent",
@@ -41,6 +55,9 @@ def linux_install_command(*, advertise_url: str, token: str, ca_fingerprint: str
                 " --config /etc/aed-agent"
             ),
             "sudo chmod 600 /etc/aed-agent/agent.conf",
+            f'printf "{service_unit}\\n" | sudo tee /etc/systemd/system/aed-agent.service >/dev/null',
+            "sudo systemctl daemon-reload",
+            "sudo systemctl enable --now aed-agent",
             'rm -rf "$D"',
         ]
     )
