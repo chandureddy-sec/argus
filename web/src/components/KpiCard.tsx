@@ -14,17 +14,17 @@ const TONE: Record<Kpi["icon"], string> = {
 export default function KpiCard({ kpi, first }: { kpi: Kpi; first?: boolean }) {
   const Icon = ICONS[kpi.icon];
   return (
-    <div className={`flex flex-col gap-3 py-4 sm:px-5 ${first ? "sm:pl-0" : ""}`}>
-      <div className="flex items-center gap-2">
-        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ring-1 ${TONE[kpi.icon]}`}>
-          <Icon className="h-[15px] w-[15px]" />
+    <div className={`flex flex-col gap-3.5 py-5 sm:px-6 ${first ? "sm:pl-0" : ""}`}>
+      <div className="flex items-center gap-2.5">
+        <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ring-1 ${TONE[kpi.icon]}`}>
+          <Icon className="h-[18px] w-[18px]" />
         </span>
         <span className="label">{kpi.label}</span>
       </div>
       <div className="flex items-end gap-2.5">
-        <span className="text-[28px] font-bold leading-none tracking-tight text-ink tabular-nums" title={kpi.value.toLocaleString()}>
+        <span className="text-[32px] font-bold leading-none tracking-tight text-ink tabular-nums" title={kpi.value.toLocaleString()}>
           {compact(kpi.value)}
-          {kpi.of !== undefined && <span className="text-[18px] font-semibold text-ink-faint"> / {kpi.of}</span>}
+          {kpi.of !== undefined && <span className="text-[19px] font-semibold text-ink-faint"> / {kpi.of}</span>}
         </span>
         {kpi.change !== null && <Change value={kpi.change} />}
       </div>

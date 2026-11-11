@@ -73,9 +73,12 @@ export function Card({ children, className = "", delay = 0 }: { children: ReactN
 export function CardHead({ title, sub, children }: { title: string; sub?: string; children?: ReactNode }) {
   return (
     <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="text-[15px] font-semibold text-ink">{title}</h2>
-        {sub && <p className="mt-1 label">{sub}</p>}
+      <div className="min-w-0">
+        <div className="flex items-center gap-2.5">
+          <span aria-hidden="true" className="h-[18px] w-1 shrink-0 rounded-full bg-accent" />
+          <h2 className="text-[16px] font-semibold tracking-tight text-ink">{title}</h2>
+        </div>
+        {sub && <p className="mt-1.5 pl-[14px] label">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </header>
