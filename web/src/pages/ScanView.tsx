@@ -9,7 +9,73 @@ import { post, useApi, useText, type GeoPoint, type Me, type Report } from "../l
 import { dateTime } from "../lib/format";
 import { usePage } from "../lib/page";
 
-const TABS = ["Hosts", "Graph", "Findings", "Ports", "Map", "Sources", "Downloads"] as const;
+const TABS = ["Hosts", "DNS", "Graph", "Findings", "Ports", "Map", "Sources", "Downloads"] as const;
+const DNS_ORDER = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "CAA"];
+
+function dnsStatusClass(s?: string): string {
+  if (s === "NOERROR") return "bg-up/10 text-up ring-up/20";
+  if (s === "NXDOMAIN") return "bg-down/10 text-down ring-down/20";
+  if (s === "SERVFAIL" || s === "REFUSED") return "bg-warn/10 text-warn ring-warn/20";
+  return "bg-info/10 text-info-soft ring-info/20";
+}
+
+function Dns({ rep }: { rep: Report }) {
+  const d = rep.dns;
+  if (!d || !d.records?.length) return <Empty>This scan has no DNS records (it may have targeted an IP, or resolution returned nothing).</Empty>;
+  const recs = [...d.records].sort((a, b) => DNS_ORDER.indexOf(a.type) - DNS_ORDER.indexOf(b.type));
+  const spf = d.security_records?.spf;
+  const dmarc = d.security_records?.dmarc;
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 px-5 text-[12.5px] text-ink-muted sm:px-6">
+        <span>
+          Resolver <span className="font-mono text-ink">{d.resolver || "—"}</span>
+        </span>
+        {d.status && <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11.5px] font-medium ring-1 ${dnsStatusClass(d.status)}`}>{d.status}</span>}
+        {d.queried_at && <span className="text-ink-faint">queried {dateTime(d.queried_at)}</span>}
+        <span className="ml-auto text-ink-faint">
+          {recs.length} record{recs.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] text-left text-[13.5px]">
+          <thead>
+            <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
+              <th className="py-3 pl-6 font-medium">Type</th>
+              <th className="py-3 font-medium">Name</th>
+              <th className="py-3 font-medium">Value</th>
+              <th className="py-3 pr-6 font-medium">TTL</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recs.map((r, i) => (
+              <tr key={`${r.type}-${r.name}-${r.value}-${i}`} className="border-b border-line/70 odd:bg-zebra hover:bg-row-hover">
+                <td className="py-3 pl-6">
+                  <span className="rounded bg-accent/10 px-1.5 py-0.5 font-mono text-[12px] text-accent-soft">{r.type}</span>
+                </td>
+                <td className="py-3 font-mono text-[12.5px] text-ink-muted">{r.name}</td>
+                <td className="break-all py-3 font-mono text-[12.5px]">{r.value}</td>
+                <td className="whitespace-nowrap py-3 pr-6 tabular-nums text-ink-faint">{r.ttl}s</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {(spf || dmarc) && (
+        <div className="grid gap-3 px-5 py-4 sm:grid-cols-2 sm:px-6">
+          <div className="rounded-ctl border border-line bg-card-2/40 p-3.5">
+            <p className="label mb-1">SPF</p>
+            <p className="break-all font-mono text-[12.5px]">{spf || <span className="text-ink-faint">Not published</span>}</p>
+          </div>
+          <div className="rounded-ctl border border-line bg-card-2/40 p-3.5">
+            <p className="label mb-1">DMARC</p>
+            <p className="break-all font-mono text-[12.5px]">{dmarc || <span className="text-ink-faint">Not published</span>}</p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 type Tab = (typeof TABS)[number];
 const SEV_ORDER = ["critical", "high", "medium", "low", "info"];
 
@@ -338,6 +404,8 @@ export default function ScanView({ me }: { me?: Me }) {
           <Skeleton className="mx-6 mb-6 h-64" />
         ) : tab === "Hosts" ? (
           <Hosts rep={rep} />
+        ) : tab === "DNS" ? (
+          <Dns rep={rep} />
         ) : tab === "Graph" ? (
           <InfraGraph refId={ref} />
         ) : tab === "Findings" ? (

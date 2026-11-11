@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"reconx/internal/archive"
-	"reconx/internal/dns"
 	"reconx/internal/orchestrator"
 	reporter "reconx/internal/report"
 	"reconx/internal/storage"
@@ -173,8 +172,7 @@ var scanCmd = &cobra.Command{
 			if !silent {
 				ui.PrintSectionHeader("2/6", "DNS Infrastructure Records")
 			}
-			dnsResolver := dns.NewResolver(nil, 5*time.Second)
-			dnsRes, err := dnsResolver.Lookup(ctx, parsedTarget.Value)
+			dnsRes, err := activeRecordResolver().Resolve(ctx, parsedTarget.Value)
 			if err == nil {
 				report.DNS = dnsRes
 				if !silent {
