@@ -120,6 +120,17 @@
   .btn-primary { @apply btn bg-accent text-on-accent hover:bg-accent-hover; box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.14), var(--shadow-sel); }
   .btn-ghost { @apply btn border border-ctl-line bg-card-2/60 text-ink-muted hover:text-ink hover:border-accent/40; }
   .ctl { @apply h-9 rounded-ctl border border-ctl-line bg-card-2/70 px-3 text-sm text-ink placeholder:text-ink-faint outline-none transition focus:border-accent/60 focus:ring-2 focus:ring-accent/20; }
+
+  /* Long data tables: a bounded scroll region whose header stays pinned while rows
+     scroll. The wrapper (not the page) scrolls because an `overflow-x:auto` ancestor
+     is forced by CSS to also be an `overflow-y:auto` scroll container, which would
+     otherwise defeat a page-level sticky thead. `overscroll-contain` stops the inner
+     scroll from chaining into the page. Pagination/footers sit outside the region. */
+  .table-scroll { @apply overflow-auto overscroll-contain; max-height: calc(100vh - 13rem); }
+  /* The pinned header: a solid surface (so rows don't bleed through) with a crisp
+     hairline bottom edge, correct in both themes. Applied via `.thead-sticky` on a
+     <thead>; column alignment and horizontal scroll are untouched. */
+  .thead-sticky th { position: sticky; top: 0; z-index: 10; background: rgb(var(--card-2)); box-shadow: inset 0 -1px 0 rgb(var(--line)); }
 }
 
 /* Charts: matte lines, quiet grid. */

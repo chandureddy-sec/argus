@@ -23,7 +23,7 @@ interface Results {
 }
 
 export default function SearchPage() {
-  usePage("Search");
+  usePage("Platform", "Search");
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const all = params.get("all") === "true";

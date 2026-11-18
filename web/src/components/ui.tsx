@@ -70,18 +70,34 @@ export function Card({ children, className = "", delay = 0 }: { children: ReactN
   );
 }
 
-export function CardHead({ title, sub, children }: { title: string; sub?: string; children?: ReactNode }) {
+export function CardHead({
+  title,
+  sub,
+  children,
+  filters,
+}: {
+  title: string;
+  sub?: string;
+  children?: ReactNode;
+  /** Optional filter row (search, selects, segmented) rendered directly under the
+   * header with consistent spacing — so list pages stop hand-rolling the wrapper.
+   * Omitted (the default) leaves the header untouched for every existing caller. */
+  filters?: ReactNode;
+}) {
   return (
-    <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2.5">
-          <span aria-hidden="true" className="h-[18px] w-1 shrink-0 rounded-full bg-accent" />
-          <h2 className="text-[16px] font-semibold tracking-tight text-ink">{title}</h2>
+    <>
+      <header className={`flex flex-wrap items-start justify-between gap-3 ${filters ? "mb-4" : "mb-5"}`}>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span aria-hidden="true" className="h-[18px] w-1 shrink-0 rounded-full bg-accent" />
+            <h2 className="text-[16px] font-semibold tracking-tight text-ink">{title}</h2>
+          </div>
+          {sub && <p className="mt-1.5 pl-[14px] label">{sub}</p>}
         </div>
-        {sub && <p className="mt-1.5 pl-[14px] label">{sub}</p>}
-      </div>
-      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
-    </header>
+        {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+      </header>
+      {filters && <div className="mb-4 flex flex-wrap items-center gap-2">{filters}</div>}
+    </>
   );
 }
 

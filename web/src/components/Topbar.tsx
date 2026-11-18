@@ -14,10 +14,13 @@ export default function Topbar({ onMenu, me, crumbs }: { onMenu: () => void; me?
       </button>
       <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-[14px]">
         <Link to="/" className="hidden text-ink-muted hover:text-ink sm:inline">
-          Dashboard
+          Overview
         </Link>
-        {crumbs.map((c, i) => {
-          const last = i === crumbs.length - 1;
+        {/* The home page's own crumb is already "Overview" (the root link above),
+            so drop it to avoid "Overview › Overview"; every other page leads with
+            its group name. */}
+        {(crumbs[0] === "Overview" ? crumbs.slice(1) : crumbs).map((c, i, arr) => {
+          const last = i === arr.length - 1;
           return (
             <span key={`${i}-${c}`} className={`min-w-0 items-center gap-1.5 ${last ? "flex" : "hidden sm:flex"}`}>
               <ChevronRight className="hidden h-4 w-4 shrink-0 text-ink-faint sm:block" />

@@ -123,9 +123,9 @@ export default function Blocklist({ me }: { me?: Me }) {
             </div>
           </div>
           {error && <p className="px-6 pb-2 text-[13px] text-down">{error}</p>}
-          <div className="overflow-x-auto">
+          <div className="table-scroll">
             <table className="w-full min-w-[860px] text-left text-[13.5px]">
-              <thead>
+              <thead className="thead-sticky">
                 <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
                   <th className="py-3 pl-6 font-medium">Value</th>
                   <th className="py-3 font-medium">State</th>

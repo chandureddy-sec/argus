@@ -32,6 +32,13 @@ export default function Scans({ me }: { me?: Me }) {
           <CardHead
             title="Scans"
             sub={data ? `${data.length} scans of ${targets} target${targets === 1 ? "" : "s"} · saved scans feed your assets` : "Your ReconX scans"}
+            filters={
+              <label className="relative block w-full max-w-xs">
+                <span className="sr-only">Filter by target</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+                <input value={q} onChange={(e) => setQ(e.target.value)} className="ctl h-8 w-full pl-9 text-[13px]" placeholder="Filter by target" />
+              </label>
+            }
           >
             <button className="btn-ghost h-9" disabled={!sameTarget} onClick={compare} title={sameTarget ? "Compare the two ticked scans" : "Tick two scans of the same target"}>
               <ArrowLeftRight className="h-4 w-4" /> Compare
@@ -42,15 +49,10 @@ export default function Scans({ me }: { me?: Me }) {
               </Link>
             )}
           </CardHead>
-          <label className="relative mb-4 block max-w-xs">
-            <span className="sr-only">Filter by target</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} className="ctl h-8 w-full pl-9 text-[13px]" placeholder="Filter by target" />
-          </label>
         </div>
-        <div className="overflow-x-auto">
+        <div className="table-scroll">
           <table className="w-full min-w-[900px] text-left text-[13.5px]">
-            <thead>
+            <thead className="thead-sticky">
               <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
                 <th className="w-12 py-3 pl-6" aria-label="Pick to compare" />
                 <th className="py-3 font-medium">Target</th>

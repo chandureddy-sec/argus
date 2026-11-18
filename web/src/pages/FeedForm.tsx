@@ -84,7 +84,7 @@ export default function FeedForm({ me }: { me?: Me }) {
 
   if (me && me.role !== "admin") {
     return (
-      <div className="mx-auto max-w-[880px] px-4 py-8 sm:px-6">
+      <div className="mx-auto w-full max-w-[880px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <Card>
           <p className="text-ink-muted">Adding and editing feeds needs the admin role.</p>
         </Card>

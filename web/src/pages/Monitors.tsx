@@ -74,9 +74,9 @@ export default function Monitors({ me }: { me?: Me }) {
           ) : !monitors.length ? (
             <Empty>No monitors yet.{admin ? " Add one on the right." : " An admin can add them."}</Empty>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="table-scroll">
               <table className="w-full min-w-[760px] text-left text-[13.5px]">
-                <thead>
+                <thead className="thead-sticky">
                   <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
                     <th className="py-3 pl-6 font-medium">Target</th>
                     <th className="py-3 font-medium">Every</th>
