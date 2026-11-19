@@ -116,9 +116,9 @@ export default function Indicators() {
             <SavedViews />
           </div>
         </div>
-        <div className={`overflow-x-auto transition-opacity ${loading && data ? "opacity-60" : ""}`}>
+        <div className={`table-scroll transition-opacity ${loading && data ? "opacity-60" : ""}`}>
           <table className="w-full min-w-[960px] text-left text-[13.5px]">
-            <thead>
+            <thead className="thead-sticky">
               <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
                 <th className="py-3 pl-6 font-medium">Indicator</th>
                 <th className="py-3 font-medium">Sources</th>

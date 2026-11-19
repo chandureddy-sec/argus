@@ -91,7 +91,7 @@ export default function DataTable() {
       <div className={`overflow-x-auto transition-opacity ${loading && data ? "opacity-60" : ""}`}>
         <table className="w-full min-w-[860px] text-left text-[13.5px]">
           <thead>
-            <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
+            <tr className="border-y border-line bg-card-2/70 text-[12px] uppercase tracking-wide text-ink-muted">
               <th className="w-14 py-3 pl-6 font-medium">#</th>
               <th className="py-3 font-medium">Indicator</th>
               <th className="py-3 font-medium">Source</th>
@@ -115,7 +115,9 @@ export default function DataTable() {
               const [label, pill] = PILL[r.status] ?? PILL.active;
               return (
                 <tr key={r.id} className="group border-b border-line/70 transition-colors odd:bg-zebra hover:bg-row-hover">
-                  <td className="py-3.5 pl-6 text-ink-faint tabular-nums">{(page - 1) * SIZE + i + 1}</td>
+                  <td className="relative py-3.5 pl-6 text-ink-faint tabular-nums before:absolute before:left-0 before:top-0 before:h-full before:w-[2px] before:bg-accent before:opacity-0 before:transition-opacity group-hover:before:opacity-100">
+                    {(page - 1) * SIZE + i + 1}
+                  </td>
                   <td className="py-3.5 pr-4">
                     <a href={`/app/indicators/${r.id}`} className="flex items-center gap-3">
                       <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent-soft ring-1 ring-accent/20" title={r.typeLabel}>

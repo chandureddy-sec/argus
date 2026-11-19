@@ -84,9 +84,9 @@ export default function Vulnerabilities() {
             <Select value={SORTS.find(([, v]) => v === sort)?.[0] ?? SORTS[0][0]} options={SORTS.map(([l]) => l)} onChange={(l) => set("sort", SORTS.find(([x]) => x === l)?.[1] ?? "patch")} label="Sort" />
           </div>
         </div>
-        <div className={`overflow-x-auto transition-opacity ${loading && data ? "opacity-60" : ""}`}>
+        <div className={`table-scroll transition-opacity ${loading && data ? "opacity-60" : ""}`}>
           <table className="w-full min-w-[900px] text-left text-[13.5px]">
-            <thead>
+            <thead className="thead-sticky">
               <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
                 <th className="py-3 pl-6 font-medium">CVE</th>
                 <th className="py-3 font-medium">What it is</th>

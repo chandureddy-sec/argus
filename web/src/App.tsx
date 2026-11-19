@@ -54,9 +54,20 @@ function NotFound() {
   );
 }
 
+const COLLAPSE_KEY = "argus.sidebar.collapsed";
+
 function Shell() {
   const [menu, setMenu] = useState(false);
-  const [crumbs, setCrumbs] = useState<string[]>(["Reports"]);
+  // Desktop sidebar collapse: a compact icon rail vs the full labelled sidebar.
+  // Persisted locally; only affects the lg layout (the mobile drawer is unaffected).
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(COLLAPSE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [crumbs, setCrumbs] = useState<string[]>(["Overview"]);
   const me = useApi<Me>("me").data;
   const loc = useLocation();
   useEffect(() => setMenu(false), [loc.pathname]); // close the phone menu after navigating
@@ -65,11 +76,21 @@ function Shell() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* storage unavailable (private mode) — collapse still works for the session */
+      }
+      return next;
+    });
   return (
     <CrumbsProvider set={setCrumbs}>
       <div className="min-h-full">
-        <Sidebar open={menu} onClose={() => setMenu(false)} me={me} />
-        <div className="flex min-h-full flex-col lg:pl-[240px]">
+        <Sidebar open={menu} onClose={() => setMenu(false)} me={me} collapsed={collapsed} onToggle={toggleCollapsed} />
+        <div className={`flex min-h-full flex-col transition-[padding] duration-200 ${collapsed ? "lg:pl-[64px]" : "lg:pl-[240px]"}`}>
           <Topbar onMenu={() => setMenu(true)} me={me} crumbs={crumbs} />
           <main className="flex-1">
             <Suspense fallback={null}>

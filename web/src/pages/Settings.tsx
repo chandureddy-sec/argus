@@ -1328,7 +1328,7 @@ function AuditLogSection() {
           >
             <span>{c.label}</span>
             <span
-              className={`rounded-full px-1.5 py-0.2 text-[11px] tabular-nums ${
+              className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${
                 category === c.id ? "bg-on-accent/15 text-on-accent" : "bg-card text-ink-faint"
               }`}
             >
@@ -1376,9 +1376,9 @@ function AuditLogSection() {
             {data?.total === 1 ? "" : "s"}
           </div>
 
-          <div className="overflow-x-auto rounded-ctl border border-line">
+          <div className="table-scroll rounded-ctl border border-line">
             <table className="w-full text-left text-[13px]">
-              <thead className="bg-card-2/50 text-[12px] uppercase tracking-wider text-ink-faint">
+              <thead className="thead-sticky bg-card-2/50 text-[12px] uppercase tracking-wider text-ink-faint">
                 <tr className="border-b border-line">
                   <th className="py-2.5 px-3 font-semibold">Time</th>
                   <th className="py-2.5 px-3 font-semibold">Actor</th>

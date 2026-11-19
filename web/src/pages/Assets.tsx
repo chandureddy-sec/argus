@@ -55,9 +55,9 @@ function AssetList() {
           <input value={q} onChange={(e) => setQ(e.target.value)} className="ctl h-8 w-full pl-9 text-[13px]" placeholder="Host, IP or target" />
         </label>
       </div>
-      <div className="overflow-x-auto">
+      <div className="table-scroll">
         <table className="w-full min-w-[860px] text-left text-[13.5px]">
-          <thead>
+          <thead className="thead-sticky">
             <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
               <th className="py-3 pl-6 font-medium">Asset</th>
               <th className="py-3 font-medium">Of target</th>
@@ -127,9 +127,9 @@ function Software() {
   if (!data) return <Skeleton className="mx-6 mb-6 h-32" />;
   if (!data.length) return <Empty>No software seen yet: scans with internet-scan data (Shodan InternetDB) fill this.</Empty>;
   return (
-    <div className="overflow-x-auto">
+    <div className="table-scroll">
       <table className="w-full min-w-[720px] text-left text-[13.5px]">
-        <thead>
+        <thead className="thead-sticky">
           <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
             <th className="py-3 pl-6 font-medium">Product</th>
             <th className="py-3 font-medium">Versions</th>

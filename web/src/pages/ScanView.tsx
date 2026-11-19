@@ -44,9 +44,9 @@ function Hosts({ rep }: { rep: Report }) {
           {shown.length.toLocaleString()} of {nodes.length.toLocaleString()}
         </span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="table-scroll">
         <table className="w-full min-w-[860px] text-left text-[13.5px]">
-          <thead>
+          <thead className="thead-sticky">
             <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
               <th className="py-3 pl-6 font-medium">Host</th>
               <th className="py-3 font-medium">Addresses</th>
@@ -180,9 +180,9 @@ function Sources({ rep }: { rep: Report }) {
   const runs = rep.passive_intel?.sources ?? [];
   if (!runs.length) return <Empty>No passive sources ran in this scan.</Empty>;
   return (
-    <div className="overflow-x-auto">
+    <div className="table-scroll">
       <table className="w-full min-w-[720px] text-left text-[13.5px]">
-        <thead>
+        <thead className="thead-sticky">
           <tr className="border-y border-line bg-card-2/50 text-[12px] uppercase tracking-wide text-ink-muted">
             <th className="py-3 pl-6 font-medium">Source</th>
             <th className="py-3 font-medium">Used for</th>
@@ -281,7 +281,7 @@ export default function ScanView({ me }: { me?: Me }) {
 
   if (error && !rep) {
     return (
-      <div className="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1320px] space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <Card>
           <Failed error={error} onRetry={reload} />
           {unsaved && <p className="text-center text-[13px] text-ink-muted">Unsaved scans are lost when the engine restarts.</p>}
