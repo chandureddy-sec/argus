@@ -10,6 +10,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DNSConfig selects the DNS record-resolver provider. provider "system" (the
+// default) uses the classic port-53 resolvers in Resolvers; "google" uses the
+// DNS-over-HTTPS JSON resolver. doh_endpoint overrides the DoH URL (empty = the
+// provider's built-in default), so no provider is hardcoded.
+type DNSConfig struct {
+	Provider    string `yaml:"provider"`     // system | google
+	DoHEndpoint string `yaml:"doh_endpoint"` // empty = provider default (Google Public DNS)
+}
+
 // ProviderConfig represents configuration for a specific OSINT source.
 type ProviderConfig struct {
 	Enabled   bool          `yaml:"enabled"`
@@ -20,12 +29,13 @@ type ProviderConfig struct {
 
 // Config represents the global configuration structure.
 type Config struct {
-	Timeout     time.Duration              `yaml:"timeout"`
-	Concurrency int                        `yaml:"concurrency"`
-	PassiveOnly bool                       `yaml:"passive_only"`
-	Verbose     bool                       `yaml:"verbose"`
-	Resolvers   []string                   `yaml:"resolvers"`
-	Providers   map[string]ProviderConfig  `yaml:"providers"`
+	Timeout     time.Duration             `yaml:"timeout"`
+	Concurrency int                       `yaml:"concurrency"`
+	PassiveOnly bool                      `yaml:"passive_only"`
+	Verbose     bool                      `yaml:"verbose"`
+	Resolvers   []string                  `yaml:"resolvers"`
+	DNS         DNSConfig                 `yaml:"dns"`
+	Providers   map[string]ProviderConfig `yaml:"providers"`
 }
 
 var envRegex = regexp.MustCompile(`\$\{([^}]+)\}`)
@@ -42,6 +52,7 @@ func DefaultConfig() *Config {
 			"8.8.8.8:53",
 			"9.9.9.9:53",
 		},
+		DNS: DNSConfig{Provider: "system"},
 		Providers: map[string]ProviderConfig{
 			"crtsh": {
 				Enabled: true,

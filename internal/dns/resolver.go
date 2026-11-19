@@ -24,11 +24,29 @@ type SecurityRecords struct {
 	DMARC string `json:"dmarc,omitempty"`
 }
 
-// Result contains all resolved DNS records for a domain.
+// Result contains all resolved DNS records for a domain, with provenance so a
+// reader knows which resolver answered, the overall response status and when.
 type Result struct {
 	Domain          string          `json:"domain"`
 	Records         []Record        `json:"records"`
 	SecurityRecords SecurityRecords `json:"security_records"`
+	// Provenance (additive; omitempty keeps older report consumers unaffected).
+	Resolver  string    `json:"resolver,omitempty"`   // e.g. "system", "google"
+	Status    string    `json:"status,omitempty"`     // NOERROR | NXDOMAIN | SERVFAIL | REFUSED | RCODE<n>
+	QueriedAt time.Time `json:"queried_at,omitempty"` // when the resolution was performed (UTC)
+}
+
+// RecordResolver is the reusable DNS-resolver provider abstraction: a backend
+// that resolves the standard record types for a domain and reports provenance.
+// Both the port-53 resolver here and the Google DoH resolver implement it, so a
+// new provider can be added without changing callers. See NewRecordResolver.
+type RecordResolver interface {
+	// Name identifies the provider (e.g. "system", "google").
+	Name() string
+	// Resolve queries A, AAAA, CNAME, MX, NS, TXT, SOA and CAA (plus DMARC) for
+	// domain and returns a provenance-stamped Result. A per-record failure is
+	// skipped; a total failure (timeout, malformed response) returns an error.
+	Resolve(ctx context.Context, domain string) (*Result, error)
 }
 
 // Resolver handles DNS queries using miekg/dns.
@@ -115,6 +133,27 @@ func (r *Resolver) Lookup(ctx context.Context, domain string) (*Result, error) {
 		}
 	}
 
+	return res, nil
+}
+
+// Name implements RecordResolver: the classic port-53 resolver.
+func (r *Resolver) Name() string { return "system" }
+
+// Resolve implements RecordResolver by wrapping Lookup and stamping provenance.
+// Status is best-effort for a multi-type lookup: NOERROR when any record came
+// back, otherwise NXDOMAIN.
+func (r *Resolver) Resolve(ctx context.Context, domain string) (*Result, error) {
+	res, err := r.Lookup(ctx, domain)
+	if err != nil {
+		return nil, err
+	}
+	res.Resolver = r.Name()
+	res.QueriedAt = time.Now().UTC()
+	if len(res.Records) > 0 {
+		res.Status = "NOERROR"
+	} else {
+		res.Status = "NXDOMAIN"
+	}
 	return res, nil
 }
 

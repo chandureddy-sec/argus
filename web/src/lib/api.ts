@@ -242,9 +242,26 @@ export interface SourceRun {
   reliability: string;
 }
 
+export interface DnsRecord {
+  type: string;
+  name: string;
+  value: string;
+  ttl: number;
+}
+
+export interface DnsResult {
+  domain: string;
+  records: DnsRecord[];
+  security_records?: { spf?: string; dmarc?: string };
+  resolver?: string; // provenance: which provider answered ("system", "google")
+  status?: string; // NOERROR | NXDOMAIN | SERVFAIL | REFUSED | RCODE<n>
+  queried_at?: string; // ISO timestamp
+}
+
 export interface Report {
   target?: { value: string; type: string };
   timestamp: string;
+  dns?: DnsResult;
   normalized_assets?: { asset: string; type: string; sources: string[] }[];
   attack_surface_graph?: { target_domain: string; total_assets: number; live_assets: number; nodes: HostNode[] };
   passive_intel?: { sources?: SourceRun[]; ips?: { ip: string }[]; certificates?: unknown[] };

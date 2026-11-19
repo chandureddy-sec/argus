@@ -6,11 +6,22 @@ concurrency: 10
 passive_only: true
 verbose: false
 
-# Custom DNS resolvers
+# Custom DNS resolvers (used by the "system" DNS provider, over port 53)
 resolvers:
   - "1.1.1.1:53"
   - "8.8.8.8:53"
   - "9.9.9.9:53"
+
+# DNS record-resolution provider (A/AAAA/CNAME/MX/NS/TXT/SOA/CAA + SPF/DMARC).
+# provider:
+#   system  (default) — classic port-53 DNS using the `resolvers` above.
+#   google            — Google Public DNS over HTTPS (JSON API). Works where
+#                       only outbound 443 is allowed (port 53 blocked). Passive.
+# doh_endpoint: overrides the DoH URL; empty = provider default
+#               (https://dns.google/resolve). Lets other DoH endpoints be used.
+dns:
+  provider: system
+  doh_endpoint: ""
 
 # Provider credentials and settings
 providers:
