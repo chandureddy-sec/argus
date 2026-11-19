@@ -22,6 +22,7 @@ import (
 	"reconx/internal/correlate"
 	"reconx/internal/history"
 	"reconx/internal/keystore"
+	nmapmod "reconx/internal/modules/nmap"
 	"reconx/internal/monitor"
 	reporter "reconx/internal/report"
 	"reconx/internal/target"
@@ -128,7 +129,7 @@ func (s *webServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 // handleConfig returns the session token the page must echo back on POSTs.
 func (s *webServer) handleConfig(w http.ResponseWriter, r *http.Request) {
 	tl := threatlens.Config{}.FromEnv()
-	writeJSON(w, map[string]any{"token": s.token, "threatlens": tl.Configured(), "threatlens_url": tl.URL})
+	writeJSON(w, map[string]any{"token": s.token, "threatlens": tl.Configured(), "threatlens_url": tl.URL, "nmap": nmapmod.Available()})
 }
 
 // handleListScans returns summaries of saved scans (reports/ dir) plus finished

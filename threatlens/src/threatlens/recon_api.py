@@ -89,8 +89,13 @@ async def status(request: Request) -> dict[str, Any]:
     if engine is None:
         return {"configured": False, "reachable": False}
     try:
-        await engine.token(refresh=True)
-        return {"configured": True, "reachable": True, "browser": False, "nmap": True}
+        cfg = await engine.get_json("/api/config")
+        return {
+            "configured": True,
+            "reachable": True,
+            "browser": False,
+            "nmap": bool(cfg.get("nmap", False)),
+        }
     except EngineError:
         return {"configured": True, "reachable": False}
 

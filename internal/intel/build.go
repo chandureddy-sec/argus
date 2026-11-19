@@ -133,8 +133,6 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	// ── DNS posture & email security ──
 	progress("Checking DNSSEC, CAA and email security records…")
 	start = time.Now()
-	pi.DNSSEC = CollectDNSSEC(ctx, r, domain)
-	pi.CAA = CollectCAA(ctx, r, domain)
 	var rootTXT, nsHosts []string
 	type mx struct {
 		pri  int
@@ -160,7 +158,17 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 			}
 		}
 	}
-	pi.Email = CollectEmailSecurity(ctx, r, domain, rootTXT)
+	// Bound the DNS-posture lookups so a slow or filtered resolver can't stall
+	// the whole scan here: once this budget expires every remaining query fails
+	// fast (the resolver honours the context deadline).
+	posture, _ := withBudget(ctx, 45*time.Second, func(ctx context.Context) (dnsPosture, error) {
+		return dnsPosture{
+			dnssec: CollectDNSSEC(ctx, r, domain),
+			caa:    CollectCAA(ctx, r, domain),
+			email:  CollectEmailSecurity(ctx, r, domain, rootTXT),
+		}, nil
+	})
+	pi.DNSSEC, pi.CAA, pi.Email = posture.dnssec, posture.caa, posture.email
 	present := 0
 	for _, ok := range []bool{pi.DNSSEC.Enabled, pi.CAA.Present, pi.Email.SPF.Present, pi.Email.DMARC.Present, len(pi.Email.DKIM.Found) > 0, pi.Email.MTASTS.Present, pi.Email.TLSRPT.Present} {
 		if ok {
@@ -187,7 +195,9 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	for _, m := range mxHosts {
 		lookup = append(lookup, m.host)
 	}
-	resolved := ResolveHosts(ctx, r, dedupe(lookup), 25)
+	resolved, _ := withBudget(ctx, 60*time.Second, func(ctx context.Context) (map[string]Resolution, error) {
+		return ResolveHosts(ctx, r, dedupe(lookup), 25), nil
+	})
 	resolving := 0
 	for _, h := range hosts {
 		if resolved[h].Status == "resolves" {
@@ -223,7 +233,9 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 	}
 	pi.Sources = append(pi.Sources, sourceRun("ip-api", "IP geolocation, ASN, ISP, reverse DNS", time.Since(start), ipErr, enriched))
 	start = time.Now()
-	prefixes := LookupPrefixes(ctx, r, allIPs)
+	prefixes, _ := withBudget(ctx, 45*time.Second, func(ctx context.Context) (map[string]PrefixInfo, error) {
+		return LookupPrefixes(ctx, r, allIPs), nil
+	})
 	pi.Sources = append(pi.Sources, partialRun(sourceRun("team-cymru", "Announced prefix, RIR, allocation date (DNS)", time.Since(start), ctx.Err(), len(prefixes)), len(prefixes)))
 	progress(fmt.Sprintf("Cross-checking routing for %d IPs (RIPEstat)…", len(allIPs)))
 	start = time.Now()
@@ -238,7 +250,9 @@ func Collect(ctx context.Context, r *rdns.Resolver, in Input) Output {
 		}
 	}
 	start = time.Now()
-	ptrs := LookupPTR(ctx, r, noPTR)
+	ptrs, _ := withBudget(ctx, 45*time.Second, func(ctx context.Context) (map[string]string, error) {
+		return LookupPTR(ctx, r, noPTR), nil
+	})
 	pi.Sources = append(pi.Sources, partialRun(sourceRun("reverse-dns", "PTR records (public resolvers)", time.Since(start), ctx.Err(), len(ptrs)), len(ptrs)))
 
 	// ── Exposure from Shodan's crawl data (InternetDB) ──
@@ -726,6 +740,13 @@ func partialRun(s models.SourceRun, results int) models.SourceRun {
 
 // withBudget runs fn under its own deadline so one slow third-party source
 // cannot stall the rest of the scan. Partial results are still returned.
+// dnsPosture bundles the DNS-posture lookups so they share a single time budget.
+type dnsPosture struct {
+	dnssec *models.DNSSECInfo
+	caa    *models.CAAInfo
+	email  *models.EmailSecurity
+}
+
 func withBudget[T any](ctx context.Context, d time.Duration, fn func(context.Context) (T, error)) (T, error) {
 	ctx, cancel := context.WithTimeout(ctx, d)
 	defer cancel()
